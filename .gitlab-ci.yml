@@ -106,3 +106,4 @@ pages:
     - public
   only:
     - master
+    - documentation-masterbranch
