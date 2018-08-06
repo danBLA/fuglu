@@ -94,15 +94,17 @@ pages:
   image: alpine
   stage: documentation
   script:
-  - mkdir public
-  - apk --no-cache add py2-pip python-dev
-  - pip install sphinx
-  - apk --no-cache add make
-  - cd documentation
-  - make html
-  - mv _build/* ../public/
+    - mkdir public
+    - apk --no-cache add py2-pip python-dev make
+    - cd fuglu/fuglu/develop/doc
+    - ./make_sphinx_plugin_doc.py > ../../../documentation/source/includedplugins-autogen.txt
+    - pip install sphinx
+    - cd ../../../documentation
+    - make html
+    - mv _build/* ../public/
   artifacts:
     paths:
     - public
   only:
     - master
+    - automate-plugin-doc-gen
