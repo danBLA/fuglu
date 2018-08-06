@@ -97,9 +97,9 @@ pages:
     - mkdir public
     - apk --no-cache add py2-pip python-dev make
     - cd fuglu/develop/doc
-    - ./make_sphinx_plugin_doc.py > ../../documentation/source/includedplugins-autogen.txt
+    - ./make_sphinx_plugin_doc.py > ../../../documentation/source/includedplugins-autogen.txt
     - pip install sphinx
-    - cd ../../documentation
+    - cd ../../../documentation
     - make html
     - mv _build/* ../public/
   artifacts:
