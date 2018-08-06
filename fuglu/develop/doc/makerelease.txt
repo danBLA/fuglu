@@ -5,11 +5,11 @@
 
 documentation
 -------------
-sphinx setup: pip2.7 install sphinx cloud_sptheme
+sphinx setup: pip2.7 install sphinx
 
  * update changelog
- * Update plugin doc, make sure new plugins are added in make_sphinx_plugin_doc.py
- * check out the fuglu.gh-pages branch in its own directory
+ * Update plugin doc, make sure new plugins are added in make_sphinx_plugin_doc.py : TODO automate in github pages
+
 
 git clone git@github.com:fumail/fuglu.git fuglu-gh-pages
 cd fuglu-gh-pages/
@@ -52,7 +52,5 @@ python setup.py sdist
 
 * pypi upload
 twine upload dist/fuglu-<new-version>.tar.gz
-
-* github release on https://github.com/fumail/fuglu/releases
 
 * mailing list announcement

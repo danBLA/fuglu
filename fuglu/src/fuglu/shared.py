@@ -164,7 +164,7 @@ class _SuspectDict(Mapping):
         return len(self.values)
 
 def apply_template(templatecontent, suspect, values=None, valuesfunction=None):
-    """Replace templatecontent variables as defined in http://fumail.github.io/fuglu/plugins-index.html#template-variables
+    """Replace templatecontent variables as defined in https://fumail.gitlab.io/fuglu/plugins-index.html#template-variables
     with actual values from suspect
     the calling function can pass additional values by passing a values dict
 
@@ -402,7 +402,7 @@ class Suspect(object):
             if val:
                 return True
         return False
-    
+
     def is_blocked(self):
         """Returns True if ANY plugin tagged this suspect as blocked"""
         for key in list(self.tags['blocked'].keys()):
@@ -418,13 +418,13 @@ class Suspect(object):
             if val:
                 return True
         return False
-    
+
     def is_ham(self):
         """Returns True if message is neither considered to be spam, virus or blocked"""
         if self.is_spam() or self.is_virus() or self.is_blocked() or self.is_highspam():
             return False
         return True
-    
+
     def update_subject(self, subject_cb, **cb_params):
         """
         update/alter the message subject
@@ -576,7 +576,7 @@ class Suspect(object):
         # do we have a cached instance already?
         if self._msgrep is not None:
             return self._msgrep
-        
+
         if self.source is not None:
             if sys.version_info > (3,):
                 # Python 3 and larger
@@ -588,14 +588,14 @@ class Suspect(object):
             else:
                 # Python 2.x
                 msgrep = email.message_from_string(self.source)
-        
+
             self._msgrep = msgrep
             return msgrep
         else:
             if sys.version_info > (3,):
                 # Python 3 and larger
                 # file should be binary...
-        
+
                 # IMPORTANT: It is possible to use email.message_from_bytes BUT this will automatically replace
                 #            '\r\n' in the message (_payload) by '\n' and the endtoend_test.py will fail!
                 tmpSource = self.get_original_source()
@@ -634,7 +634,7 @@ class Suspect(object):
         else:
             # Python 2.x
             self.set_source(msgrep.as_string(),att_mgr_reset=att_mgr_reset)
-    
+
         # order is important, set_source sets source to None
         self._msgrep = msgrep
 
@@ -881,12 +881,12 @@ class ScannerPlugin(BasicPlugin):
 
     def examine(self, suspect):
         self._logger().warning('Unimplemented examine() method')
-        
-        
+
+
 class AVScannerPlugin(ScannerPlugin):
     """AV Scanner Plugin Base Class - Scanner Plugins that communicate with external AV scanners"""
     enginename = 'generic-av'
-    
+
     def scan_stream(self, content, suspectid='(N/A)'):
         """
         Scans given byte buffer (file content). May raise an exception on errors.
@@ -895,8 +895,8 @@ class AVScannerPlugin(ScannerPlugin):
         :return: None if no virus is found, else a dict filename -> virusname
         """
         self._logger().warning('Unimplemented scan_stream() method')
-        
-        
+
+
     def _check_too_big(self, suspect):
         """
         Checks if a message is too big for the current anti virus engine. Expects a maxsize configuration directive to be present
@@ -908,8 +908,8 @@ class AVScannerPlugin(ScannerPlugin):
                                 (suspect.id, suspect.size, self.config.getint(self.section, 'maxsize')))
             return True
         return False
-    
-    
+
+
     def _virusreport(self, suspect, viruses):
         """
         Parses result of scan, tags suspect and returns action code and postfix reply message
@@ -927,7 +927,7 @@ class AVScannerPlugin(ScannerPlugin):
             suspect.debug('viruses found in message : %s' % viruses)
         else:
             suspect.tags['virus'][self.enginename] = False
-    
+
         if viruses is not None:
             virusaction = self.config.get(self.section, 'virusaction')
             actioncode = string_to_actioncode(virusaction, self.config)
@@ -937,8 +937,8 @@ class AVScannerPlugin(ScannerPlugin):
             message = apply_template(
                 self.config.get(self.section, 'rejectmessage'), suspect, values)
         return actioncode, message
-    
-    
+
+
     def _problemcode(self):
         """
         safely calculates action code based on problemaction config value
@@ -951,8 +951,8 @@ class AVScannerPlugin(ScannerPlugin):
         else:
             # in case of invalid problem action
             return DEFER
-    
-    
+
+
     def lint_eicar(self, scan_function_name='scan_stream'):
         """
         passes an eicar (generic virus test) to the scanner engine
@@ -982,7 +982,7 @@ AAoAAAAAAGQ7WyUjS4psRgAAAEYAAAAJAAAAAAAAAAEAIAD/gQAAAABlaWNhci5jb21QSwUGAAAA
 AAEAAQA3AAAAbQAAAAAA
 
 ------=_MIME_BOUNDARY_000_12140--"""
-        
+
         scan_function = getattr(self, scan_function_name)
         result = scan_function(force_bString(stream))
         if result is None:
@@ -1178,13 +1178,13 @@ class SuspectFilter(object):
         # no BeautifulSoup available, let's try a modified version of pyzor's
         # html stripper
         stripper = HTMLStripper(strip_tags=remove_tags)
-        
+
         try:
             # always try to replace nbsp as HTMLStripper would just remove them
             content = content.replace("&nbsp;", " ").replace("&#xa0;", " ").replace("&#160;", " ")
         except Exception:
             pass
-        
+
         try:
             stripper.feed(content)
             return force_uString(stripper.get_stripped_data())
@@ -1577,19 +1577,19 @@ class Cache(object):
     Simple local cache object.
     cached data will expire after a defined interval
     """
-    
+
     def __init__(self, cachetime=30, cleanupinterval=300):
         self.cache={}
         self.cachetime=cachetime
         self.cleanupinterval=cleanupinterval
         self.lock=threading.Lock()
         self.logger=logging.getLogger("%s.settingscache" % __package__)
-        
+
         t = threading.Thread(target=self.clear_cache_thread)
         t.daemon = True
         t.start()
-    
-    
+
+
     def put_cache(self,key,obj):
         try:
             gotlock=self.lock.acquire(True)
@@ -1600,14 +1600,14 @@ class Cache(object):
         finally:
             if gotlock:
                 self.lock.release()
-    
-    
+
+
     def get_cache(self,key):
         try:
             gotlock=self.lock.acquire(True)
             if not gotlock:
                 return None
-        
+
             ret=None
 
             if key in self.cache:
@@ -1623,8 +1623,8 @@ class Cache(object):
         finally:
             self.lock.release()
         return ret
-    
-    
+
+
     def clear_cache_thread(self):
         while True:
             time.sleep(self.cleanupinterval)
