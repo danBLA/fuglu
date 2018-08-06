@@ -48,7 +48,7 @@ setup(name="fuglu",
     description="Fuglu Mail Content Scanner",
     author="O. Schacher",
     url='http://www.fuglu.org',
-    download_url='http://github.com/fumail/fuglu/tarball/master',
+    download_url='https://gitlab.com/fumail/fuglu/-/archive/master/fuglu-master.tar.gz',
     author_email="oli@fuglu.org",
     package_dir={'': 'src'},
     packages=['fuglu', 'fuglu.plugins', 'fuglu.extensions', 'fuglu.lib', 'fuglu.connectors', ],
@@ -56,8 +56,8 @@ setup(name="fuglu",
            "src/tools/fuglu_control", "src/tools/fuglu_conf",
            "src/tools/fuglu_suspectfilter", "src/tools/fuglu_client",],
     long_description="""Fuglu is  a modular pre/after queue content filter written in python. It can be used to filter spam, viruses, unwanted attachments etc..
-    
-    see http://fumail.github.com/fuglu/ for more details.""",
+
+    see https://fumail.gitlab.io/ for more details.""",
     data_files=[
         ('/etc/fuglu', glob.glob('conf/*.dist')),
         ('/etc/fuglu/templates', glob.glob('conf/templates/*.dist')),
