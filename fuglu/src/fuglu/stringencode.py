@@ -207,7 +207,11 @@ def force_cfromb(bytes_iteratable):
     """
     if isinstance(bytes_iteratable,str):
         return bytes_iteratable
+    elif isinstance(bytes_iteratable,int):
+        return chr(bytes_iteratable)
     elif isinstance(bytes_iteratable,bytes):
         return "".join([chr(x) for x in bytes_iteratable])
+    elif isinstance(bytes_iteratable,list):
+        return [force_cfromb(b) for b in bytes_iteratable]
     else:
-        raise AttributeError
+        raise AttributeError("Type: %s is not str and not bytes"%(type(bytes_iteratable)))
