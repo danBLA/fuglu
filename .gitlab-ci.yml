@@ -94,14 +94,15 @@ pages:
   image: alpine
   stage: documentation
   script:
+  - mkdir public
   - apk --no-cache add py2-pip python-dev
   - pip install sphinx
   - apk --no-cache add make
   - cd documentation
   - make html
-  - mv _build/ public/
+  - mv _build/* ../public/
   artifacts:
     paths:
-    - documentation/public
+    - public
   only:
     - master
