@@ -103,3 +103,5 @@ pages:
   artifacts:
     paths:
     - documentation/public
+  only:
+    - master
