@@ -1,5 +1,5 @@
-#   Copyright 2009-2018 Oli Schacher
-#   Copyright 2009-2018 Oli Schacher
+# -*- coding: utf-8 -*-
+#   Copyright 2009-2018 Fumail Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,13 +15,9 @@
 #
 #
 
-
 import logging
-import struct
 import traceback
 import socket
-
-from fuglu.lib.ppymilterbase import PpyMilter, PpyMilterDispatcher, PpyMilterCloseConnection, SMFIC_BODYEOB, RESPONSE
 
 from fuglu.shared import Suspect
 from fuglu.protocolbase import ProtocolHandler, BasicTCPServer
@@ -30,8 +26,6 @@ import fuglu.lib.libmilter as lm
 import os
 from fuglu.stringencode import force_bString, force_uString
 
-MILTER_LEN_BYTES = 4  # from sendmail's include/libmilter/mfdef.h
-
 
 class MilterHandler(ProtocolHandler):
     protoname = 'MILTER V2'
@@ -39,63 +33,6 @@ class MilterHandler(ProtocolHandler):
     def __init__(self, socket, config):
         ProtocolHandler.__init__(self, socket, config)
         self.sess = MilterSession(socket, config)
-        try:
-            self._att_mgr_cachesize = config.getint('performance','att_mgr_cachesize')
-        except Exception:
-            self._att_mgr_cachesize = None
-
-    def get_suspect(self):
-        succ = self.sess.getincomingmail()
-        if not succ:
-            self.logger.error('MILTER SESSION NOT COMPLETED')
-            return None
-
-        sess = self.sess
-        fromaddr = sess.from_address
-        tempfilename = sess.tempfilename
-        suspect = Suspect(fromaddr, sess.recipients, tempfilename, att_cachelimit=self._att_mgr_cachesize)
-
-        if sess.helo is not None and sess.addr is not None and sess.rdns is not None:
-            suspect.clientinfo = sess.helo, sess.addr, sess.rdns
-
-        return suspect
-
-    def commitback(self, suspect):
-        self.sess.answer = self.sess.Continue()
-        self.sess.finish()
-        self.sess = None
-
-    def defer(self, reason):
-        # apparently milter wants extended status codes (at least
-        # milter-test-server does)
-        if not reason.startswith("4."):
-            reason = "4.7.1 %s" % reason
-        # self.logger.info("Defer...%s"%reason)
-        self.sess.answer = self.sess.CustomReply(450, reason)
-        self.sess.finish()
-        self.sess = None
-
-    def reject(self, reason):
-        # apparently milter wants extended status codes (at least
-        # milter-test-server does)
-        if not reason.startswith("5."):
-            reason = "5.7.1 %s" % reason
-        # self.logger.info("reject...%s"%reason)
-        self.sess.answer = self.sess.CustomReply(550, reason)
-        self.sess.finish()
-        self.sess = None
-
-    def discard(self, reason):
-        self.sess.answer = self.sess.Discard()
-        self.sess.finish()
-        self.sess = None
-
-class MilterHandler2(ProtocolHandler):
-    protoname = 'MILTER V2'
-
-    def __init__(self, socket, config):
-        ProtocolHandler.__init__(self, socket, config)
-        self.sess = MilterSession2(socket, config)
         try:
             self._att_mgr_cachesize = config.getint('performance','att_mgr_cachesize')
         except Exception:
@@ -126,6 +63,12 @@ class MilterHandler2(ProtocolHandler):
         Args:
             newbody (string(encoded)): new message body
         """
+        if not lm.SMFIF_CHGBODY & self.sess._opts & self.sess._mtaOpts:
+            self.logger.error('Change body called without the proper opts set, '
+                              'availability -> fuglu: %s, mta: %s'%
+                              ("True" if lm.SMFIF_CHGBODY & self.sess._opts else "False",
+                               "True" if lm.SMFIF_CHGBODY & self.sess._mtaOpts else "False"))
+            return
         self.sess.replBody(force_bString(newbody))
 
     def addheader(self,key,value):
@@ -137,6 +80,12 @@ class MilterHandler2(ProtocolHandler):
             key (string(encoded)): header key
             value (string(encoded)): header value
         """
+        if not lm.SMFIF_ADDHDRS & self.sess._opts & self.sess._mtaOpts:
+            self.logger.error('Add header called without the proper opts set, '
+                              'availability -> fuglu: %s, mta: %s'%
+                              ("True" if lm.SMFIF_ADDHDRS & self.sess._opts else "False",
+                               "True" if lm.SMFIF_ADDHDRS & self.sess._mtaOpts else "False"))
+            return
         self.sess.addHeader(force_bString(key),force_bString(value))
 
     def changeheader(self,key,value):
@@ -148,16 +97,31 @@ class MilterHandler2(ProtocolHandler):
             key (string(encoded)): header key
             value (string(encoded)): header value
         """
+        if not lm.SMFIF_CHGHDRS & self.sess._opts & self.sess._mtaOpts:
+            self.logger.error('Change header called without the proper opts set, '
+                              'availability -> fuglu: %s, mta: %s'%
+                              ("True" if lm.SMFIF_CHGHDRS & self.sess._opts else "False",
+                               "True" if lm.SMFIF_CHGHDRS & self.sess._mtaOpts else "False"))
+            return
         self.sess.chgHeader(force_bString(key),force_bString(value))
 
     def change_from(self,fromaddress):
 
         if not lm.SMFIF_CHGFROM & self.sess._opts & self.sess._mtaOpts:
-            self.logger.error('Change from called without the proper opts set, availability -> fuglu: %s, mta: %s'%("True" if lm.SMFIF_CHGFROM & self.sess._opts else "False","True" if lm.SMFIF_CHGFROM & self.sess._mtaOpts else "False"))
+            self.logger.error('Change from called without the proper opts set, '
+                              'availability -> fuglu: %s, mta: %s'%
+                              ("True" if lm.SMFIF_CHGFROM & self.sess._opts else "False",
+                               "True" if lm.SMFIF_CHGFROM & self.sess._mtaOpts else "False"))
             return
-        self.sess.chgFrom(force_bString(fromaddress),b"")
+        self.sess.chgFrom(force_bString(fromaddress))
 
     def add_rcpt(self,rcpt):
+        if not lm.SMFIF_ADDRCPT_PAR & self.sess._opts & self.sess._mtaOpts:
+            self.logger.error('Add rcpt called without the proper opts set, '
+                              'availability -> fuglu: %s, mta: %s'%
+                              ("True" if lm.SMFIF_ADDRCPT_PAR & self.sess._opts else "False",
+                               "True" if lm.SMFIF_ADDRCPT_PAR & self.sess._mtaOpts else "False"))
+            return
         self.sess.addRcpt(force_bString(rcpt))
 
     def endsession(self):
@@ -247,7 +211,7 @@ class MilterHandler2(ProtocolHandler):
         self.logger.debug("discard -> close session and set None")
         self.endsession()
 
-class MilterSession2(lm.MilterProtocol):
+class MilterSession(lm.MilterProtocol):
     def __init__(self, socket, config):
         # enable options for version 2 protocol
         lm.MilterProtocol.__init__(self,opts=lm.SMFIF_ALLOPTS)
@@ -291,49 +255,30 @@ class MilterSession2(lm.MilterProtocol):
                 self.logger.debug("receive data from transport")
                 buf = self.transport.recv(lm.MILTER_CHUNK_SIZE)
                 self.logger.debug("after receive")
-            except AttributeError:
-                # Socket has been closed
-                pass
-            except socket.error:
-                pass
-            except socket.timeout:
+            except (AttributeError,socket.error,socket.timeout):
+                # Socket has been closed, error or timeout happened
                 pass
             if not buf:
-                # try:
-                #     self.logger.debug("Call close on trasport")
-                #     self.transport.close()
-                #     self.logger.debug("-> successfully closed transport")
-                # except:
-                #     pass
-                # self.logger.debug("Call connectionLost")
-                # self.connectionLost()
-                # self.logger.debug("Call tempfile.close")
-                # self.tempfile.close()
-                # self.logger.debug("success -> return true")
-                self.logger.debug("buf is nonzero")
+                self.logger.debug("buf is empty -> return")
                 return True
-                #break
             try:
-                self.logger.debug("run dataReceived")
                 self.dataReceived(buf)
-                self.logger.debug("after dataReceived")
             except Exception as e:
                 self.log('AN EXCEPTION OCCURED IN %s: %s' % (self.id , e))
                 self.logger.exception(e)
                 if lm.DEBUG:
                     traceback.print_exc()
-                    lm.debug('AN EXCEPTION OCCURED: %s' % e , 1 , self.id)
+                    lm.debug('AN EXCEPTION OCCURED: %s' % e, 1, self.id)
                 self.logger.debug("Call connectionLost")
                 self.connectionLost()
                 self.logger.debug("fail -> return false")
                 return False
-                #break
         return self._exit_incomingmail
 
     def log(self , msg):
         self.logger.debug(msg)
 
-    #@lm.noReply
+    @lm.noReply
     def connect(self , hostname , family , ip , port , cmdDict):
         self.log('Connect from %s:%d (%s) with family: %s' % (ip , port ,
                                                               hostname , family))
@@ -348,13 +293,13 @@ class MilterSession2(lm.MilterProtocol):
         self.addr = ip
         return lm.CONTINUE
 
-    #@lm.noReply
+    @lm.noReply
     def helo(self , heloname):
         self.log('HELO: %s' % heloname)
         self.heloname = force_uString(heloname)
         return lm.CONTINUE
 
-    #@lm.noReply
+    @lm.noReply
     def mailFrom(self , frAddr , cmdDict):
         self.log('MAIL: %s' % frAddr)
 
@@ -362,21 +307,21 @@ class MilterSession2(lm.MilterProtocol):
         self.from_address = frAddr
         return lm.CONTINUE
 
-    #@lm.noReply
+    @lm.noReply
     def rcpt(self , recip , cmdDict):
         self.log('RCPT: %s' % recip)
         # store exactly what was received
         self.recipients.append(recip)
         return lm.CONTINUE
 
-    #@lm.noReply
+    @lm.noReply
     def header(self , key , val , cmdDict):
         self.log('%s: %s' % (key , val))
         #self.tempfile.write("%s: %s\n" % (key, val))
         self.tempfile.write(key+b": "+val+b"\n")
         return lm.CONTINUE
 
-    #@lm.noReply
+    @lm.noReply
     def eoh(self , cmdDict):
         self.log('EOH')
         self.tempfile.write(b"\n")
@@ -386,7 +331,7 @@ class MilterSession2(lm.MilterProtocol):
         self.log('DATA')
         return lm.CONTINUE
 
-    #@lm.noReply
+    @lm.noReply
     def body(self , chunk , cmdDict):
         self.log('Body chunk: %d' % len(chunk))
         self.tempfile.write(chunk)
@@ -399,13 +344,12 @@ class MilterSession2(lm.MilterProtocol):
         except Exception as e:
             self.logger.exception(e)
             pass
-        #self.setReply('554' , '5.7.1' , 'Rejected because I said so')
-        #return lm.CONTINUE
-        self.logger.debug("end of body called")
+        # set true to end the loop
         self._exit_incomingmail = True
+        # To prevent the library from ending the connection, return
+        # Deferred which will not send anything back to the mta. Thi
+        # has to be done outside (See commit function in handler).
         return lm.Deferred()
-
-        #return lm.CONTINUE
 
     def close(self):
         self.log('Close called. QID: %s' % self._qid)
@@ -442,157 +386,7 @@ class MilterSession2(lm.MilterProtocol):
         self.tempfile = None
         self.tempfilename = None
 
-class MilterSession(PpyMilter):
-
-    def __init__(self, socket, config):
-        PpyMilter.__init__(self)
-        self.socket = socket
-        self.config = config
-        self.CanAddHeaders()
-        self.CanChangeBody()
-        self.CanChangeHeaders()
-
-        self.logger = logging.getLogger('fuglu.miltersession')
-
-        self.__milter_dispatcher = PpyMilterDispatcher(self)
-        self.recipients = []
-        self.from_address = None
-
-        (handle, tempfilename) = tempfile.mkstemp(
-            prefix='fuglu', dir=self.config.get('main', 'tempdir'))
-        self.tempfilename = tempfilename
-        self.tempfile = os.fdopen(handle, 'w+b')
-
-        self.currentmilterdata = None
-
-        self.answer = self.Continue()
-
-        self.helo = None
-        self.ip = None
-        self.rdns = None
-
-    def OnConnect(self, cmd, hostname, family, port, address):
-        if family not in ('4', '6'):  # we don't handle unix socket
-            return self.Continue()
-        if hostname is None or hostname == '[%s]' % address:
-            hostname = 'unknown'
-
-        self.rdns = hostname
-        self.addr = address
-        return self.Continue()
-
-    def OnHelo(self, cmd, helo):
-        self.helo = helo
-        return self.Continue()
-
-    def OnRcptTo(self, cmd, rcpt_to, esmtp_info):
-        self.recipients.append(rcpt_to)
-        return self.Continue()
-
-    def OnMailFrom(self, cmd, mail_from, args):
-        self.from_address = mail_from
-        return self.Continue()
-
-    def OnHeader(self, cmd, header, value):
-        self.tempfile.write("%s: %s\n" % (header, value))
-        return self.Continue()
-
-    def OnEndHeaders(self, cmd):
-        self.tempfile.write("\n")
-        return self.Continue()
-
-    def OnBody(self, cmd, data):
-        self.tempfile.write(data)
-        return self.Continue()
-
-    def OnEndBody(self, cmd):
-        return self.answer
-
-    def OnResetState(self):
-        self.recipients = None
-        self.tempfile = None
-        self.tempfilename = None
-
-    def _read_milter_command(self):
-        lenbuf = []
-        lenread = 0
-        while lenread < MILTER_LEN_BYTES:
-            pdat = self.socket.recv(MILTER_LEN_BYTES - lenread)
-            lenbuf.append(pdat)
-            lenread += len(pdat)
-        dat = b"".join(lenbuf)
-        # self.logger.info(dat)
-        # self.logger.info(len(dat))
-        packetlen = int(struct.unpack('!I', dat)[0])
-        inbuf = []
-        read = 0
-        while read < packetlen:
-            partial_data = self.socket.recv(packetlen - read)
-            inbuf.append(partial_data)
-            read += len(partial_data)
-        data = b"".join(inbuf)
-        return data
-
-    def finish(self):
-        """we assume to be at SMFIC_BODYEOB"""
-        try:
-            while True:
-                if self.currentmilterdata != None:
-                    data = self.currentmilterdata
-                    self.currentmilterdata = None
-                else:
-                    data = self._read_milter_command()
-                try:
-                    response = self.__milter_dispatcher.Dispatch(data)
-                    if type(response) == list:
-                        for r in response:
-                            self.__send_response(r)
-                    elif response:
-                        self.__send_response(response)
-                except PpyMilterCloseConnection as e:
-                    #logging.info('Closing connection ("%s")', str(e))
-                    break
-        except Exception as e:
-            # TODO: here we get broken pipe if we're not using self.Continue(), but the milter client seems happy
-            # so, silently discarding this exception for now
-            pass
-
-    def getincomingmail(self):
-        try:
-            while True:
-                data = self._read_milter_command()
-                self.currentmilterdata = data
-                (cmd, args) = (data[0], data[1:])
-                if cmd == SMFIC_BODYEOB:
-                    self.tempfile.close()
-                    return True
-                try:
-                    response = self.__milter_dispatcher.Dispatch(data)
-                    if type(response) == list:
-                        for r in response:
-                            self.__send_response(r)
-                    elif response:
-                        self.__send_response(response)
-                except PpyMilterCloseConnection as e:
-                    #logging.info('Closing connection ("%s")', str(e))
-                    break
-        except Exception as e:
-            exc = traceback.format_exc()
-            self.logger.error('Exception in MilterSession: %s %s' % (e, exc))
-            return False
-        return False
-
-    def __send_response(self, response):
-        """Send data down the milter socket.
-
-        Args:
-          response: the data to send
-        """
-        self.socket.send(struct.pack('!I', len(response)))
-        self.socket.send(force_bString(response))
-
-
 class MilterServer(BasicTCPServer):
 
     def __init__(self, controller, port=10125, address="127.0.0.1"):
-        BasicTCPServer.__init__(self, controller, port, address, MilterHandler2)
+        BasicTCPServer.__init__(self, controller, port, address, MilterHandler)
