@@ -151,7 +151,11 @@ class MilterHandler2(ProtocolHandler):
         self.sess.chgHeader(force_bString(key),force_bString(value))
 
     def change_from(self,fromaddress):
-        self.sess.chgFrom(force_bString(fromaddress))
+
+        if not lm.SMFIF_CHGFROM & self.sess._opts & self.sess._mtaOpts:
+            self.logger.error('Change from called without the proper opts set, availability -> fuglu: %s, mta: %s'%("True" if lm.SMFIF_CHGFROM & self.sess._opts else "False","True" if lm.SMFIF_CHGFROM & self.sess._mtaOpts else "False"))
+            return
+        self.sess.chgFrom(force_bString(fromaddress),b"")
 
     def add_rcpt(self,rcpt):
         self.sess.addRcpt(force_bString(rcpt))
@@ -246,7 +250,7 @@ class MilterHandler2(ProtocolHandler):
 class MilterSession2(lm.MilterProtocol):
     def __init__(self, socket, config):
         # enable options for version 2 protocol
-        lm.MilterProtocol.__init__(self,opts=lm.SMFIF_ALLOPTS_V2)
+        lm.MilterProtocol.__init__(self,opts=lm.SMFIF_ALLOPTS)
         self.transport = socket
         self.config = config
         self.logger = logging.getLogger('fuglu.miltersession2')
