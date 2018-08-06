@@ -4,6 +4,7 @@ stages:
   - build
   - test_isolated
   - test
+  - documentation
 
 unittests:
   stage: test
@@ -67,7 +68,7 @@ integrationtests_py3:
 buildfuglu:
   stage: build
   script:
-    - cd fuglu 
+    - cd fuglu
     - python setup.py build_py -d /tmp/build install --force
     - rename '.dist' '' /etc/fuglu/*.dist
     - mkdir -p /var/log/fuglu
@@ -88,3 +89,20 @@ buildfuglu_py3:
   only:
     - master
     - develop
+
+pages:
+  image: alpine
+  stage: documentation
+  script:
+  - mkdir public
+  - apk --no-cache add py2-pip python-dev
+  - pip install sphinx
+  - apk --no-cache add make
+  - cd documentation
+  - make html
+  - mv _build/* ../public/
+  artifacts:
+    paths:
+    - public
+  only:
+    - master
