@@ -19,7 +19,7 @@ to work correctly when switching from python2 to python3.
 How can I submit changes to the documentation?
 ..............................................
 
-The fuglu documentation is  in the branch ``gh-pages``, please edit the text files in the ``source`` folder and submit a pull request.
+The fuglu documentation is the folder ``documentation/source``. Please edit the text files in this folder and submit a pull request.
 
 How do I upgrade/downgrade Fuglu?
 .................................
