@@ -25,11 +25,11 @@ How do I upgrade/downgrade Fuglu?
 .................................
 
 Just install the new (or downgrade ) version, overwriting the previous one. There are usually no breaking changes.
-Check the changelog to make sure: https://github.com/fumail/fuglu/blob/master/fuglu/doc/CHANGELOG
+Check the changelog to make sure: https://gitlab.com/fumail/fuglu/blob/master/fuglu/doc/CHANGELOG
 
 ---------------
 Asking for help
 ---------------
 
  * The fuglu developers and users can be contacted through the fuglu mailing list. Subscribe here : http://fuglu.org/mailman/listinfo/fuglu-users_fuglu.org
- * It's also ok to ask short questions in a github issue
+ * It's also ok to ask short questions in a gitlab issue
