@@ -25,6 +25,7 @@ import tempfile
 import fuglu.lib.libmilter as lm
 import os
 from fuglu.stringencode import force_bString, force_uString
+from email.header import Header
 
 
 class MilterHandler(ProtocolHandler):
@@ -37,6 +38,28 @@ class MilterHandler(ProtocolHandler):
             self._att_mgr_cachesize = config.getint('performance', 'att_mgr_cachesize')
         except Exception:
             self._att_mgr_cachesize = None
+
+        try:
+            configstring = config.getint('milter', 'milter_mode')
+        except Exception:
+            configstring = "accept, tags"
+
+        self.enable_mode_auto = "auto" in configstring
+        self.enable_mode_readonly = "readonly" in configstring
+        self.enable_mode_tags = "tags" in configstring
+
+        self.logger.info("Milter mode: auto=%s, readonly=%s, tags=%s" %
+                         (self.enable_mode_auto, self.enable_mode_readonly, self.enable_mode_tags))
+
+        try:
+            self.milter_mode_options = config.getint('milter', 'milter_mode_options')
+        except Exception:
+            self.milter_mode_options = ""
+
+        self.logger.info("Milter config: all=%s, body=%s, headers=%s, from=%s, to=%s" %
+                         ("all" in self.milter_mode_options, "body" in self.milter_mode_options,
+                          "headers" in self.milter_mode_options, "from" in self.milter_mode_options,
+                          "to" in self.milter_mode_options))
 
     def get_suspect(self):
         if not self.sess.getincomingmail():
@@ -152,54 +175,162 @@ class MilterHandler(ProtocolHandler):
             self.sess.delRcpt(recipient)
         self.sess.recipients = []
 
+    def remove_headers(self):
+        """
+        Remove all original headers
+        """
+        for key, value in self.sess.original_headers:
+            self.logger.debug("Remove header-> %s: %s" % (force_uString(key), force_uString(value)))
+            self.changeheader(key, b"")
+        self.sess.original_headers = []
+
     def commitback(self, suspect):
-        self.logger.debug("enter commitback")
+        """
+        Commit message. Modify message if requested.
+        Args:
+            suspect (fuglu.shared.Suspect): the suspect
+
+        """
+        suspect.set_message_rep(self.replacement_mail())
+        suspect.set_tag('milter_replace','all')
+
         # --------------- #
         # modifications   #
         # --------------- #
+        replace_headers = False
+        replace_body = False
+        replace_from = False
+        replace_to = False
 
-        if suspect.orig_from_address_changed():
+        if self.enable_mode_auto:
+            replace_headers = False
+            replace_body = suspect.is_modified()
+            replace_from = suspect.orig_from_address_changed()
+            replace_to = suspect.orig_recipients_changed()
+
+        if self.milter_mode_options:
+            if "all" in self.milter_mode_options:
+                replace_headers = True
+                replace_body = True
+                replace_from = True
+                replace_to = True
+            if "body" in self.milter_mode_options:
+                replace_body = True
+            if "headers" in self.milter_mode_options:
+                replace_headers = True
+            if "from" in self.milter_mode_options:
+                replace_from = True
+            if "to" in self.milter_mode_options:
+                replace_from = True
+
+        milter_replace_tag = suspect.get_tag('milter_replace')
+        if milter_replace_tag:
+            milter_replace_tag = milter_replace_tag.lower()
+            if "all" in milter_replace_tag:
+                replace_headers = True
+                replace_body = True
+                replace_from = True
+                replace_to = True
+            if "body" in milter_replace_tag:
+                replace_body = True
+            if "headers" in milter_replace_tag:
+                replace_headers = True
+            if "from" in milter_replace_tag:
+                replace_from = True
+            if "to" in milter_replace_tag:
+                replace_from = True
+
+        if replace_from:
             self.logger.debug("Set new envelope \"from address\": %s" % suspect.from_address)
             self.change_from(suspect.from_address)
 
-        if suspect.orig_recipients_changed():
+        if replace_to:
             # remove original recipients
             self.remove_recipients()
 
             # add new recipients, use list in suspect
+            self.logger.debug("Add %u envelope recipient(s)" % len(suspect.recipients))
             for recipient in suspect.recipients:
-                self.logger.debug("Add \"envelope recipient\": %s" % recipient)
                 self.add_rcpt(recipient)
-        else:
-            self.logger.debug("keep original recipients...")
 
-        for key, val in iter(suspect.added_headers.items()):
-            self.logger.debug("Add header (1)-> %s: %s" % (key, val))
-            self.addheader(key, val)
+        if self.enable_mode_auto and not replace_headers:
+            self.logger.debug("Modify(%u)/add(%u) headers according to modification track in suspect" %
+                              (len(suspect.added_headers),len(suspect.modified_headers)))
+            for key, val in iter(suspect.added_headers.items()):
+                hdr = Header(val, header_name=key, continuation_ws=' ')
+                self.addheader(key, hdr.encode())
 
-        for key, val in iter(suspect.modified_headers.items()):
-            self.logger.debug("Change header-> %s: %s" % (key, val))
-            self.changeheader(key, val)
+            for key, val in iter(suspect.modified_headers.items()):
+                hdr = Header(val, header_name=key, continuation_ws=' ')
+                self.changeheader(key, hdr.encode())
 
-        for key, val in iter(suspect.addheaders.items()):
-            self.logger.debug("Add header (2)-> %s: %s" % (key, val))
-            self.addheader(key, val)
-
-        if suspect.is_modified():
-            self.logger.debug("Message is marked as modified -> replace body")
+        if replace_headers:
             msg = suspect.get_message_rep()
-            temp_buffer = b""
+            self.logger.debug("Remove %u original headers " % len(msg))
+            self.remove_headers()
+            self.logger.debug("Add %u headers from suspect mail" % len(msg))
+            for key, val in iter(msg.items()):
+                hdr = Header(val, header_name=key, continuation_ws=' ')
+                self.addheader(key, hdr.encode())
+        # --
+        # headers to add, same as for the other connectors
+        # --
+        self.logger.debug("Add %u headers as defined in suspect" % len(suspect.addheaders))
+        for key, val in iter(suspect.addheaders.items()):
+            hdr = Header(val, header_name=key, continuation_ws=' ')
+            self.addheader(key, hdr.encode())
+
+        if replace_body:
+            self.logger.debug("Replace message body")
+            msg = suspect.get_message_rep()
             if msg.is_multipart():
-                for payload in msg.get_payload:
-                    temp_buffer += payload
-            else:
-                temp_buffer = msg.get_payload()
-            self.replacebody(temp_buffer)
+
+            self.replacebody(suspect.get_source)
 
         self.sess.send(lm.CONTINUE)
-
-        self.logger.debug("commitback -> close session and set None")
         self.endsession()
+
+    def replacement_mail(self):
+        import email
+        from email.mime.multipart import MIMEMultipart
+        from email.mime.text import MIMEText
+
+        # me == my email address
+        # you == recipient's email address
+
+        # Create message container - the correct MIME type is multipart/alternative.
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = "Replacement message info"
+        msg['From'] = me
+        msg['To'] = you
+        msg['bad'] = "luck"
+
+        # Create the body of the message (a plain-text and an HTML version).
+        text = "Hi!\nBad luck, your message has been replaced completely :-)"
+        html = u"""\
+        <html>
+          <head></head>
+          <body>
+            <p>Hi!<br>
+               Bad luck!<br>
+               Your message has been replaced completely :-)
+            </p>
+          </body>
+        </html>
+        """
+
+
+        # Record the MIME types of both parts - text/plain and text/html.
+        part1 = MIMEText(text, 'plain')
+        part2 = MIMEText(html, 'html',_charset="UTF-8")
+
+        # Attach parts into message container.
+        # According to RFC 2046, the last part of a multipart message, in this case
+        # the HTML message, is best and preferred.
+        msg.attach(part1)
+        msg.attach(part2)
+
+        return msg
 
     def defer(self, reason):
         """
@@ -254,6 +385,7 @@ class MilterSession(lm.MilterProtocol):
         self._exit_incomingmail = False
         self._tempfile = None
         self.tempfilename = None
+        self.original_headers = []
 
     @property
     def tempfile(self):
@@ -324,7 +456,7 @@ class MilterSession(lm.MilterProtocol):
                 return False
         return self._exit_incomingmail
 
-    def log(self , msg):
+    def log(self, msg):
         self.logger.debug(msg)
 
     @lm.noReply
@@ -364,6 +496,8 @@ class MilterSession(lm.MilterProtocol):
     def header(self, key, val, command_dict):
         self.log('%s: %s' % (key, val))
         self.tempfile.write(key+b": "+val+b"\n")
+        # backup original headers
+        self.original_headers.append((key, val))
         return lm.CONTINUE
 
     @lm.noReply
@@ -386,6 +520,7 @@ class MilterSession(lm.MilterProtocol):
         except Exception as e:
             self.logger.exception(e)
             pass
+
         # set true to end the loop in "incomingmail"
         self._exit_incomingmail = True
         # To prevent the library from ending the connection, return

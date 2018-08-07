@@ -253,7 +253,6 @@ class Suspect(object):
             if not Addrcheck().valid(rec):
                 raise ValueError("Invalid recipient address: %s"%rec)
 
-
         # additional basic information
         self.timestamp = time.time()
         self.id = self._generate_id()
@@ -276,9 +275,9 @@ class Suspect(object):
         self._att_mgr = None
         """Attachment manager"""
 
-        #---------------#
+        # ------------- #
         # modifications #
-        #---------------#
+        # ------------- #
         self.modified_headers = {}
         """To keep track of modified headers"""
 
