@@ -18,6 +18,7 @@
 import functools
 import time
 import operator
+import weakref
 
 #--
 # For examples check the tests in "caching_test.py"
@@ -41,7 +42,13 @@ def smart_cached_property(inputs=[]):
     def smart_cp(f):
         @functools.wraps(f)
         def get(self):
-            input_values = dict((key,getattr(self,key)) for key in inputs )
+            #input_values = dict((key,getattr(self,key)) for key in inputs )
+            input_values = dict()
+            for key in inputs:
+                try:
+                    input_values[key] = weakref.ref(getattr(self, key))
+                except TypeError:
+                    input_values[key] = getattr(self, key)
 
             #  cstats: stats for cached hits
             # ucstats: stats for uncached hits
@@ -49,11 +56,14 @@ def smart_cached_property(inputs=[]):
 
             # get dict with caching limits
             try:
-                # Py 2
-                climits = get_cachinglimits(self,f.func_name)
+                # Python 2
+                funcname = f.func_name
             except AttributeError:
-                # Py 3
-                climits = get_cachinglimits(self,f.__name__)
+                # Python 3
+                funcname = f.__name__
+
+            # get dict with caching limits
+            climits = get_cachinglimits(self,funcname)
 
             try:
                 __property_cache = self._property_cache
@@ -68,9 +78,9 @@ def smart_cached_property(inputs=[]):
                 self._property_input_cache = __property_input_cache
 
             try:
-                x = __property_cache[f]
-                if input_values == __property_input_cache[f]:
-                    stats_increment(cstats,f)
+                x = __property_cache[funcname]
+                if input_values == __property_input_cache[funcname]:
+                    stats_increment(cstats,funcname)
                     return x
             except KeyError:
                 pass
@@ -85,11 +95,11 @@ def smart_cached_property(inputs=[]):
             #---   ---#
             #- cache -#
             #---   ---#
-            if not climits.get('nocache') and func_allow_cache:
-                __property_cache[f] = x
-                __property_input_cache[f] = input_values
+            if not climits.get('nocache') and func_allow_cache and False:
+                __property_cache[funcname] = x
+                __property_input_cache[funcname] = input_values
 
-            stats_increment(ucstats,f)
+            stats_increment(ucstats,funcname)
 
             return x
         return property(get)
@@ -112,7 +122,14 @@ def smart_cached_memberfunc(inputs=[]):
     def smart_cm(f):
         @functools.wraps(f)
         def get(self,*args,**kwargs):
-            input_values = dict((key,getattr(self,key)) for key in inputs )
+            #input_values = dict((key,getattr(self,key)) for key in inputs )
+            input_values = dict()
+            for key in inputs:
+                try:
+                    input_values[key] = weakref.ref(getattr(self, key))
+                except TypeError:
+                    input_values[key] = getattr(self, key)
+
             # need immutable object because fun_input will be used as the key
             # in the dict and therefore has to be hashable
             fun_input = args + tuple([item for item in kwargs.items()])
@@ -124,10 +141,12 @@ def smart_cached_memberfunc(inputs=[]):
             # get dict with caching limits
             try:
                 # Python 2
-                climits = get_cachinglimits(self,f.func_name)
+                funcname = f.func_name
             except AttributeError:
                 # Python 3
-                climits = get_cachinglimits(self,f.__name__)
+                funcname = f.__name__
+
+            climits = get_cachinglimits(self,funcname)
 
             try:
                 __function_cache = self._function_cache
@@ -142,11 +161,11 @@ def smart_cached_memberfunc(inputs=[]):
                 self._property_input_cache = __property_input_cache
 
             try:
-                (cached_args,cached_timestamps) = __function_cache[f]
-                if input_values == __property_input_cache[f]:
+                (cached_args,cached_timestamps) = __function_cache[funcname]
+                if input_values == __property_input_cache[funcname]:
                     x = cached_args[fun_input]
 
-                    stats_increment(cstats,f)
+                    stats_increment(cstats,funcname)
                     cached_timestamps[fun_input] = time.time()
                     return x
             except KeyError as e:
@@ -157,11 +176,11 @@ def smart_cached_memberfunc(inputs=[]):
                 # "tdict" stores the last call time of the function for given function input
                 #
                 # with function input beying a list storing args + keyword args
-                fdict,tdict = __function_cache[f]
+                fdict,tdict = __function_cache[funcname]
             except KeyError:
                 fdict = {}
                 tdict = {}
-                __function_cache[f] = (fdict,tdict)
+                __function_cache[funcname] = (fdict,tdict)
 
             x = f(self,*args,**kwargs)
 
@@ -173,14 +192,14 @@ def smart_cached_memberfunc(inputs=[]):
             #---   ---#
             #- cache -#
             #---   ---#
-            if not climits.get('nocache') and func_allow_cache:
+            if not climits.get('nocache') and func_allow_cache and False:
                 #----
                 #-- cache function call, result and call time
                 #----
                 fdict[fun_input] = x
                 tdict[fun_input] = time.time()
 
-                __property_input_cache[f] = input_values
+                __property_input_cache[funcname] = input_values
 
                 num_cache = climits.get('max_ncached')
                 if num_cache is not None:
@@ -201,7 +220,7 @@ def smart_cached_memberfunc(inputs=[]):
                             else:
                                 break
 
-            stats_increment(ucstats,f)
+            stats_increment(ucstats,funcname)
             return x
         return get
     return smart_cm
@@ -327,19 +346,10 @@ class Cachestats(object):
                  +"- Cache statistics: -\n"\
                  +"---------------------\n" \
                  +"\n"
-        for k,vCached in iter(self._smart_cached_stats.items()):
-            try:
-                fname = k.func_name
-            except AttributeError:
-                try:
-                    fname = k.__name__
-                except Exception as e:
-                    raise e
-            except Exception as e:
-                fname = k
+        for fname,vCached in iter(self._smart_cached_stats.items()):
             string += "Calls for \"%s\": (cached/uncached) = (%u/%u)\n"%(fname,
-                                                                self._smart_cached_stats[k],
-                                                                self._smart_uncached_stats[k])
+                                                                self._smart_cached_stats[fname],
+                                                                self._smart_uncached_stats[fname])
         return string
 
 class Cachelimits(object):

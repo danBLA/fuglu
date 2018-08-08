@@ -158,6 +158,8 @@ class SessionHandler(object):
                 os.remove(suspect.tempfile)
                 self.logger.debug('Removed tempfile %s' % suspect.tempfile)
                 suspect.tempfile = None
+                if suspect._att_mgr is not None:
+                    del suspect._att_mgr
             except OSError:
                 self.logger.warning('Could not remove tempfile %s' % suspect.tempfile)
         except KeyboardInterrupt:

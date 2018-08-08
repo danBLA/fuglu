@@ -605,8 +605,9 @@ class Suspect(object):
         """
         self.source = force_bString(source,encoding=encoding)
         self._msgrep = None
-        if att_mgr_reset:
-            self._att_mgr = None
+        #if att_mgr_reset:
+            #self._att_mgr = None
+        self._att_mgr = None
 
     def setSource(self, source):
         """old name for set_source"""

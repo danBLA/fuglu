@@ -4,10 +4,11 @@ import sys
 import email
 from os.path import join
 from fuglu.mailattach import Mailattachment_mgr, Mailattachment
-from fuglu.shared import Suspect
+from fuglu.shared import Suspect, SuspectFilter
 from unittestsetup import TESTDATADIR
 import tempfile
 import shutil
+import objgraph
 
 class Mailattachment_mgr_test(unittest.TestCase):
     def test_manager(self):
@@ -328,3 +329,163 @@ class SuspectTest(unittest.TestCase):
         print(  "--------------------------------------------------")
         print(",".join(obj.filename for obj in suspect.att_mgr.get_objectlist(level=None)))
         self.assertEqual(3,suspect.att_mgr._mailatt_obj_counter,"Object was cached, it should not be created again")
+
+    def test_leakage(self):
+
+        import gc
+        nloops = 1
+
+        initialListObjs = objgraph.by_type('list')
+        gc.collect()
+        print("Before loops:")
+        objgraph.show_growth(limit=10)
+        self.doWork(nloops)
+        objgraph.show_growth(limit=10)
+
+        gc.collect()
+        print("\nAfter loops:")
+        objgraph.show_growth(limit=10)
+
+        finalListObjs = objgraph.by_type('list')
+        initialListObjsSet = set(id(x) for x in initialListObjs)
+
+        newListObjs = []
+        id_newListObjs = id(newListObjs)
+        id_initialListObjs=id(initialListObjs)
+        id_initialListObjsSet=id(initialListObjsSet)
+        id_finalListObjs=id(finalListObjs)
+        for o in finalListObjs:
+            ido = id(o)
+            if ido == id_initialListObjs:
+                pass
+            elif ido == id_initialListObjsSet:
+                pass
+            elif ido == id_finalListObjs:
+                pass
+            elif ido == id_newListObjs:
+                pass
+            elif ido not in initialListObjsSet:
+                newListObjs.append(o)
+        print("New list objs: %u" % len(newListObjs))
+
+        objgraph.show_backrefs(newListObjs, max_depth=3, refcounts=True)
+        #objgraph.show_chain(objgraph.find_backref_chain(newListObjs[-1],objgraph.is_proper_module),filename="chain.png")
+
+        print("------------------------------------------")
+        susObj = objgraph.by_type('Suspect')
+        maObj = objgraph.by_type('Mailattachment')
+        mamObj = objgraph.by_type('Mailattachment_mgr')
+        print("Suspects in memory: %u" % len(susObj))
+        print("MailAttachments in memory: %u" % len(maObj))
+        print("MailAttachmentMgr in memory: %u" % len(mamObj))
+
+    def doWork(self,nloops):
+        #from random import choice
+        #from string import ascii_lowercase
+        #import email
+        #from email.mime.multipart import MIMEMultipart
+        #from email.mime.text import MIMEText
+
+        #filter = SuspectFilter(TESTDATADIR + '/headertest.regex')
+        import gc
+
+
+        #lis=list(ascii_lowercase)
+
+        nobjects = 0
+        bodysize = 0
+        for i in range(nloops):
+
+#             msg = MIMEMultipart('alternative')
+#             msg['Subject'] = "Link"
+#             msg['From'] = "from@unittest.fuglu.org"
+#             msg['To'] = "to@unittest.fuglu.org"
+#             msg['MyHeader'] = "Whatever"
+#
+#             text = ''.join(choice(lis) for _ in xrange(1000000))
+#             html = """
+# <html>
+#   <head></head>
+#   <body>
+#     <p>Hi!<br>
+#        How are you?<br>
+# """+text+"""
+#     </p>
+#   </body>
+# </html>
+# """
+#             msg.attach(MIMEText(text, 'plain'))
+#             msg.attach(MIMEText(html, 'html'))
+#
+#             suspect = Suspect('sender@unittests.fuglu.org', 'recipient@unittests.fuglu.org', "/dev/null")
+#             suspect.set_message_rep(msg)
+            #suspect = Suspect('sender@unittests.fuglu.org', 'recipient@unittests.fuglu.org', testfile, att_cachelimit=10000)
+
+            if i % 2 == 0:
+                testfile = TESTDATADIR+'/6mbrarattachment.eml'
+                print("rar")
+            elif i % 4 == 1:
+                testfile = TESTDATADIR+'/6mbzipattachment.eml'
+                print("zip")
+            elif i % 4 == 2:
+                testfile = TESTDATADIR+'/nestedarchive.eml'
+                print("nested")
+            else:
+                testfile = TESTDATADIR+'/binaryattachment.eml'
+                print("binary")
+
+            suspect = Suspect('sender@unittests.fuglu.org', 'recipient@unittests.fuglu.org', testfile, att_cachelimit=100)
+
+
+            nobjects += len(suspect.att_mgr.get_objectlist(level=None))
+            firstLevelObjs = suspect.att_mgr.get_objectlist()
+            secondLevelObjs = suspect.att_mgr.get_objectlist(level=2)
+            filelist = suspect.att_mgr.get_fileslist()
+            filelistAllObjs = suspect.att_mgr.get_fileslist(level=-1)
+
+            #suspect.set_source(suspect.get_original_source())
+
+            #nobjects += len(suspect.att_mgr.get_objectlist(level=None))
+            #firstLevelObjs = suspect.att_mgr.get_objectlist()
+            #secondLevelObjs = suspect.att_mgr.get_objectlist(level=2)
+            #filelist = suspect.att_mgr.get_fileslist()
+            #filelistAllObjs = suspect.att_mgr.get_fileslist(level=-1)
+
+            #locsize = 0
+            #for j in range(10):
+            #decTextParts = filter.get_decoded_textparts(suspect)
+            #for text in decTextParts:
+                #locsize += len(text)
+            #bodysize += (locsize/10)
+            del firstLevelObjs
+            del secondLevelObjs
+            del suspect._att_mgr
+            del suspect
+            gc.collect()
+
+            susObj = objgraph.by_type('Suspect')
+            maObj = objgraph.by_type('Mailattachment')
+            mamObj = objgraph.by_type('Mailattachment_mgr')
+            print("Suspects in memory: %u" % len(susObj))
+            print("MailAttachments in memory: %u" % len(maObj))
+            print("MailAttachmentMgr in memory: %u" % len(mamObj))
+
+            #print("%u/%u: extracted %u objects" % (i,nloops,len(suspect.att_mgr.get_objectlist(level=None))))
+            #del msg
+        print("nobjects=%u"% (nobjects/nloops))
+        print("bodysize=%u"% (bodysize/nloops))
+
+        # finalListObjs = objgraph.by_type('list')
+        # initialListObjsSet = set(id(x) for x in initialListObjs)
+        #
+        # newListObjs = []
+        # for o in finalListObjs:
+        #     if id(o) not in initialListObjsSet:
+        #         newListObjs.append(o)
+        # print("New list objs: %u" % len(newListObjs))
+        #
+        # objgraph.show_backrefs(newListObjs, max_depth=10)
+
+        #roots = objgraph.get_leaking_objects()
+        #print(len(roots))
+        #objgraph.show_refs(roots[:4], max_depth=10, refcounts=True, filename='roots.png', shortnames=False)

@@ -169,6 +169,11 @@ def fuglu_process_unpack(pickledTask):
 
 def fuglu_process_worker(queue, config, shared_state,child_to_server_messages, logQueue):
 
+    import objgraph
+    from time import gmtime, strftime
+    import gc
+    import sys
+
     signal.signal(signal.SIGHUP, signal.SIG_IGN)
 
     logtools.client_configurer(logQueue)
@@ -226,6 +231,34 @@ def fuglu_process_worker(queue, config, shared_state,child_to_server_messages, l
             handler_instance = handler_class(sock, config)
             handler = SessionHandler(handler_instance, config,prependers, plugins, appenders)
             handler.handlesession(workerstate)
+            del handler
+            del handler_instance
+            del handler_class
+            del handler_modulename
+            del handler_classname
+            del sock
+
+            # let garbage collector work
+            #gc.collect()
+            # now check what remains
+            susObj = objgraph.by_type('Suspect')
+            if len(susObj) > 0:
+                #objgraph.show_refs(susObj[-1], max_depth=5, refcounts=True, filename='/tmp/suspects.dot')
+                logger.info("Refcounts on last subject: %u" % sys.getrefcount(susObj[-1]))
+            maObj = objgraph.by_type('Mailattachment')
+            if len(maObj) > 0:
+                #objgraph.show_refs(maObj[-1], max_depth=5, refcounts=True, filename='/tmp/mailattachments.dot')
+                logger.info("Refcounts on last mailattachment: %u" % sys.getrefcount(maObj[-1]))
+            mamObj = objgraph.by_type('Mailattachment_mgr')
+            if len(mamObj) > 0:
+                #objgraph.show_refs(mamObj[-1], max_depth=5, refcounts=True, filename='/tmp/mailattachmentsmgr.dot')
+                logger.info("Refcounts on last mailattachmentmgr: %u" % sys.getrefcount(mamObj[-1]))
+            totObjs = susObj + maObj + mamObj
+            if len(totObjs) > 0:
+                objgraph.show_refs(totObjs, max_depth=3, refcounts=True, filename='/tmp/remaining.dot')
+
+            logger.info('objects in memory: Suspect: %u, MailAttachments: %u, MailAttachment_mgt: %u' % (len(susObj),len(maObj),len(mamObj)))
+            logger.info('gc is enabled : %s' % gc.isenabled())
     except KeyboardInterrupt:
         workerstate.workerstate = 'ended'
     except Exception:
