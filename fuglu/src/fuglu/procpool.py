@@ -20,6 +20,7 @@ import fuglu.logtools as logtools
 from fuglu.scansession import SessionHandler
 from fuglu.stats import Statskeeper, StatDelta
 from fuglu.addrcheck import Addrcheck
+from fuglu.extensions.debugtools import OBJGRAPH_EXTENSION_ENABLED
 
 import multiprocessing
 import multiprocessing.queues
@@ -28,8 +29,13 @@ import logging
 import traceback
 import pickle
 import threading
+import sys
 
 import importlib
+try:
+    import objgraph
+except ImportError:
+    pass
 
 
 
@@ -169,10 +175,6 @@ def fuglu_process_unpack(pickledTask):
 
 def fuglu_process_worker(queue, config, shared_state,child_to_server_messages, logQueue):
 
-    import objgraph
-    from time import gmtime, strftime
-    import gc
-    import sys
 
     signal.signal(signal.SIGHUP, signal.SIG_IGN)
 
@@ -238,27 +240,41 @@ def fuglu_process_worker(queue, config, shared_state,child_to_server_messages, l
             del handler_classname
             del sock
 
-            # let garbage collector work
-            #gc.collect()
-            # now check what remains
-            susObj = objgraph.by_type('Suspect')
-            if len(susObj) > 0:
-                #objgraph.show_refs(susObj[-1], max_depth=5, refcounts=True, filename='/tmp/suspects.dot')
-                logger.info("Refcounts on last subject: %u" % sys.getrefcount(susObj[-1]))
-            maObj = objgraph.by_type('Mailattachment')
-            if len(maObj) > 0:
-                #objgraph.show_refs(maObj[-1], max_depth=5, refcounts=True, filename='/tmp/mailattachments.dot')
-                logger.info("Refcounts on last mailattachment: %u" % sys.getrefcount(maObj[-1]))
-            mamObj = objgraph.by_type('Mailattachment_mgr')
-            if len(mamObj) > 0:
-                #objgraph.show_refs(mamObj[-1], max_depth=5, refcounts=True, filename='/tmp/mailattachmentsmgr.dot')
-                logger.info("Refcounts on last mailattachmentmgr: %u" % sys.getrefcount(mamObj[-1]))
-            totObjs = susObj + maObj + mamObj
-            if len(totObjs) > 0:
-                objgraph.show_refs(totObjs, max_depth=3, refcounts=True, filename='/tmp/remaining.dot')
+            if OBJGRAPH_EXTENSION_ENABLED:
+                # now check what remains
 
-            logger.info('objects in memory: Suspect: %u, MailAttachments: %u, MailAttachment_mgt: %u' % (len(susObj),len(maObj),len(mamObj)))
-            logger.info('gc is enabled : %s' % gc.isenabled())
+                # can be set to true for debugging
+                # -> remaining objects will be written to the dot files in the tmp folder
+                # -> use "xdot" to visualise the file which contains the objects referencing the corresponding
+                #    object instance and preventing direct deallocation because of the reference count
+                writedebuggraphs = False
+
+                suspectobjects = objgraph.by_type('Suspect')
+                if len(suspectobjects) > 0:
+                    if writedebuggraphs:
+                        objgraph.show_backrefs(suspectobjects[-1], max_depth=5,
+                                               refcounts=True, filename='/tmp/suspects.dot')
+                    logger.info("Refcounts on last subject: %u" % sys.getrefcount(suspectobjects[-1]))
+                mailattachmentobjects = objgraph.by_type('Mailattachment')
+                if len(mailattachmentobjects) > 0:
+                    if writedebuggraphs:
+                        objgraph.show_backrefs(mailattachmentobjects[-1], max_depth=5,
+                                               refcounts=True, filename='/tmp/mailattachments.dot')
+                    logger.info("Refcounts on last mailattachment: %u" % sys.getrefcount(mailattachmentobjects[-1]))
+                mailattachmentmanagerobjects = objgraph.by_type('Mailattachment_mgr')
+                if len(mailattachmentmanagerobjects) > 0:
+                    if writedebuggraphs:
+                        objgraph.show_backrefs(mailattachmentmanagerobjects[-1], max_depth=5,
+                                               refcounts=True, filename='/tmp/mailattachmentsmgr.dot')
+                    logger.info("Refcounts on last mailattachmentmgr: %u"
+                                % sys.getrefcount(mailattachmentmanagerobjects[-1]))
+                allobjects = suspectobjects + mailattachmentobjects + mailattachmentmanagerobjects
+                if len(allobjects) > 0:
+                    logger.error('objects in memory: Suspect: %u, MailAttachments: %u, MailAttachment_mgt: %u'
+                                 % (len(suspectobjects),len(mailattachmentobjects),len(mailattachmentmanagerobjects)))
+                else:
+                    logger.debug('objects in memory: Suspect: %u, MailAttachments: %u, MailAttachment_mgt: %u'
+                                 % (len(suspectobjects),len(mailattachmentobjects),len(mailattachmentmanagerobjects)))
     except KeyboardInterrupt:
         workerstate.workerstate = 'ended'
     except Exception:

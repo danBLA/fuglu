@@ -21,6 +21,13 @@ try:
 except ImportError:
     import Queue as queue
 import logging
+import sys
+
+from fuglu.extensions.debugtools import OBJGRAPH_EXTENSION_ENABLED
+try:
+    import objgraph
+except ImportError:
+    pass
 
 
 class ThreadPool(threading.Thread):
@@ -206,6 +213,16 @@ class Worker(threading.Thread):
             except Exception as e:
                 self.logger.error('Unhandled Exception : %s' % e)
             self.workerstate = 'task completed'
+
+            del sesshandler
+
+            if OBJGRAPH_EXTENSION_ENABLED:
+                suspectobjects = objgraph.by_type('Suspect')
+                mailattachmentobjects = objgraph.by_type('Mailattachment')
+                mailattachmentmanagerobjects = objgraph.by_type('Mailattachment_mgr')
+                self.logger.debug('objects in memory: Suspect: %u, MailAttachments: %u, MailAttachment_mgt: %u'
+                                  % (len(suspectobjects), len(mailattachmentobjects),
+                                     len(mailattachmentmanagerobjects)))
 
         self.workerstate = 'ending'
         self.logger.debug('thread end')
