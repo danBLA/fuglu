@@ -95,7 +95,7 @@ def smart_cached_property(inputs=[]):
             #---   ---#
             #- cache -#
             #---   ---#
-            if not climits.get('nocache') and func_allow_cache and False:
+            if not climits.get('nocache') and func_allow_cache:
                 __property_cache[funcname] = x
                 __property_input_cache[funcname] = input_values
 
@@ -192,7 +192,7 @@ def smart_cached_memberfunc(inputs=[]):
             #---   ---#
             #- cache -#
             #---   ---#
-            if not climits.get('nocache') and func_allow_cache and False:
+            if not climits.get('nocache') and func_allow_cache:
                 #----
                 #-- cache function call, result and call time
                 #----

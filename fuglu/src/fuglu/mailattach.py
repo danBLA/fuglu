@@ -39,7 +39,6 @@ MIMETYPE_EXT_OVERRIDES = {
 }
 
 
-#class Mailattachment(threading.local):#, Cachelimits):
 class Mailattachment(Cachelimits):
     """
     Mail attachment object or a file contained in the attachment.
@@ -83,7 +82,7 @@ class Mailattachment(Cachelimits):
         # this helps debugging and testing caching...
         try:
             self._mgr()._increment_ma_objects()
-        except AttributeError:
+        except (AttributeError, TypeError):
             pass
 
     def content_fname_check(self,maintype=None,ismultipart=None,subtype=None,contenttype=None,contenttype_start=None,
@@ -158,8 +157,7 @@ class Mailattachment(Cachelimits):
 
         return True
 
-    #@smart_cached_property(inputs=['buffer','content_charset_mime'])
-    @property
+    @smart_cached_property(inputs=['buffer','in_obj','content_charset_mime'])
     def decoded_buffer_text(self):
         """
         (Cached Member Function)
@@ -187,8 +185,7 @@ class Mailattachment(Cachelimits):
 
         return force_uString("")
 
-    #@smart_cached_property(inputs=['buffer'])
-    @property
+    @smart_cached_property(inputs=['buffer'])
     def contenttype(self):
         """
         (Cached Property-Getter)
@@ -205,9 +202,7 @@ class Mailattachment(Cachelimits):
             contenttype_magic = filetype_handler.get_buffertype(self.buffer)
         return contenttype_magic
 
-
-    #@smart_cached_property(inputs=['contenttype','filename'])
-    @property
+    @smart_cached_property(inputs=['contenttype','filename'])
     def archive_type(self):
         """
         (Cached Property-Getter)
@@ -239,13 +234,12 @@ class Mailattachment(Cachelimits):
                     break
         return archive_type
 
-    #@smart_cached_memberfunc(inputs=['archive_type'])
+    @smart_cached_memberfunc(inputs=['archive_type'])
     def atype_fromext(self):
         """True if extension was used to determine archive type"""
         return self._arext
 
-    #@smart_cached_property(inputs=['archive_type'])
-    @property
+    @smart_cached_property(inputs=['archive_type'])
     def is_archive(self):
         """
         (Cached Property-Getter)
@@ -335,7 +329,7 @@ class Mailattachment(Cachelimits):
                 noextractinfo.append((fname,"level","level (current/max) %u/%u"%(levelin,levelmax)))
         return [self]
 
-    #@smart_cached_memberfunc(inputs=['fileslist_archive','archive_handle','is_archive'])
+    @smart_cached_memberfunc(inputs=['fileslist_archive','archive_handle','is_archive'])
     def get_archive_flist(self, maxsize_extract=None, inverse=False):
         """
         Get list of all filenames for objects in archive if within size limits. The list
@@ -431,7 +425,7 @@ class Mailattachment(Cachelimits):
                     self._buffer_archobj[fname] = obj
             return obj
 
-    #@smart_cached_memberfunc(inputs=['fileslist_archive','archive_handle'])
+    @smart_cached_memberfunc(inputs=['fileslist_archive','archive_handle'])
     def get_fileslist_arch(self,levelin,levelmax,maxsize_extract):
         """
         Get a list of filenames contained in this archive (recursively extracting archives)
@@ -457,8 +451,7 @@ class Mailattachment(Cachelimits):
                     newlist.extend(attach_obj.get_fileslist(levelin+1,levelmax,maxsize_extract))
         return newlist
 
-    #@smart_cached_property(inputs=['archive_type','buffer'])
-    @property
+    @smart_cached_property(inputs=['archive_type','buffer'])
     def archive_handle(self):
         """
         (Cached Property-Getter)
@@ -481,8 +474,7 @@ class Mailattachment(Cachelimits):
         else:
             return Archivehandle(self.archive_type, BytesIO(self.buffer))
 
-    #@smart_cached_property(inputs=['archive_handle'])
-    @property
+    @smart_cached_property(inputs=['archive_handle'])
     def fileslist_archive(self):
         """
         (Cached Property-Getter)
@@ -500,7 +492,7 @@ class Mailattachment(Cachelimits):
         else:
             return self.archive_handle.namelist()
 
-    #@smart_cached_property(inputs=["in_obj"])
+    @smart_cached_property(inputs=["in_obj"])
     def parent_archives(self):
         """
         (Cached Property-Getter)
@@ -514,9 +506,9 @@ class Mailattachment(Cachelimits):
         """
         parentsList = []
         upstream_obj = weakref.ref(self)
-        while upstream_obj.in_obj is not None:
-            parentsList.append(upstream_obj.in_obj)
-            upstream_obj = upstream_obj.in_obj
+        while upstream_obj() is not None and upstream_obj().in_obj is not None:
+            parentsList.append(upstream_obj().in_obj)
+            upstream_obj = upstream_obj().in_obj
         return parentsList
 
 
@@ -538,7 +530,8 @@ Size (bytes) : %s
 Location     : %s        
 Archive type : %s        
 Content type : %s""" % (self.filename,u'(unknown)' if self.filesize is None else str(self.filesize),
-                        self.filename + element_of + element_of.join([u"{" + obj().filename +u"}" for obj in self.parent_archives()]),
+                        self.filename + element_of +
+                        element_of.join([u"{" + obj().filename +u"}" for obj in self.parent_archives]),
                         self.archive_type,
                         self.contenttype)
 
@@ -633,8 +626,7 @@ class Mailattachment_mgr(object):
                 self.logger.info("hidden part extraction failed: %s"%str(e))
 
 
-    #@smart_cached_property(inputs=["_msgrep"])
-    @property
+    @smart_cached_property(inputs=["_msgrep"])
     def att_file_dict(self):
         """
         (Cached Property-Getter)
@@ -648,40 +640,37 @@ class Mailattachment_mgr(object):
         Returns:
             (dict): Dictionary storing attachments in list
         """
-        if self._att_file_dict is None:
-            newatt_file_dict = dict()
+        newatt_file_dict = dict()
 
-            # reset caching
-            self._current_att_cache = 0
-            self._new_att_cache = 0
+        # reset caching
+        self._current_att_cache = 0
+        self._new_att_cache = 0
 
-            counter = 0
-            for part in self.walk_all_parts(self._msgrep):
-                if part.is_multipart():
-                    continue
+        counter = 0
+        for part in self.walk_all_parts(self._msgrep):
+            if part.is_multipart():
+                continue
 
-                # use a linear counter
-                counter += 1
+            # use a linear counter
+            counter += 1
 
-                # process part, extract information needed to create Mailattachment
-                (att_name, buffer, attsize,
-                 contenttype_mime, maintype_mime, subtype_mime,
-                 ismultipart_mime, content_charset_mime) = Mailattachment_mgr.process_msg_part(part)
+            # process part, extract information needed to create Mailattachment
+            (att_name, buffer, attsize,
+             contenttype_mime, maintype_mime, subtype_mime,
+             ismultipart_mime, content_charset_mime) = Mailattachment_mgr.process_msg_part(part)
 
-                if self.use_caching(attsize):
-                    # cache the object if a cachelimit is defined
-                    # and if size could be extracted and is within the limit
-                    newatt_file_dict[counter] = Mailattachment(buffer, att_name, self, filesize=attsize,
-                                                               contenttype_mime=contenttype_mime,
-                                                               maintype_mime=maintype_mime, subtype_mime=subtype_mime,
-                                                               ismultipart_mime=ismultipart_mime,
-                                                               content_charset_mime=content_charset_mime)
-                else:
-                    # No caching of the object
-                    newatt_file_dict[counter] = None
-        #    return newatt_file_dict
-            self._att_file_dict = newatt_file_dict
-        return self._att_file_dict
+            if self.use_caching(attsize):
+                # cache the object if a cachelimit is defined
+                # and if size could be extracted and is within the limit
+                newatt_file_dict[counter] = Mailattachment(buffer, att_name, self, filesize=attsize,
+                                                           contenttype_mime=contenttype_mime,
+                                                           maintype_mime=maintype_mime, subtype_mime=subtype_mime,
+                                                           ismultipart_mime=ismultipart_mime,
+                                                           content_charset_mime=content_charset_mime)
+            else:
+                # No caching of the object
+                newatt_file_dict[counter] = None
+        return newatt_file_dict
 
     def get_mailatt_generator(self):
         """
@@ -787,7 +776,7 @@ class Mailattachment_mgr(object):
         return (att_name, buffer, attsize,
                 contenttype_mime, maintype_mime, subtype_mime, ismultipart_mime, content_charset_mime)
 
-    #@smart_cached_memberfunc(inputs=['att_file_dict'])
+    @smart_cached_memberfunc(inputs=['att_file_dict'])
     def get_fileslist(self,level=0,maxsize_extract=None):
         """
         (Cached Member Function)
