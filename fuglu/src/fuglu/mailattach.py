@@ -39,11 +39,13 @@ MIMETYPE_EXT_OVERRIDES = {
 }
 
 
-class Mailattachment(threading.local):#, Cachelimits):
+#class Mailattachment(threading.local):#, Cachelimits):
+class Mailattachment(Cachelimits):
     """
     Mail attachment object or a file contained in the attachment.
     """
     objectCounter = 0
+
     def __init__(self, buffer, filename, mgr, filesize=None, in_obj=None, contenttype_mime=None, maintype_mime=None,
                  subtype_mime=None, ismultipart_mime=None, content_charset_mime=None):
         """
