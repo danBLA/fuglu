@@ -38,7 +38,7 @@ def smart_cached_property(inputs=[]):
     """
     # Base idea is from
     # http://code.activestate.com/recipes/576563-cached-property/?in=user-4167995#c4
-    # but then extended for stats and limits
+    # but then extended for stats and limits and weak refs
     def smart_cp(f):
         @functools.wraps(f)
         def get(self):
@@ -225,20 +225,20 @@ def smart_cached_memberfunc(inputs=[]):
         return get
     return smart_cm
 
-def stats_increment(stats,f):
+def stats_increment(stats,fname):
     """
     Increments the statistic counters for cached or uncached calls
 
     Args:
         stats (dict): statistics counter dict (counting cached or uncached calls)
-        f (wrapped function): function wrapped
+        fname (str): wrapped function name
 
     """
     if stats is not None:
-        fstats = stats.get(f)
+        fstats = stats.get(fname)
         if fstats is None:
             fstats = 0
-        stats[f] = fstats + 1
+        stats[fname] = fstats + 1
 
 def get_statscounter(obj):
     """
