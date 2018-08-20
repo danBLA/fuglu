@@ -30,6 +30,7 @@ import traceback
 import pickle
 import threading
 import sys
+import os
 
 import importlib
 try:
@@ -231,7 +232,7 @@ def fuglu_process_worker(queue, config, shared_state,child_to_server_messages, l
             sock, handler_modulename, handler_classname = fuglu_process_unpack(task)
             handler_class = getattr(importlib.import_module(handler_modulename), handler_classname)
             handler_instance = handler_class(sock, config)
-            handler = SessionHandler(handler_instance, config,prependers, plugins, appenders)
+            handler = SessionHandler(handler_instance, config, prependers, plugins, appenders)
             handler.handlesession(workerstate)
             del handler
             del handler_instance
@@ -252,20 +253,22 @@ def fuglu_process_worker(queue, config, shared_state,child_to_server_messages, l
                 suspectobjects = objgraph.by_type('Suspect')
                 if len(suspectobjects) > 0:
                     if writedebuggraphs:
-                        objgraph.show_backrefs(suspectobjects[-1], max_depth=5,
-                                               refcounts=True, filename='/tmp/suspects.dot')
+                        objgraph.show_backrefs(suspectobjects[-1], max_depth=5,refcounts=True,
+                                               filename=os.path.join(config.get('main', 'tempdir'), 'suspects.dot'))
                     logger.info("Refcounts on last subject: %u" % sys.getrefcount(suspectobjects[-1]))
                 mailattachmentobjects = objgraph.by_type('Mailattachment')
                 if len(mailattachmentobjects) > 0:
                     if writedebuggraphs:
-                        objgraph.show_backrefs(mailattachmentobjects[-1], max_depth=5,
-                                               refcounts=True, filename='/tmp/mailattachments.dot')
+                        objgraph.show_backrefs(mailattachmentobjects[-1], max_depth=5, refcounts=True,
+                                               filename=os.path.join(config.get('main', 'tempdir'),
+                                                                     'mailattachments.dot'))
                     logger.info("Refcounts on last mailattachment: %u" % sys.getrefcount(mailattachmentobjects[-1]))
                 mailattachmentmanagerobjects = objgraph.by_type('Mailattachment_mgr')
                 if len(mailattachmentmanagerobjects) > 0:
                     if writedebuggraphs:
-                        objgraph.show_backrefs(mailattachmentmanagerobjects[-1], max_depth=5,
-                                               refcounts=True, filename='/tmp/mailattachmentsmgr.dot')
+                        objgraph.show_backrefs(mailattachmentmanagerobjects[-1], max_depth=5, refcounts=True,
+                                               filename=os.path.join(config.get('main', 'tempdir'),
+                                                                     'mailattachmentsmgr.dot'))
                     logger.info("Refcounts on last mailattachmentmgr: %u"
                                 % sys.getrefcount(mailattachmentmanagerobjects[-1]))
                 allobjects = suspectobjects + mailattachmentobjects + mailattachmentmanagerobjects
@@ -275,6 +278,9 @@ def fuglu_process_worker(queue, config, shared_state,child_to_server_messages, l
                 else:
                     logger.debug('objects in memory: Suspect: %u, MailAttachments: %u, MailAttachment_mgt: %u'
                                  % (len(suspectobjects),len(mailattachmentobjects),len(mailattachmentmanagerobjects)))
+                del suspectobjects
+                del mailattachmentobjects
+                del mailattachmentmanagerobjects
     except KeyboardInterrupt:
         workerstate.workerstate = 'ended'
     except Exception:

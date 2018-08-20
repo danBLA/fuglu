@@ -223,6 +223,9 @@ class Worker(threading.Thread):
                 self.logger.debug('objects in memory: Suspect: %u, MailAttachments: %u, MailAttachment_mgt: %u'
                                   % (len(suspectobjects), len(mailattachmentobjects),
                                      len(mailattachmentmanagerobjects)))
+                del suspectobjects
+                del mailattachmentobjects
+                del mailattachmentmanagerobjects
 
         self.workerstate = 'ending'
         self.logger.debug('thread end')
