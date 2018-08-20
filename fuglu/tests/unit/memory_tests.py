@@ -1,19 +1,38 @@
 # -*- coding: UTF-8 -*-
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from unittestsetup import TESTDATADIR, CONFDIR
 import unittest
 import sys
 import os
 import tempfile
 import shutil
-import objgraph
 import gc
+try:
+    import objgraph
+except ImportError:
+    pass
+
+from fuglu.plugins.attachment import FiletypePlugin, RulesCache
+from fuglu.shared import Suspect, DELETE, DUNNO
+from fuglu.extensions.debugtools import OBJGRAPH_EXTENSION_ENABLED
+
 try:
     from configparser import RawConfigParser
 except ImportError:
     from ConfigParser import RawConfigParser
 
-from fuglu.plugins.attachment import FiletypePlugin, RulesCache
-from fuglu.shared import Suspect, DELETE, DUNNO
 
 # print graphs equals True enables writing of reference graphs
 # showing how an object is referenced by others which causes the
@@ -40,34 +59,35 @@ class MemoryTest(unittest.TestCase):
 
         self.process_mails(nloops)
 
-        print("\n------------------------------------------")
-        print("End - outside function")
-        print("------------------------------------------")
-        sus_objects = objgraph.by_type('Suspect')
-        ma_objects = objgraph.by_type('Mailattachment')
-        mam_objects = objgraph.by_type('Mailattachment_mgr')
-        print("Suspects in memory: %u" % len(sus_objects))
-        print("MailAttachments in memory: %u" % len(ma_objects))
-        print("MailAttachmentMgr in memory: %u" % len(mam_objects))
-        print("Refcounts:")
-        for sus in sus_objects:
-            print(" Suspect: %u" % sys.getrefcount(sus))
-        for mgr in mam_objects:
-            print(" Mgr: %u" % sys.getrefcount(mgr))
-        for ma in ma_objects:
-            print(" MailAttachment: %u" % sys.getrefcount(ma))
+        if OBJGRAPH_EXTENSION_ENABLED:
+            print("\n------------------------------------------")
+            print("End - outside function")
+            print("------------------------------------------")
+            sus_objects = objgraph.by_type('Suspect')
+            ma_objects = objgraph.by_type('Mailattachment')
+            mam_objects = objgraph.by_type('Mailattachment_mgr')
+            print("Suspects in memory: %u" % len(sus_objects))
+            print("MailAttachments in memory: %u" % len(ma_objects))
+            print("MailAttachmentMgr in memory: %u" % len(mam_objects))
+            print("Refcounts:")
+            for sus in sus_objects:
+                print(" Suspect: %u" % sys.getrefcount(sus))
+            for mgr in mam_objects:
+                print(" Mgr: %u" % sys.getrefcount(mgr))
+            for ma in ma_objects:
+                print(" MailAttachment: %u" % sys.getrefcount(ma))
 
-        # if enabled print graphs
-        if print_graphs:
-            if len(sus_objects) > 0:
-                objgraph.show_backrefs(sus_objects, max_depth=5, refcounts=True)
-            if len(ma_objects) > 0:
-                objgraph.show_backrefs(ma_objects, max_depth=5, refcounts=True)
-            if len(mam_objects) > 0:
-                objgraph.show_backrefs(mam_objects, max_depth=5, refcounts=True)
-        self.assertEqual(0, len(sus_objects), "No Suspect object should remain")
-        self.assertEqual(0, len(ma_objects), "No Mailattachment object should remain")
-        self.assertEqual(0, len(mam_objects), "No Mailattachment_mgr object should remain")
+            # if enabled print graphs
+            if print_graphs:
+                if len(sus_objects) > 0:
+                    objgraph.show_backrefs(sus_objects, max_depth=5, refcounts=True)
+                if len(ma_objects) > 0:
+                    objgraph.show_backrefs(ma_objects, max_depth=5, refcounts=True)
+                if len(mam_objects) > 0:
+                    objgraph.show_backrefs(mam_objects, max_depth=5, refcounts=True)
+            self.assertEqual(0, len(sus_objects), "No Suspect object should remain")
+            self.assertEqual(0, len(ma_objects), "No Mailattachment object should remain")
+            self.assertEqual(0, len(mam_objects), "No Mailattachment_mgr object should remain")
 
     def process_mails(self, nloops):
         """
@@ -139,33 +159,35 @@ class MemoryTest(unittest.TestCase):
 
             # now there should be no Suspect/Mailattachment_mgr/Mailattachment remaining in memory
 
-            n_sus_objects = len(objgraph.by_type('Suspect'))
-            n_ma_objects = len(objgraph.by_type('Mailattachment'))
-            n_mam_objects = len(objgraph.by_type('Mailattachment_mgr'))
-            print("Suspects in memory: %u" % n_sus_objects)
-            print("MailAttachments in memory: %u" % n_ma_objects)
-            print("MailAttachmentMgr in memory: %u" % n_mam_objects)
+            if OBJGRAPH_EXTENSION_ENABLED:
+                n_sus_objects = len(objgraph.by_type('Suspect'))
+                n_ma_objects = len(objgraph.by_type('Mailattachment'))
+                n_mam_objects = len(objgraph.by_type('Mailattachment_mgr'))
+                print("Suspects in memory: %u" % n_sus_objects)
+                print("MailAttachments in memory: %u" % n_ma_objects)
+                print("MailAttachmentMgr in memory: %u" % n_mam_objects)
 
-        print("\n-----------")
-        print("After Loop")
-        print("-----------")
-        sus_objects = objgraph.by_type('Suspect')
-        ma_objects = objgraph.by_type('Mailattachment')
-        mam_objects = objgraph.by_type('Mailattachment_mgr')
-        print("Suspects in memory: %u" % len(sus_objects))
-        print("MailAttachments in memory: %u" % len(ma_objects))
-        print("MailAttachmentMgr in memory: %u" % len(mam_objects))
-        print("Refcounts:")
-        for sus in sus_objects:
-            print(" Suspect: %u" % sys.getrefcount(sus))
-        for mgr in mam_objects:
-            print(" Mgr: %u" % sys.getrefcount(mgr))
-        for ma in ma_objects:
-            print(" MailAttachment: %u" % sys.getrefcount(ma))
+        if OBJGRAPH_EXTENSION_ENABLED:
+            print("\n-----------")
+            print("After Loop")
+            print("-----------")
+            sus_objects = objgraph.by_type('Suspect')
+            ma_objects = objgraph.by_type('Mailattachment')
+            mam_objects = objgraph.by_type('Mailattachment_mgr')
+            print("Suspects in memory: %u" % len(sus_objects))
+            print("MailAttachments in memory: %u" % len(ma_objects))
+            print("MailAttachmentMgr in memory: %u" % len(mam_objects))
+            print("Refcounts:")
+            for sus in sus_objects:
+                print(" Suspect: %u" % sys.getrefcount(sus))
+            for mgr in mam_objects:
+                print(" Mgr: %u" % sys.getrefcount(mgr))
+            for ma in ma_objects:
+                print(" MailAttachment: %u" % sys.getrefcount(ma))
 
-        self.assertEqual(0, len(sus_objects), "(end of function) No Suspect object should remain")
-        self.assertEqual(0, len(ma_objects), "(end of function) No Mailattachment object should remain")
-        self.assertEqual(0, len(mam_objects), "(end of function) No Mailattachment_mgr object should remain")
+            self.assertEqual(0, len(sus_objects), "(end of function) No Suspect object should remain")
+            self.assertEqual(0, len(ma_objects), "(end of function) No Mailattachment object should remain")
+            self.assertEqual(0, len(mam_objects), "(end of function) No Mailattachment_mgr object should remain")
 
 
 class AttachmentMemoryTest(unittest.TestCase):
@@ -306,36 +328,37 @@ class AttachmentMemoryTest(unittest.TestCase):
                                                                        "call itself")
                 del suspect
 
-                print("\n----------------------")
-                print("After deleting suspect")
-                print("----------------------")
-                sus_objects = objgraph.by_type('Suspect')
-                ma_objects = objgraph.by_type('Mailattachment')
-                mam_objects = objgraph.by_type('Mailattachment_mgr')
-                print("Suspects in memory: %u" % len(sus_objects))
-                print("MailAttachments in memory: %u" % len(ma_objects))
-                print("MailAttachmentMgr in memory: %u" % len(mam_objects))
+                if OBJGRAPH_EXTENSION_ENABLED:
+                    print("\n----------------------")
+                    print("After deleting suspect")
+                    print("----------------------")
+                    sus_objects = objgraph.by_type('Suspect')
+                    ma_objects = objgraph.by_type('Mailattachment')
+                    mam_objects = objgraph.by_type('Mailattachment_mgr')
+                    print("Suspects in memory: %u" % len(sus_objects))
+                    print("MailAttachments in memory: %u" % len(ma_objects))
+                    print("MailAttachmentMgr in memory: %u" % len(mam_objects))
 
-                print("Refcounts:")
-                for sus in sus_objects:
-                    print(" Suspect: %u" % sys.getrefcount(sus))
-                for mgr in mam_objects:
-                    print(" Mgr: %u" % sys.getrefcount(mgr))
-                for ma in ma_objects:
-                    print(" MailAttachment: %u" % sys.getrefcount(ma))
+                    print("Refcounts:")
+                    for sus in sus_objects:
+                        print(" Suspect: %u" % sys.getrefcount(sus))
+                    for mgr in mam_objects:
+                        print(" Mgr: %u" % sys.getrefcount(mgr))
+                    for ma in ma_objects:
+                        print(" MailAttachment: %u" % sys.getrefcount(ma))
 
-                # if enabled print graphs
-                if print_graphs:
-                    if len(sus_objects) > 0:
-                        objgraph.show_backrefs(sus_objects, max_depth=5, refcounts=True)
-                    elif len(ma_objects) > 0:
-                        objgraph.show_backrefs(ma_objects, max_depth=5, refcounts=True)
-                    elif len(mam_objects) > 0:
-                        objgraph.show_backrefs(mam_objects, max_depth=5, refcounts=True)
+                    # if enabled print graphs
+                    if print_graphs:
+                        if len(sus_objects) > 0:
+                            objgraph.show_backrefs(sus_objects, max_depth=5, refcounts=True)
+                        elif len(ma_objects) > 0:
+                            objgraph.show_backrefs(ma_objects, max_depth=5, refcounts=True)
+                        elif len(mam_objects) > 0:
+                            objgraph.show_backrefs(mam_objects, max_depth=5, refcounts=True)
 
-                self.assertEqual(0, len(sus_objects), "Deleting suspect should have removed Suspect objects")
-                self.assertEqual(0, len(mam_objects), "Deleting suspect should have removed Mailattachment_mgr objects")
-                self.assertEqual(0, len(ma_objects), "Deleting suspect should have removed Mailattachment objects")
+                    self.assertEqual(0, len(sus_objects), "Deleting suspect should have removed Suspect objects")
+                    self.assertEqual(0, len(mam_objects), "Deleting suspect should have removed Mailattachment_mgr objects")
+                    self.assertEqual(0, len(ma_objects), "Deleting suspect should have removed Mailattachment objects")
             finally:
                 tmpfile.close()
                 os.remove(conffile)

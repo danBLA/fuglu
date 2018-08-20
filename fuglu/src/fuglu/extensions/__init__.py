@@ -1,1 +1,1 @@
-__all__ = ['sql', 'dnsquery', 'filearchives', 'filetype']
+__all__ = ['sql', 'dnsquery', 'filearchives', 'filetype', 'debugtools']
