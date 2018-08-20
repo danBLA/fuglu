@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import unittestsetup
 from unittestsetup import TESTDATADIR, CONFDIR
 import unittest
 import sys
@@ -32,6 +33,9 @@ try:
     from configparser import RawConfigParser
 except ImportError:
     from ConfigParser import RawConfigParser
+
+# Note this test is in "isolated" because the global instance checks
+# objgraph.by_type('Mailattachment_mgr')
 
 
 # print graphs equals True enables writing of reference graphs
