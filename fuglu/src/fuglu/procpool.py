@@ -20,7 +20,6 @@ import fuglu.logtools as logtools
 from fuglu.scansession import SessionHandler
 from fuglu.stats import Statskeeper, StatDelta
 from fuglu.addrcheck import Addrcheck
-from fuglu.extensions.debugtools import OBJGRAPH_EXTENSION_ENABLED
 
 import multiprocessing
 import multiprocessing.queues
@@ -35,8 +34,9 @@ import os
 import importlib
 try:
     import objgraph
+    OBJGRAPH_EXTENSION_ENABLED = True
 except ImportError:
-    pass
+    OBJGRAPH_EXTENSION_ENABLED = False
 
 
 
@@ -241,46 +241,13 @@ def fuglu_process_worker(queue, config, shared_state,child_to_server_messages, l
             del handler_classname
             del sock
 
-            if OBJGRAPH_EXTENSION_ENABLED:
-                # now check what remains
+            # developers only:
+            # for debugging memory this can be enabled
+            # Note this can NOT be copied to threadpool worker because
+            # it will create a memory leak
+            if OBJGRAPH_EXTENSION_ENABLED and True:
+                debug_procpoolworkermemory(logger, config)
 
-                # can be set to true for debugging
-                # -> remaining objects will be written to the dot files in the tmp folder
-                # -> use "xdot" to visualise the file which contains the objects referencing the corresponding
-                #    object instance and preventing direct deallocation because of the reference count
-                writedebuggraphs = False
-
-                suspectobjects = objgraph.by_type('Suspect')
-                if len(suspectobjects) > 0:
-                    if writedebuggraphs:
-                        objgraph.show_backrefs(suspectobjects[-1], max_depth=5,refcounts=True,
-                                               filename=os.path.join(config.get('main', 'tempdir'), 'suspects.dot'))
-                    logger.info("Refcounts on last subject: %u" % sys.getrefcount(suspectobjects[-1]))
-                mailattachmentobjects = objgraph.by_type('Mailattachment')
-                if len(mailattachmentobjects) > 0:
-                    if writedebuggraphs:
-                        objgraph.show_backrefs(mailattachmentobjects[-1], max_depth=5, refcounts=True,
-                                               filename=os.path.join(config.get('main', 'tempdir'),
-                                                                     'mailattachments.dot'))
-                    logger.info("Refcounts on last mailattachment: %u" % sys.getrefcount(mailattachmentobjects[-1]))
-                mailattachmentmanagerobjects = objgraph.by_type('Mailattachment_mgr')
-                if len(mailattachmentmanagerobjects) > 0:
-                    if writedebuggraphs:
-                        objgraph.show_backrefs(mailattachmentmanagerobjects[-1], max_depth=5, refcounts=True,
-                                               filename=os.path.join(config.get('main', 'tempdir'),
-                                                                     'mailattachmentsmgr.dot'))
-                    logger.info("Refcounts on last mailattachmentmgr: %u"
-                                % sys.getrefcount(mailattachmentmanagerobjects[-1]))
-                allobjects = suspectobjects + mailattachmentobjects + mailattachmentmanagerobjects
-                if len(allobjects) > 0:
-                    logger.error('objects in memory: Suspect: %u, MailAttachments: %u, MailAttachment_mgt: %u'
-                                 % (len(suspectobjects),len(mailattachmentobjects),len(mailattachmentmanagerobjects)))
-                else:
-                    logger.debug('objects in memory: Suspect: %u, MailAttachments: %u, MailAttachment_mgt: %u'
-                                 % (len(suspectobjects),len(mailattachmentobjects),len(mailattachmentmanagerobjects)))
-                del suspectobjects
-                del mailattachmentobjects
-                del mailattachmentmanagerobjects
     except KeyboardInterrupt:
         workerstate.workerstate = 'ended'
     except Exception:
@@ -291,6 +258,55 @@ def fuglu_process_worker(queue, config, shared_state,child_to_server_messages, l
     finally:
         controller.shutdown()
 
+def debug_procpoolworkermemory(logger, config):
+    """
+    Debug memory usage using the objgraph library, eventually
+    write graphs to file in tmp directory
+
+    Args:
+        logger (logging.Logger): logger to log into
+        config (RawConfigParser): configuration used for temporary file dir
+
+    """
+    # now check what remains
+
+    # can be set to true for debugging
+    # -> remaining objects will be written to the dot files in the tmp folder
+    # -> use "xdot" to visualise the file which contains the objects referencing the corresponding
+    #    object instance and preventing direct deallocation because of the reference count
+    writedebuggraphs = False
+
+    suspectobjects = objgraph.by_type('Suspect')
+    if len(suspectobjects) > 0:
+        if writedebuggraphs:
+            objgraph.show_backrefs(suspectobjects[-1], max_depth=5,refcounts=True,
+                                   filename=os.path.join(config.get('main', 'tempdir'), 'suspects.dot'))
+        logger.info("Refcounts on last subject: %u" % sys.getrefcount(suspectobjects[-1]))
+    mailattachmentobjects = objgraph.by_type('Mailattachment')
+    if len(mailattachmentobjects) > 0:
+        if writedebuggraphs:
+            objgraph.show_backrefs(mailattachmentobjects[-1], max_depth=5, refcounts=True,
+                                   filename=os.path.join(config.get('main', 'tempdir'),
+                                                         'mailattachments.dot'))
+        logger.info("Refcounts on last mailattachment: %u" % sys.getrefcount(mailattachmentobjects[-1]))
+    mailattachmentmanagerobjects = objgraph.by_type('Mailattachment_mgr')
+    if len(mailattachmentmanagerobjects) > 0:
+        if writedebuggraphs:
+            objgraph.show_backrefs(mailattachmentmanagerobjects[-1], max_depth=5, refcounts=True,
+                                   filename=os.path.join(config.get('main', 'tempdir'),
+                                                         'mailattachmentsmgr.dot'))
+        logger.info("Refcounts on last mailattachmentmgr: %u"
+                    % sys.getrefcount(mailattachmentmanagerobjects[-1]))
+    allobjects = suspectobjects + mailattachmentobjects + mailattachmentmanagerobjects
+    if len(allobjects) > 0:
+        logger.error('objects in memory: Suspect: %u, MailAttachments: %u, MailAttachment_mgr: %u'
+                     % (len(suspectobjects),len(mailattachmentobjects),len(mailattachmentmanagerobjects)))
+    else:
+        logger.debug('objects in memory: Suspect: %u, MailAttachments: %u, MailAttachment_mrt: %u'
+                     % (len(suspectobjects),len(mailattachmentobjects),len(mailattachmentmanagerobjects)))
+    del suspectobjects
+    del mailattachmentobjects
+    del mailattachmentmanagerobjects
 
 class WorkerStateWrapper(object):
     def __init__(self, shared_state_dict, initial_state='created', process=None):

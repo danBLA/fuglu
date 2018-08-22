@@ -22,12 +22,12 @@ import shutil
 import gc
 try:
     import objgraph
+    OBJGRAPH_EXTENSION_ENABLED = True
 except ImportError:
-    pass
+    OBJGRAPH_EXTENSION_ENABLED = False
 
 from fuglu.plugins.attachment import FiletypePlugin, RulesCache
 from fuglu.shared import Suspect, DELETE, DUNNO
-from fuglu.extensions.debugtools import OBJGRAPH_EXTENSION_ENABLED
 
 try:
     from configparser import RawConfigParser
