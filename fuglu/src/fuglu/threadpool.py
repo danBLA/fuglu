@@ -22,7 +22,6 @@ except ImportError:
     import Queue as queue
 import logging
 
-
 class ThreadPool(threading.Thread):
 
     def __init__(self, minthreads=1, maxthreads=20, queuesize=100):
@@ -206,6 +205,8 @@ class Worker(threading.Thread):
             except Exception as e:
                 self.logger.error('Unhandled Exception : %s' % e)
             self.workerstate = 'task completed'
+
+            del sesshandler
 
         self.workerstate = 'ending'
         self.logger.debug('thread end')

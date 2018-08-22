@@ -6,8 +6,6 @@ from os.path import join
 from fuglu.mailattach import Mailattachment_mgr, Mailattachment
 from fuglu.shared import Suspect
 from unittestsetup import TESTDATADIR
-import tempfile
-import shutil
 
 class Mailattachment_mgr_test(unittest.TestCase):
     def test_manager(self):

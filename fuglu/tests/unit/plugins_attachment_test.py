@@ -4,7 +4,6 @@ import unittest
 import os
 import tempfile
 import shutil
-from nose.tools import nottest
 
 try:
     from configparser import RawConfigParser

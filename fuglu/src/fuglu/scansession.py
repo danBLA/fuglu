@@ -213,7 +213,12 @@ class SessionHandler(object):
                         self.logger.warning('Could not remove tempfile %s' % suspect.tempfile)
                 else:
                     self.logger.warning('Keep tempfile %s for failed message' % suspect.tempfile)
-
+            # try to remove the suspect
+            try:
+                self.logger.debug('Remove suspect (current refs): %u' % sys.getrefcount(suspect))
+                del suspect
+            except Exception as e:
+                pass
         self.logger.debug('Session finished')
 
 

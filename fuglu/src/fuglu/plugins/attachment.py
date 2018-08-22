@@ -423,7 +423,7 @@ The other common template variables are available as well.
 
         self.blockedfiletemplate = self.config.get(
             self.section, 'template_blockedfile')
-        
+
         runtimeconfig = DBConfig(self.config, suspect)
         self.checkarchivenames = runtimeconfig.getboolean(self.section, 'checkarchivenames')
         self.checkarchivecontent = runtimeconfig.getboolean(self.section, 'checkarchivecontent')
