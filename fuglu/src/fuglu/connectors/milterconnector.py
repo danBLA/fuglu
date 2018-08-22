@@ -301,8 +301,8 @@ class MilterHandler(ProtocolHandler):
         # Create message container - the correct MIME type is multipart/alternative.
         msg = MIMEMultipart('alternative')
         msg['Subject'] = "Replacement message info"
-        msg['From'] = me
-        msg['To'] = you
+        msg['From'] = "from@testmail.tld"
+        msg['To'] = "to@testmail.tld"
         msg['bad'] = "luck"
 
         # Create the body of the message (a plain-text and an HTML version).
