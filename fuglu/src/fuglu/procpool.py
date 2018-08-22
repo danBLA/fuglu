@@ -245,7 +245,7 @@ def fuglu_process_worker(queue, config, shared_state,child_to_server_messages, l
             # for debugging memory this can be enabled
             # Note this can NOT be copied to threadpool worker because
             # it will create a memory leak
-            if OBJGRAPH_EXTENSION_ENABLED and True:
+            if OBJGRAPH_EXTENSION_ENABLED and False:
                 debug_procpoolworkermemory(logger, config)
 
     except KeyboardInterrupt:
