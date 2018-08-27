@@ -1,10 +1,10 @@
 #todo: add all plugin / core loggers!
 
 [loggers]
-keys=root
+keys=root,timing
 
 [handlers]
-keys=logfile
+keys=logfile,timingfile
 
 [formatters]
 keys=sysoutformatter,logfileformatter,syslogformatter
@@ -13,6 +13,12 @@ keys=sysoutformatter,logfileformatter,syslogformatter
 level=INFO
 handlers=logfile
 #set this to syslog instead of logfile if you'd like fuglu to log to your standard mail log
+
+[logger_timing]
+level=ERROR
+propagate=0
+qualname=fuglu.Timings
+handlers=timingfile
 
 [logger_saplugin]
 level=INFO
@@ -46,10 +52,22 @@ level=NOTSET
 args=('/var/log/fuglu/fuglu.log','midnight',1,14)
 formatter=logfileformatter
 
+[handler_timingfile]
+class=handlers.TimedRotatingFileHandler
+level=NOTSET
+args=('/var/log/fuglu/timings.log','midnight',1,2)
+formatter=timelogfileformatter
+
 [handler_syslog]
 class=handlers.SysLogHandler
 level=NOTSET
 formatter=syslogformatter
+args=('/dev/log',handlers.SysLogHandler.LOG_MAIL)
+
+[handler_syslogtime]
+class=handlers.SysLogHandler
+level=NOTSET
+formatter=syslogtimeformatter
 args=('/dev/log',handlers.SysLogHandler.LOG_MAIL)
 
 [formatter_logfileformatter]
@@ -58,5 +76,12 @@ format=%(asctime)s %(name)-12s: %(levelname)s %(message)s
 [formatter_sysoutformatter]
 format=%(asctime)s %(levelname)s %(message)s
 
+[formatter_timelogfileformatter]
+format=%(asctime)s: %(levelname)s %(message)s
+
 [formatter_syslogformatter]
 format=fuglu[%(process)d]: %(message)s
+
+[formatter_syslogtimeformatter]
+format=fuglu[%(process)d]/%(name)s: %(message)s
+
