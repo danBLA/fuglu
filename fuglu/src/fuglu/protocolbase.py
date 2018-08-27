@@ -15,6 +15,7 @@
 #
 #
 import logging
+import pickle
 import socket
 import threading
 from fuglu.scansession import SessionHandler
@@ -155,3 +156,8 @@ def forking_dumps(obj):
     ForkingPickler(buf).dump(obj)
     return buf.getvalue()
 
+
+def forking_load(pickledTask):
+    pickled_socket, handler_modulename, handler_classname = pickledTask
+    sock = pickle.loads(pickled_socket)
+    return sock,handler_modulename,handler_classname
