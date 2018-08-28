@@ -7,7 +7,7 @@ keys=root,timing
 keys=logfile,timingfile
 
 [formatters]
-keys=sysoutformatter,logfileformatter,syslogformatter
+keys=sysoutformatter,logfileformatter,syslogformatter,timelogfileformatter
 
 [logger_root]
 level=INFO
@@ -16,7 +16,8 @@ handlers=logfile
 
 [logger_timing]
 level=ERROR
-propagate=0
+#to enable timing for message processing
+#set level=INFO (plugin timings + overhead) or LEVEL=DEBUG (plugin timings + overhead details)
 qualname=fuglu.Timings
 handlers=timingfile
 
