@@ -184,7 +184,9 @@ class SessionHandler(object):
             if result == ACCEPT or result == DUNNO:
                 try:
                     self.protohandler.commitback(suspect)
+                    self.tracktime("Commitback")
                     self.stats.increase_counter_values(StatDelta(out=1))
+                    self.tracktime("Increase-Stats")
 
                 except KeyboardInterrupt:
                     sys.exit()
@@ -213,7 +215,6 @@ class SessionHandler(object):
                     'Invalid Message action Code: %s. Using DEFER' % result)
                 message_is_deferred = True
                 self._defer()
-            self.tracktime("Commitback")
 
             # run appenders (stats plugin etc) unless msg is deferred
             if not message_is_deferred:
@@ -304,13 +305,13 @@ class SessionHandler(object):
                                                                                          appenders=False)))
             all_prependertimes = self.gettime(prependers=True)
             for prependertime in all_prependertimes:
-                self.timings_logger.info('id: %s, %s: %.3f' % (suspectid, prependertime[0], prependertime[1]))
+                self.timings_logger.info('id: %s, (PRE) %s: %.3f' % (suspectid, prependertime[0], prependertime[1]))
             all_plugintimes = self.gettime(plugins=True)
             for plugintime in all_plugintimes:
-                self.timings_logger.info('id: %s, %s: %.3f' % (suspectid, plugintime[0], plugintime[1]))
+                self.timings_logger.info('id: %s, (PLG) %s: %.3f' % (suspectid, plugintime[0], plugintime[1]))
             all_appendertimes = self.gettime(appenders=True)
             for appendertime in all_appendertimes:
-                self.timings_logger.info('id: %s, %s: %.3f' % (suspectid, appendertime[0], appendertime[1]))
+                self.timings_logger.info('id: %s, (APP) %s: %.3f' % (suspectid, appendertime[0], appendertime[1]))
             all_overheadtimes = self.gettime(plugins=False, prependers=False, appenders=False)
             for overheadtime in all_overheadtimes:
                 self.timings_logger.debug('id: %s, %s: %.3f' % (suspectid, overheadtime[0], overheadtime[1]))
