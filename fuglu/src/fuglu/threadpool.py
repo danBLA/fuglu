@@ -98,6 +98,9 @@ class ThreadPool(threading.Thread):
         """
         if self._stayalive:
             task = self.tasks.get(True)
+            if task is None:
+                # Poison pill
+                return None
             sock, handler_modulename, handler_classname = forking_load(task)
             handler_class = getattr(importlib.import_module(handler_modulename), handler_classname)
 
@@ -108,7 +111,7 @@ class ThreadPool(threading.Thread):
 
             handler_instance = handler_class(sock, controller.config)
             handler = SessionHandler(handler_instance, controller.config, controller.prependers,
-                                     controller.plugins, controller().appenders)
+                                     controller.plugins, controller.appenders)
             return handler
         else:
             return None

@@ -17,7 +17,7 @@
 #
 import fuglu.core
 import fuglu.logtools as logtools
-from fuglu.protocolbase import forking_load
+from fuglu.protocolbase import forking_load, forking_dumps
 from fuglu.scansession import SessionHandler
 from fuglu.stats import Statskeeper, StatDelta
 from fuglu.addrcheck import Addrcheck
@@ -85,6 +85,23 @@ class ProcManager(object):
     def add_task(self, session):
         if self._stayalive:
             self.tasks.put(session)
+
+    def add_task_from_socket(self, sock, handler_modulename, handler_classname):
+        """
+        Consistent interface with procpool. Add a new task to the queu
+        given the socket to receive the message.
+
+        Args:
+            sock (socket): socket to receive the message
+            handler_modulename (str): module name of handler
+            handler_classname (str): class name of handler
+        """
+        try:
+            task = forking_dumps(sock), handler_modulename, handler_classname
+            self.add_task(task)
+        except Exception as e:
+            self.logger.error("Exception happened trying to add task to queue: %s" % str(e))
+            self.logger.exception(e)
 
     def _create_worker(self):
         self._child_id_counter +=1
