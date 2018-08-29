@@ -358,30 +358,64 @@ class Archive_7z(Archive_int):
 class Archive_gz(Archive_int):
     def __init__(self, filedescriptor, archivename=None):
         super(Archive_gz, self).__init__(filedescriptor, archivename)
-        try:
+        self._filesize = None
+        if sys.version_info > (3,):
+            # --
+            # Python 3 gzip.open handles both filename and file object
+            # --
             self._handle = gzip.open(filedescriptor)
-            if self._archivename is None:
+            if isinstance(filedescriptor,(str,bytes)):
                 try:
                     self._archivename = os.path.basename(str(filedescriptor))
                 except Exception:
                     self._archivename = "generic.gz"
-
-        except TypeError as e:
-            # if input is not a filename there's a type error
-            self._handle = gzip.GzipFile(fileobj=filedescriptor,mode='rb')
-            if self._archivename is None:
-                # if there is not archive name defined yet
-                try:
-                    # eventually it is possible to get the filename from
-                    # the GzipFile object
-                    self._archivename = os.path.basename(self._handle.name)
-                    if not self._archivename:
-                        # If input is io.BytesIO then the name attribute
-                        # stores an empty string, set generic
+            else:
+                if self._archivename is None:
+                    # if there is not archive name defined yet
+                    try:
+                        # eventually it is possible to get the filename from
+                        # the GzipFile object
+                        self._archivename = os.path.basename(self._handle.name)
+                        if not self._archivename:
+                            # If input is io.BytesIO then the name attribute
+                            # stores an empty string, set generic
+                            self._archivename = "generic.gz"
+                    except:
+                        # any error, set generic
                         self._archivename = "generic.gz"
-                except:
-                    # any error, set generic
-                    self._archivename = "generic.gz"
+        else:
+            try:
+                # --
+                # Python 2 gzip.open expects a filename
+                # --
+                self._handle = gzip.open(filedescriptor)
+                # Python 2
+                if self._archivename is None:
+                    try:
+                        self._archivename = os.path.basename(str(filedescriptor))
+                    except Exception:
+                        self._archivename = "generic.gz"
+
+            except TypeError as e:
+                # --
+                # Python 2 if input is a file object
+                # --
+
+                # if input is not a filename there's a type error
+                self._handle = gzip.GzipFile(fileobj=filedescriptor,mode='rb')
+                if self._archivename is None:
+                    # if there is not archive name defined yet
+                    try:
+                        # eventually it is possible to get the filename from
+                        # the GzipFile object
+                        self._archivename = os.path.basename(self._handle.name)
+                        if not self._archivename:
+                            # If input is io.BytesIO then the name attribute
+                            # stores an empty string, set generic
+                            self._archivename = "generic.gz"
+                    except:
+                        # any error, set generic
+                        self._archivename = "generic.gz"
 
     def namelist(self):
         """ Get archive file list
@@ -418,7 +452,7 @@ class Archive_gz(Archive_int):
 
         Args:
             path (str): is the filename in the archive as returned by namelist
-            archivecontentmaxsize (int): maximum file size allowed to be extracted from archive
+            archivecontentmaxsize (int,None): maximum file size allowed to be extracted from archive
         Returns:
             (bytes or None) returns the file content or None if the file would be larger than the setting archivecontentmaxsize
 
@@ -426,7 +460,10 @@ class Archive_gz(Archive_int):
         if archivecontentmaxsize is not None and self.filesize(path) > archivecontentmaxsize:
             return None
 
-        return self._handle.read()
+        initial_position = self._handle.fileobj.tell()
+        filecontent = self._handle.read()
+        self._handle.fileobj.seek(initial_position)
+        return filecontent
 
     def filesize(self, path):
         """get extracted file size
@@ -437,13 +474,7 @@ class Archive_gz(Archive_int):
             (int) file size in bytes
         """
         try:
-            # from gzip.GzipFile._read_eof(self):
-            initial_position = self._handle.fileobj.tell()
-            self._handle.fileobj.seek(-8,2)
-            crc32 = gzip.read32(self._handle.fileobj)
-            filesize = gzip.read32(self._handle.fileobj)
-            self._handle.fileobj.seek(initial_position)
-            return filesize
+            return len(self.extract(path, None))
         except Exception as e:
             return 0
 
@@ -690,7 +721,10 @@ class Archivehandle(object):
         for regex, atype in iter(ctypes2check.items()):
             if re.match(regex, content_type, re.I):
                 archive_type = atype
+                print("MATCH for regex: %s and ctype: %s which belongs to %s" % (regex,content_type,atype))
                 break
+            else:
+                print("no match for regex: %s and ctype: %s which belongs to %s" % (regex,content_type,atype))
 
         return archive_type
 
@@ -743,6 +777,6 @@ class Archivehandle(object):
 
         assert Archivehandle.impl(archive_type), "Archive type %s not in list of supported types: %s" % (archive_type, ",".join(Archivehandle.archive_impl.keys()))
         assert Archivehandle.avail(archive_type), "Archive type %s not in list of available types: %s" % (archive_type, ",".join(Archivehandle.avail_archives_list))
-
+        print("Return Archivehandle for archive type: %s"%archive_type)
         return Archivehandle.archive_impl[archive_type](filedescriptor,archivename)
 
