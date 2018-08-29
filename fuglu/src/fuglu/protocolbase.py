@@ -15,6 +15,7 @@
 #
 #
 import logging
+import pickle
 import socket
 import threading
 from fuglu.scansession import SessionHandler
@@ -127,22 +128,18 @@ class BasicTCPServer(object):
                 sock,addr = nsd
                 if not self.stayalive:
                     break
-                ph = self.protohandlerclass(sock, self.controller.config)
-                engine = SessionHandler(
-                    ph, self.controller.config, self.controller.prependers, self.controller.plugins, self.controller.appenders)
+                handler_classname = self.protohandlerclass.__name__
+                handler_modulename = self.protohandlerclass.__module__
                 self.logger.debug('(%s) Incoming connection  [incoming server port: %s, prot: %s]' % (createPIDinfo(),self.port,self.protohandlerclass.protoname))
                 if self.controller.threadpool:
                     # this will block if queue is full
-                    self.controller.threadpool.add_task(engine)
+                    self.controller.threadpool.add_task_from_socket(sock, handler_modulename, handler_classname)
                 elif self.controller.procpool:
-                    # in multi processing, the other process manages configs and plugins itself, we only pass the minimum required information:
-                    # a pickled version of the socket (this is no longer required in python 3.4, but in python 2 the multiprocessing queue can not handle sockets
-                    # see https://stackoverflow.com/questions/36370724/python-passing-a-tcp-socket-object-to-a-multiprocessing-queue
-                    handler_classname = self.protohandlerclass.__name__
-                    handler_modulename = self.protohandlerclass.__module__
-                    task = forking_dumps(sock),handler_modulename, handler_classname
-                    self.controller.procpool.add_task(task)
+                    self.controller.procpool.add_task_from_socket(sock, handler_modulename, handler_classname)
                 else:
+                    ph = self.protohandlerclass(sock, self.controller.config)
+                    engine = SessionHandler(ph, self.controller.config, self.controller.prependers,
+                                            self.controller.plugins, self.controller.appenders)
                     engine.handlesession()
             except Exception as e:
                 exc = traceback.format_exc()
@@ -155,3 +152,8 @@ def forking_dumps(obj):
     ForkingPickler(buf).dump(obj)
     return buf.getvalue()
 
+
+def forking_load(pickledTask):
+    pickled_socket, handler_modulename, handler_classname = pickledTask
+    sock = pickle.loads(pickled_socket)
+    return sock,handler_modulename,handler_classname

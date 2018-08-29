@@ -582,7 +582,7 @@ class MainController(object):
             maxthreads = 3
 
         queuesize = maxthreads * 10
-        return ThreadPool(minthreads, maxthreads, queuesize)
+        return ThreadPool(self,minthreads, maxthreads, queuesize)
 
     def _start_processpool(self):
         numprocs = self.config.getint('performance','initialprocs')
@@ -733,7 +733,7 @@ class MainController(object):
                     self.logger.info('Threadpool config changed, initialising new threadpool')
                     currentthreadpool = self.threadpool
                     self.threadpool = self._start_threadpool()
-                    currentthreadpool.shutdown()
+                    currentthreadpool.shutdown(self.threadpool)
                 else:
                     self.logger.info('Keep existing threadpool')
             else:
@@ -743,7 +743,7 @@ class MainController(object):
             # stop existing procpool
             if self.procpool is not None:
                 self.logger.info('Delete old procpool')
-                self.procpool.shutdown()
+                self.procpool.shutdown(self.threadpool)
                 self.procpool = None
 
         elif backend == 'process':
@@ -757,12 +757,12 @@ class MainController(object):
             #    into account (each worker process has its own controller unlike using threadpool)
             if currentProcPool is not None:
                 self.logger.info('Delete old processpool')
-                currentProcPool.shutdown()
+                currentProcPool.shutdown(self.procpool)
 
             # stop existing threadpool
             if self.threadpool is not None:
                 self.logger.info('Delete old threadpool')
-                self.threadpool.shutdown()
+                self.threadpool.shutdown(self.procpool)
                 self.threadpool = None
         else:
             self.logger.error('backend not detected -> ignoring input!')
