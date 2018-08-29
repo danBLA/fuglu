@@ -22,6 +22,7 @@ import sys
 import zipfile
 import tarfile
 import re
+import os.path
 
 STATUS = "available: zip, tar"
 ENABLED = True
@@ -42,6 +43,16 @@ try:
 except (ImportError, OSError):
     pass
 
+GZIP_AVAILABLE = 0
+try:
+    import gzip
+    import struct
+    import os.path
+    GZIP_AVAILABLE = 1
+    STATUS += ", gz"
+except (ImportError, OSError):
+    pass
+
 
 #-------------#
 #- Interface -#
@@ -51,8 +62,14 @@ class Archive_int(object):
     Archive_int is the interface for the archive handle implementations
     """
 
-    def __init__(self, filedescriptor):
+    def __init__(self, filedescriptor, archivename=None):
         self._handle = None
+        self._archivename = archivename
+        if archivename is not None:
+            try:
+                self._archivename = os.path.basename(str(archivename))
+            except Exception:
+                pass
 
     def close(self):
         try:
@@ -97,8 +114,8 @@ class Archive_int(object):
 # below the implementations in class Archivehandle
 
 class Archive_zip(Archive_int):
-    def __init__(self,filedescriptor):
-        super(Archive_zip, self).__init__(filedescriptor)
+    def __init__(self,filedescriptor,archivename=None):
+        super(Archive_zip, self).__init__(filedescriptor, archivename)
 
         if sys.version_info < (2, 7):
             try:
@@ -110,6 +127,11 @@ class Archive_zip(Archive_int):
             except Exception:
                 pass
         self._handle = zipfile.ZipFile(filedescriptor)
+        if self._archivename is None:
+            try:
+                self._archivename = os.path.basename(str(filedescriptor))
+            except Exception:
+                self._archivename = "generic.zip"
 
     @staticmethod
     def fix_python26_zipfile_bug(zipFileContainer):
@@ -183,9 +205,14 @@ class Archive_zip(Archive_int):
         return self._handle.getinfo(path).file_size
 
 class Archive_rar(Archive_int):
-    def __init__(self, filedescriptor):
-        super(Archive_rar, self).__init__(filedescriptor)
+    def __init__(self, filedescriptor, archivename=None):
+        super(Archive_rar, self).__init__(filedescriptor, archivename)
         self._handle = rarfile.RarFile(filedescriptor)
+        if self._archivename is None:
+            try:
+                self._archivename = os.path.basename(str(filedescriptor))
+            except Exception:
+                self._archivename = "generic.rar"
 
     def namelist(self):
         """ Get archive file list
@@ -220,12 +247,19 @@ class Archive_rar(Archive_int):
         return self._handle.getinfo(path).file_size
 
 class Archive_tar(Archive_int):
-    def __init__(self, filedescriptor):
-        super(Archive_tar, self).__init__(filedescriptor)
+    def __init__(self, filedescriptor, archivename=None):
+        super(Archive_tar, self).__init__(filedescriptor, archivename)
         try:
             self._handle = tarfile.open(fileobj=filedescriptor)
+            if self._archivename is None:
+                self._archivename = "generic.tar"
         except AttributeError:
             self._handle = tarfile.open(filedescriptor)
+            if self._archivename is None:
+                try:
+                    self._archivename = os.path.basename(str(filedescriptor))
+                except Exception:
+                    self._archivename = "generic.tar"
 
     def namelist(self):
         """ Get archive file list
@@ -268,14 +302,20 @@ class Archive_tar(Archive_int):
         return arinfo.size
 
 class Archive_7z(Archive_int):
-    def __init__(self, filedescriptor):
-        super(Archive_7z, self).__init__(filedescriptor)
+    def __init__(self, filedescriptor, archivename=None):
+        super(Archive_7z, self).__init__(filedescriptor, archivename)
         self._fdescriptor = None
         try:
             self._handle = py7zlib.Archive7z(filedescriptor)
         except AttributeError:
             self._fdescriptor = open(filedescriptor,'rb')
             self._handle = py7zlib.Archive7z(self._fdescriptor)
+
+        if self._archivename is None:
+            try:
+                self._archivename = os.path.basename(str(filedescriptor))
+            except Exception:
+                self._archivename = "generic.7z"
 
     def namelist(self):
         """ Get archive file list
@@ -315,6 +355,98 @@ class Archive_7z(Archive_int):
                 pass
         self._fdescriptor = None
 
+class Archive_gz(Archive_int):
+    def __init__(self, filedescriptor, archivename=None):
+        super(Archive_gz, self).__init__(filedescriptor, archivename)
+        try:
+            self._handle = gzip.open(filedescriptor)
+            if self._archivename is None:
+                try:
+                    self._archivename = os.path.basename(str(filedescriptor))
+                except Exception:
+                    self._archivename = "generic.gz"
+
+        except TypeError as e:
+            # if input is not a filename there's a type error
+            self._handle = gzip.GzipFile(fileobj=filedescriptor,mode='rb')
+            if self._archivename is None:
+                # if there is not archive name defined yet
+                try:
+                    # eventually it is possible to get the filename from
+                    # the GzipFile object
+                    self._archivename = os.path.basename(self._handle.name)
+                    if not self._archivename:
+                        # If input is io.BytesIO then the name attribute
+                        # stores an empty string, set generic
+                        self._archivename = "generic.gz"
+                except:
+                    # any error, set generic
+                    self._archivename = "generic.gz"
+
+    def namelist(self):
+        """ Get archive file list
+
+        Returns:
+            (list) Returns a list of file paths within the archive
+        """
+
+        # try to create a name from the archive name
+        # because a gzipped file doesn't have information about the
+        # original filename
+        # gzipping a file creates the archive name by appending ".gz"
+        genericfilename = self._archivename
+
+        if not genericfilename:
+            genericfilename = "generic.unknown.gz"
+
+        try:
+            # get list of file extensions
+            fileendinglist = Archivehandle.avail_archive_extensionlist4type['gz']
+            for ending in fileendinglist:
+                endingwithdot = "."+ending
+                if genericfilename.endswith(endingwithdot):
+                    genericfilename = genericfilename[:-len(endingwithdot)]
+                    break
+
+        except Exception as e:
+            print(e)
+            pass
+        return [genericfilename]
+
+    def extract(self, path, archivecontentmaxsize):
+        """extract a file from the archive into memory
+
+        Args:
+            path (str): is the filename in the archive as returned by namelist
+            archivecontentmaxsize (int): maximum file size allowed to be extracted from archive
+        Returns:
+            (bytes or None) returns the file content or None if the file would be larger than the setting archivecontentmaxsize
+
+        """
+        if archivecontentmaxsize is not None and self.filesize(path) > archivecontentmaxsize:
+            return None
+
+        return self._handle.read()
+
+    def filesize(self, path):
+        """get extracted file size
+
+        Args:
+            path (str): is the filename in the archive as returned by namelist
+        Returns:
+            (int) file size in bytes
+        """
+        try:
+            # from gzip.GzipFile._read_eof(self):
+            initial_position = self._handle.fileobj.tell()
+            self._handle.fileobj.seek(-8,2)
+            crc32 = gzip.read32(self._handle.fileobj)
+            filesize = gzip.read32(self._handle.fileobj)
+            self._handle.fileobj.seek(initial_position)
+            return filesize
+        except Exception as e:
+            return 0
+
 #--                  --#
 #- use class property -#
 #--                  --#
@@ -343,7 +475,7 @@ class Archivehandle(object):
                                           # [ "rar", "zip" ]
         Archivehandle.avail_archive_extensions_list # returns a list of archive extensions (sorted by extension length)
                                                     # for example ['tar.bz2', 'tar.gz', 'tar', 'zip', 'tgz']
-        Archivehandle.avail_archive_ctypes_list # returns a list of mnail content type regex expressions,
+        Archivehandle.avail_archive_ctypes_list # returns a list of mail content type regex expressions,
                                                 # for example ['^application\\/x-tar', '^application\\/zip',
                                                                '^application\\/x-bzip2', '^application\\/x-gzip']
 
@@ -360,13 +492,15 @@ class Archivehandle(object):
     archive_impl = {"zip": Archive_zip,
                     "rar": Archive_rar,
                     "tar": Archive_tar,
-                    "7z" : Archive_7z}
+                    "7z" : Archive_7z,
+                    "gz" : Archive_gz}
 
     # Dict storing if archive type is available
     archive_avail= {"zip": True,
                     "rar": (RARFILE_AVAILABLE > 0),
                     "tar": True,
-                    "7z" : (SEVENZIP_AVAILABLE > 0)}
+                    "7z" : (SEVENZIP_AVAILABLE > 0),
+                    "gz" : (GZIP_AVAILABLE > 0)}
 
 
     # key: regex matching content type as returned by file magic, value: archive type
@@ -375,6 +509,7 @@ class Archivehandle(object):
         '^application\/x-tar': 'tar',
         '^application\/x-gzip': 'tar',
         '^application\/x-bzip2': 'tar',
+        '^application\/gzip': 'gz',           # available only if GZIP_AVAILABLE > 0
         '^application\/x-rar': 'rar',         # available only if RARFILE_AVAILABLE > 0
         '^application\/x-7z-compressed': '7z' # available only if SEVENZIP_AVAILABLE > 0
     }
@@ -388,6 +523,7 @@ class Archivehandle(object):
         'tar.gz': 'tar',
         'tgz': 'tar',
         'tar.bz2': 'tar',
+        'gz': 'gz',   # available only if GZIP_AVAILABLE > 0
         'rar': 'rar', # available only if RARFILE_AVAILABLE > 0
         '7z': '7z',   # available only if SEVENZIP_AVAILABLE > 0
     }
@@ -416,6 +552,11 @@ class Archivehandle(object):
     # key: file ending
     # value: archive type
     _avail_archive_extensions = None
+
+    # "avail_archive_extensionlist" dict with list of file extensions for given archive type
+    # key: archive type
+    # value: list with file endings
+    _avail_archive_extensionlist4type = None
 
     @classproperty
     def avail_archive_extensions_list(cls):
@@ -473,7 +614,25 @@ class Archivehandle(object):
 
         return cls._avail_archive_extensions
 
+    @classproperty
+    def avail_archive_extensionlist4type(cls):
+        # first time this dict has to be created based on what's available
+        if cls._avail_archive_extensionlist4type is None:
+            newDict = {}
+            for regex,atype in iter(Archivehandle.implemented_archive_extensions.items()):
+                # regex is the file extension
+                # atype is the archive type
+                if Archivehandle.avail(atype):
+                    try:
+                        # append ending to list of endings for given archive type
+                        newDict[atype].append(regex)
+                    except KeyError:
+                        # create a new list for given archive type containg current file ending
+                        newDict[atype] = [regex]
+            cls._avail_archive_extensionlist4type = newDict
+        return cls._avail_archive_extensionlist4type
 
+        return cls._avail_archive_extensions
     @staticmethod
     def impl(archive_type):
         """
@@ -572,7 +731,7 @@ class Archivehandle(object):
                 break
         return archive_type
 
-    def __new__(cls,archive_type,filedescriptor):
+    def __new__(cls,archive_type, filedescriptor, archivename=None):
         """
         Factory method that will produce and return the correct implementation depending
         on the archive type
@@ -585,5 +744,5 @@ class Archivehandle(object):
         assert Archivehandle.impl(archive_type), "Archive type %s not in list of supported types: %s" % (archive_type, ",".join(Archivehandle.archive_impl.keys()))
         assert Archivehandle.avail(archive_type), "Archive type %s not in list of available types: %s" % (archive_type, ",".join(Archivehandle.avail_archives_list))
 
-        return Archivehandle.archive_impl[archive_type](filedescriptor)
+        return Archivehandle.archive_impl[archive_type](filedescriptor,archivename)
 
