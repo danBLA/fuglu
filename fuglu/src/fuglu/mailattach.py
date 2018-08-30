@@ -221,6 +221,7 @@ class Mailattachment(Cachelimits):
 
         # try guessing the archive type based on magic content type first
         archive_type = Archivehandle.archive_type_from_content_type(self.contenttype)
+        print("archive_type after checking content: %s"%str(archive_type))
 
         # if it didn't work, try to guess by the filename extension, if it is enabled
         if archive_type is None:
@@ -232,6 +233,7 @@ class Mailattachment(Cachelimits):
                     # store archive extension for internal use
                     self._arext = arext
                     break
+        print("archive_type after checking extension: %s"%str(archive_type))
         return archive_type
 
     @smart_cached_memberfunc(inputs=['archive_type'])
@@ -472,7 +474,7 @@ class Mailattachment(Cachelimits):
         if self.buffer is None:
             return None
         else:
-            return Archivehandle(self.archive_type, BytesIO(self.buffer))
+            return Archivehandle(self.archive_type, BytesIO(self.buffer),archivename=self.filename)
 
     @smart_cached_property(inputs=['archive_handle'])
     def fileslist_archive(self):
@@ -765,7 +767,10 @@ class Mailattachment_mgr(object):
             if ext.strip() == '':
                 att_name = "unnamed"
             else:
-                att_name = 'unnamed.%s' % ext
+                if ext.startswith("."):
+                    att_name = 'unnamed%s' % ext
+                else:
+                    att_name = 'unnamed.%s' % ext
 
         buffer = part.get_payload(decode=True) # Py2: string, Py3: bytes
         # try to get size from buffer length
