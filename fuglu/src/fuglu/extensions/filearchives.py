@@ -436,10 +436,15 @@ class Archive_gz(Archive_int):
         try:
             # get list of file extensions
             fileendinglist = Archivehandle.avail_archive_extensionlist4type['gz']
+            replacedict = {"wmz": "wmf",
+                           "emz": "emf"}
             for ending in fileendinglist:
                 endingwithdot = "."+ending
                 if genericfilename.endswith(endingwithdot):
-                    genericfilename = genericfilename[:-len(endingwithdot)]
+                    if ending in replacedict:
+                        genericfilename = genericfilename[:-len(ending)]+replacedict[ending]
+                    else:
+                        genericfilename = genericfilename[:-len(endingwithdot)]
                     break
 
         except Exception as e:
@@ -477,6 +482,55 @@ class Archive_gz(Archive_int):
             return len(self.extract(path, None))
         except Exception as e:
             return 0
+
+class Archive_tgz():
+    """
+    Archive combining tar and gzip extractor
+
+    This archive combining gzip/tar extractor arises from a problem created when
+    Archive_gz was introduced:  Reason are files with content "application/(x-)gzip".
+
+    implemented_archive_ctypes = {
+        ...
+        '^application\/gzip': 'gz'
+        '^application\/x-gzip': 'gz'
+        ...}
+
+    Ctype is checked before file ending, so a file [*].tar.gz is detected as gzip, extracted to
+    [*].tar and then needs a second extraction to [*] using tar archive extractor.
+    This is inconsistent with previous behavior. A solution currently passing the tests is to
+    remove "^application\/gzip","^application\/x-gzip" from the implemented_archive_ctypes dict.
+    Like this, the archive extractor is selected based on the file ending which detects "tar.gz"
+    as tar before ".gz" (as gzip)
+
+    A second solution is the creation of Archive_tgz which allows to keep the content type detection.
+    This extractor will first try tar extractor and if this fails the gz extractor. This has the advantage
+    we can keep content detection for gzip and be backward compatible.
+    """
+    def __init__(self, filedescriptor, archivename=None):
+        # first try extract using tar
+        # check if it is possible to extract filenames
+        try:
+            self._archive_impl = Archive_tar(filedescriptor,archivename)
+            filenamelist = self._archive_impl.namelist()
+        except Exception as e:
+            if GZIP_AVAILABLE:
+                self._archive_impl = Archive_gz(filedescriptor,archivename)
+            else:
+                raise e
+
+    def __getattr__(self, name):
+        """
+        Delegate to implementation stored in self._archive_impl
+
+        Args:
+            name (str): name of attribute/method
+
+        Returns:
+            delegated result
+
+        """
+        return getattr(self._archive_impl, name)
 
 #--                  --#
 #- use class property -#
@@ -524,6 +578,7 @@ class Archivehandle(object):
                     "rar": Archive_rar,
                     "tar": Archive_tar,
                     "7z" : Archive_7z,
+                    "tgz": Archive_tgz,
                     "gz" : Archive_gz}
 
     # Dict storing if archive type is available
@@ -531,16 +586,17 @@ class Archivehandle(object):
                     "rar": (RARFILE_AVAILABLE > 0),
                     "tar": True,
                     "7z" : (SEVENZIP_AVAILABLE > 0),
-                    "gz" : (GZIP_AVAILABLE > 0)}
+                    "gz" : (GZIP_AVAILABLE > 0),
+                    "tgz": (GZIP_AVAILABLE > 0)}
 
 
     # key: regex matching content type as returned by file magic, value: archive type
     implemented_archive_ctypes = {
         '^application\/zip': 'zip',
         '^application\/x-tar': 'tar',
-        '^application\/x-gzip': 'tar',
+        '^application\/x-gzip': 'tgz',
         '^application\/x-bzip2': 'tar',
-        '^application\/gzip': 'gz',           # available only if GZIP_AVAILABLE > 0
+        '^application\/gzip': 'tgz',
         '^application\/x-rar': 'rar',         # available only if RARFILE_AVAILABLE > 0
         '^application\/x-7z-compressed': '7z' # available only if SEVENZIP_AVAILABLE > 0
     }
@@ -554,9 +610,11 @@ class Archivehandle(object):
         'tar.gz': 'tar',
         'tgz': 'tar',
         'tar.bz2': 'tar',
-        'gz': 'gz',   # available only if GZIP_AVAILABLE > 0
-        'rar': 'rar', # available only if RARFILE_AVAILABLE > 0
-        '7z': '7z',   # available only if SEVENZIP_AVAILABLE > 0
+        'gz': 'gz',    # available only if GZIP_AVAILABLE > 0
+        'emz': 'gz',    # available only if GZIP_AVAILABLE > 0
+        'wmz': 'gz',    # available only if GZIP_AVAILABLE > 0
+        'rar': 'rar',  # available only if RARFILE_AVAILABLE > 0
+        '7z': '7z',    # available only if SEVENZIP_AVAILABLE > 0
     }
 
     #--
