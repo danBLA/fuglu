@@ -34,7 +34,7 @@ from io import BytesIO
 # - python3 takes .exe for application/octet-stream which is often used for content types
 #   unknwon to the creating MUA (e.g. pdf files are often octet-stream)
 MIMETYPE_EXT_OVERRIDES = {
-    'text/plain': '.txt',
+    'text/plain': 'txt',
     'application/octet-stream': None,
 }
 

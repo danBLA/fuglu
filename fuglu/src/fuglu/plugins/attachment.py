@@ -60,15 +60,6 @@ KEY_ARCHIVENAME = u"archive-name"
 KEY_ARCHIVECTYPE = u"archive-ctype"
 
 
-# workarounds for mimetypes
-# - always takes .ksh for text/plain
-# - python3 takes .exe for application/octet-stream which is often used for content types
-#   unknwon to the creating MUA (e.g. pdf files are often octet-stream)
-MIMETYPE_EXT_OVERRIDES = {
-    'text/plain': 'txt',
-    'application/octet-stream': None,
-}
-
 class RulesCache(object):
 
     """caches rule files"""
