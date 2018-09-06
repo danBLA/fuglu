@@ -18,6 +18,8 @@ handlers=logfile
 level=ERROR
 #to enable timing for message processing
 #set level=INFO (plugin timings + overhead) or LEVEL=DEBUG (plugin timings + overhead details)
+propagate=0
+#propagate has to be 0 otherwise message will be in handler defined here + in root handler
 qualname=fuglu.Timings
 handlers=timingfile
 

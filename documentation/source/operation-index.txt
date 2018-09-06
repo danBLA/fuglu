@@ -288,6 +288,7 @@ in "logger_timing" which will create no/basic/detailed timing output in the log 
     level=INFO
     #to enable timing for message processing
     #set level=INFO (plugin timings + overhead) or LEVEL=DEBUG (plugin timings + overhead details)
+    propagate=0
     qualname=fuglu.Timings
     handlers=timingfile
 
@@ -309,7 +310,21 @@ in "logger_timing" which will create no/basic/detailed timing output in the log 
     [formatter_logfileformatter]
     format=%(asctime)s %(name)-12s: %(levelname)s %(message)s
 
-Sending a test mail creates timing output like:
+In the fuglu main config, enable scantime logging in the main section
+setting the variable "scantimelogger" to 1. The default is 0, so a config
+file without this option will not log scantime even if the "timings" logger
+is defind "logging.conf". This is to prevent a lot unwanted log messages using
+an older log config.
+
+::
+
+    [main]
+    # scantime logger disabled
+    # -> after enable also configure logger in logging.conf
+    scantimelogger = 1
+
+Restart fuglu after all the changes. Then
+sending a test mail creates timing output like:
 ::
 
     2018-08-28 15:59:06,200: INFO id: 215d440de4f64a08bc67d93dd92153d2, total: 0.652

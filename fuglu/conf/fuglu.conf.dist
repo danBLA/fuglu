@@ -1,9 +1,12 @@
-
 [main]
 
 #identifier can be any string that helps you identifying your config file
 #this helps making sure the correct config is loaded. this identifier will be printed out when fuglu is reloading its config
 identifier=dist
+
+# scantime logger disabled
+# -> after enable also configure logger in logging.conf
+scantimelogger = 0
 
 #run as a daemon? (fork)
 daemonize=1
