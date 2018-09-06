@@ -140,6 +140,12 @@ class MainController(object):
                 'description': "run as a daemon? (fork)",
                 'default': "1",
             },
+            
+            'scantimelogger':{
+                'section':'main',
+                'description':"Enable session scantime logger",
+                'default':"0",
+            },
 
             'user': {
                 'section': 'main',

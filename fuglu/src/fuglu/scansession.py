@@ -45,6 +45,15 @@ class SessionHandler(object):
         self.protohandler = protohandler
 
         # timings
+        # timings
+        self.enabletimetracker = False
+        try:
+            self.enabletimetracker = config.getboolean('main','scantimelogger')
+        except Exception:
+            self.enabletimetracker = False
+            self.logger.debug("Exception getting 'scantimelogger'")
+
+        self.logger.debug("enabletimetracker = %s" % self.enabletimetracker)
         self.timetracker = time.time()
         self.timings = []
 
@@ -299,22 +308,23 @@ class SessionHandler(object):
             # ---------------#
             self.tracktime("Ending")
 
-            self.timings_logger.info('id: %s, total: %.3f' % (suspectid, self.sumtime()))
-            self.timings_logger.info('id: %s, overhead: %.3f' % (suspectid, self.sumtime(plugins=False,
-                                                                                         prependers=False,
-                                                                                         appenders=False)))
-            all_prependertimes = self.gettime(prependers=True)
-            for prependertime in all_prependertimes:
-                self.timings_logger.info('id: %s, (PRE) %s: %.3f' % (suspectid, prependertime[0], prependertime[1]))
-            all_plugintimes = self.gettime(plugins=True)
-            for plugintime in all_plugintimes:
-                self.timings_logger.info('id: %s, (PLG) %s: %.3f' % (suspectid, plugintime[0], plugintime[1]))
-            all_appendertimes = self.gettime(appenders=True)
-            for appendertime in all_appendertimes:
-                self.timings_logger.info('id: %s, (APP) %s: %.3f' % (suspectid, appendertime[0], appendertime[1]))
-            all_overheadtimes = self.gettime(plugins=False, prependers=False, appenders=False)
-            for overheadtime in all_overheadtimes:
-                self.timings_logger.debug('id: %s, %s: %.3f' % (suspectid, overheadtime[0], overheadtime[1]))
+            if self.enabletimetracker:
+                self.timings_logger.info('id: %s, total: %.3f' % (suspectid, self.sumtime()))
+                self.timings_logger.info('id: %s, overhead: %.3f' % (suspectid, self.sumtime(plugins=False,
+                                                                                             prependers=False,
+                                                                                             appenders=False)))
+                all_prependertimes = self.gettime(prependers=True)
+                for prependertime in all_prependertimes:
+                    self.timings_logger.info('id: %s, (PRE) %s: %.3f' % (suspectid, prependertime[0], prependertime[1]))
+                all_plugintimes = self.gettime(plugins=True)
+                for plugintime in all_plugintimes:
+                    self.timings_logger.info('id: %s, (PLG) %s: %.3f' % (suspectid, plugintime[0], plugintime[1]))
+                all_appendertimes = self.gettime(appenders=True)
+                for appendertime in all_appendertimes:
+                    self.timings_logger.info('id: %s, (APP) %s: %.3f' % (suspectid, appendertime[0], appendertime[1]))
+                all_overheadtimes = self.gettime(plugins=False, prependers=False, appenders=False)
+                for overheadtime in all_overheadtimes:
+                    self.timings_logger.debug('id: %s, %s: %.3f' % (suspectid, overheadtime[0], overheadtime[1]))
 
         self.logger.debug('Session finished')
 
