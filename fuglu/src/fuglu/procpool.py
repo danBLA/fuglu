@@ -17,6 +17,7 @@
 #
 import fuglu.core
 import fuglu.logtools as logtools
+from fuglu.protocolbase import forking_load, forking_dumps
 from fuglu.scansession import SessionHandler
 from fuglu.stats import Statskeeper, StatDelta
 from fuglu.addrcheck import Addrcheck
@@ -26,7 +27,6 @@ import multiprocessing.queues
 import signal
 import logging
 import traceback
-import pickle
 import threading
 import sys
 import os
@@ -86,6 +86,23 @@ class ProcManager(object):
         if self._stayalive:
             self.tasks.put(session)
 
+    def add_task_from_socket(self, sock, handler_modulename, handler_classname):
+        """
+        Consistent interface with procpool. Add a new task to the queu
+        given the socket to receive the message.
+
+        Args:
+            sock (socket): socket to receive the message
+            handler_modulename (str): module name of handler
+            handler_classname (str): class name of handler
+        """
+        try:
+            task = forking_dumps(sock), handler_modulename, handler_classname
+            self.add_task(task)
+        except Exception as e:
+            self.logger.error("Exception happened trying to add task to queue: %s" % str(e))
+            self.logger.exception(e)
+
     def _create_worker(self):
         self._child_id_counter +=1
         worker_name = "Worker-%s"%self._child_id_counter
@@ -102,7 +119,7 @@ class ProcManager(object):
         # Start the child-to-parent message listener
         self.message_listener.start()
 
-    def shutdown(self):
+    def shutdown(self, newmanager=None):
         # setting stayalive equal to False
         # will send poison pills to all processors
         self.logger.debug("Shutdown procpool -> send poison pills")
@@ -111,20 +128,30 @@ class ProcManager(object):
         # add another poison pill for the ProcManager itself removing tasks...
         self.tasks.put_nowait(None)
 
-        returnMessage = "Temporarily unavailable... Please try again later."
-        markDeferCounter = 0
-        while True:
-            task = self.tasks.get()
-            if task is None: # poison pill
-                break
-            markDeferCounter += 1
-            sock, handler_modulename, handler_classname = fuglu_process_unpack(task)
-            handler_class = getattr(importlib.import_module(handler_modulename), handler_classname)
-            handler_instance = handler_class(sock, self.config)
-            handler_instance.defer(returnMessage)
-            #handler = SessionHandler(handler_instance, self.config,None, None, None)
-            #handler._defer("temporarily not available")
-        self.logger.info("Marked %s messages as '%s' to close queue" % (markDeferCounter,returnMessage))
+        if newmanager:
+            # new manager available. Transfer tasks
+            # to new manager
+            countmessages = 0
+            while True:
+                task = self.tasks.get()
+                if task is None:  # poison pill
+                    break
+                newmanager.add_task(task)
+                countmessages += 1
+            self.logger.info("Moved %u messages to queue of new manager" % countmessages)
+        else:
+            return_message = "Temporarily unavailable... Please try again later."
+            mark_defer_counter = 0
+            while True:
+                task = self.tasks.get()
+                if task is None: # poison pill
+                    break
+                mark_defer_counter += 1
+                sock, handler_modulename, handler_classname = forking_load(task)
+                handler_class = getattr(importlib.import_module(handler_modulename), handler_classname)
+                handler_instance = handler_class(sock, self.config)
+                handler_instance.defer(return_message)
+            self.logger.info("Marked %s messages as '%s' to close queue" % (mark_defer_counter, return_message))
 
         # join the workers
         self.logger.debug("Join workers")
@@ -168,11 +195,6 @@ class MessageListener(threading.Thread):
                 except Exception:
                     print(traceback.format_exc())
 
-
-def fuglu_process_unpack(pickledTask):
-    pickled_socket, handler_modulename, handler_classname = pickledTask
-    sock = pickle.loads(pickled_socket)
-    return sock,handler_modulename,handler_classname
 
 def fuglu_process_worker(queue, config, shared_state,child_to_server_messages, logQueue):
 
@@ -229,7 +251,7 @@ def fuglu_process_worker(queue, config, shared_state,child_to_server_messages, l
                     return
             workerstate.workerstate = 'starting scan session'
             logger.debug("%s: Child process starting scan session" % logtools.createPIDinfo())
-            sock, handler_modulename, handler_classname = fuglu_process_unpack(task)
+            sock, handler_modulename, handler_classname = forking_load(task)
             handler_class = getattr(importlib.import_module(handler_modulename), handler_classname)
             handler_instance = handler_class(sock, config)
             handler = SessionHandler(handler_instance, config, prependers, plugins, appenders)

@@ -166,6 +166,32 @@ class AttachmentPluginTestCase(unittest.TestCase):
         tmpfile.close()
         self.assertEqual(result, DUNNO)
 
+    def test_special_archive_name(self):
+        """Check if gz file with exclamantion marks and points in archive name is extracted ok"""
+        import logging
+        import sys
+
+        root = logging.getLogger()
+        root.setLevel(logging.DEBUG)
+        ch = logging.StreamHandler(sys.stdout)
+        ch.setLevel(logging.DEBUG)
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        ch.setFormatter(formatter)
+        root.addHandler(ch)
+
+        tmpfile = tempfile.NamedTemporaryFile(
+            suffix='badattach', prefix='fuglu-unittest', dir='/tmp')
+        shutil.copy(TESTDATADIR + '/attachment_exclamation_marks_points.eml', tmpfile.name)
+        suspect = Suspect(
+            'sender@unittests.fuglu.org', 'recipient@unittests.fuglu.org', tmpfile.name)
+
+        self.assertTrue('aaa.aa!aaaaaaaaa.aa!2345678910!1234567891.xml' in suspect.att_mgr.get_fileslist(None) )
+
+        result = self.candidate.examine(suspect)
+        if type(result) is tuple:
+            result, message = result
+        tmpfile.close()
+        self.assertEqual(result, DUNNO)
 
     def test_archiveextractsize(self):
         """Test archive extract max filesize"""

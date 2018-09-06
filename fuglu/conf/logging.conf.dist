@@ -1,18 +1,25 @@
 #todo: add all plugin / core loggers!
 
 [loggers]
-keys=root
+keys=root,timing
 
 [handlers]
-keys=logfile
+keys=logfile,timingfile
 
 [formatters]
-keys=sysoutformatter,logfileformatter,syslogformatter
+keys=sysoutformatter,logfileformatter,syslogformatter,timelogfileformatter
 
 [logger_root]
 level=INFO
 handlers=logfile
 #set this to syslog instead of logfile if you'd like fuglu to log to your standard mail log
+
+[logger_timing]
+level=ERROR
+#to enable timing for message processing
+#set level=INFO (plugin timings + overhead) or LEVEL=DEBUG (plugin timings + overhead details)
+qualname=fuglu.Timings
+handlers=timingfile
 
 [logger_saplugin]
 level=INFO
@@ -46,6 +53,12 @@ level=NOTSET
 args=('/var/log/fuglu/fuglu.log','midnight',1,14)
 formatter=logfileformatter
 
+[handler_timingfile]
+class=handlers.TimedRotatingFileHandler
+level=NOTSET
+args=('/var/log/fuglu/timings.log','midnight',1,2)
+formatter=timelogfileformatter
+
 [handler_syslog]
 class=handlers.SysLogHandler
 level=NOTSET
@@ -57,6 +70,9 @@ format=%(asctime)s %(name)-12s: %(levelname)s %(message)s
 
 [formatter_sysoutformatter]
 format=%(asctime)s %(levelname)s %(message)s
+
+[formatter_timelogfileformatter]
+format=%(asctime)s: %(levelname)s %(message)s
 
 [formatter_syslogformatter]
 format=fuglu[%(process)d]: %(message)s

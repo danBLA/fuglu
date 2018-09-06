@@ -1,0 +1,40 @@
+From: aaaaaa aaaaaaaa <aa@aaaaaaaaa.aa>
+Subject: test attachment name
+Message-ID: <f2be4ab7-9287-070a-12b3-fabbadeec2a1@aaaaaaaaa.aa>
+Date: Wed, 29 Aug 2018 20:43:47 +0200
+X-Mozilla-Draft-Info: internal/draft; vcard=0; receipt=0; DSN=0; uuencode=0;
+ attachmentreminder=0; deliveryformat=4
+User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:52.0) Gecko/20100101
+ Thunderbird/52.9.1
+MIME-Version: 1.0
+Content-Type: multipart/mixed;
+ boundary="------------0FCD401037D135D101BEB328"
+Content-Language: en-US
+
+This is a multi-part message in MIME format.
+--------------0FCD401037D135D101BEB328
+Content-Type: text/html; charset=utf-8
+Content-Transfer-Encoding: 7bit
+
+<html>
+  <head>
+
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  </head>
+  <body text="#000000" bgcolor="#FFFFFF">
+    <p>test attachment name<br>
+    </p>
+  </body>
+</html>
+
+--------------0FCD401037D135D101BEB328
+Content-Type: application/gzip;
+ name="aaa.aa!aaaaaaaaa.aa!2345678910!1234567891.xml.gz"
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment;
+ filename="aaa.aa!aaaaaaaaa.aa!2345678910!1234567891.xml.gz"
+
+H4sICL/ohlsAA2FhYS5hYSFhYWFhYWFhYWEuYWEhMjM0NTY3ODkxMCExMjM0NTY3ODkxLnht
+bACzSa1IzC3ISbXjUlBQsEnLLCousXPKSbTRhzDBosWpyfl5KSBhsAyUC5YqycgsgsmAJSEC
+XDb6cHMBbcOws2IAAAA=
+--------------0FCD401037D135D101BEB328--
