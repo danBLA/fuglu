@@ -125,8 +125,7 @@ class Bounce(object):
             self.logger.warning(
                 'Bounces are disabled in config - not sending message to %s' % toaddress)
             return
-        smtpServer = smtplib.SMTP(
-            '127.0.0.1', self.config.getint('main', 'outgoingport'))
+        smtpServer = smtplib.SMTP(self.config.get('main','bindaddress'), self.config.getint('main', 'outgoingport'))
         helo = self.config.get('main', 'outgoinghelo')
         if helo.strip() == '':
             import socket
