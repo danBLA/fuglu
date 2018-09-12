@@ -43,7 +43,7 @@ class TrackTimings(object):
 
         self.timetracker = time.time()
         self.timings = []
-        self.port = port
+        self.port = port if port is not None else -1
 
     @property
     def enabletimetracker(self):
