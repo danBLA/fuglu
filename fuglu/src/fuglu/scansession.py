@@ -26,38 +26,59 @@ import time
 import os
 import datetime
 
+class TrackTimings(object):
+    def __init__(self, enable=False, port=-1):
+        """
+        Constructor, setting function handles to real functions or dummies
 
-class SessionHandler(object):
-
-    """thread handling one message"""
-
-    def __init__(self, protohandler, config, prependers, plugins, appenders):
-        self.logger = logging.getLogger("fuglu.SessionHandler")
-        self.timings_logger = logging.getLogger("fuglu.Timings")
-        self.action = DUNNO
-        self.config = config
-        self.prependers = prependers
-        self.plugins = plugins
-        self.appenders = appenders
-        self.stats = Statskeeper()
-        self.worker = None
-        self.message = None
-        self.protohandler = protohandler
+        Args:
+            enable (bool): enable/disable time tracker
+            port (int): incoming port
+        """
+        self.timings_logger = logging.getLogger("%s.Timings" % __package__)
 
         # timings
-        # timings
-        self.enabletimetracker = False
-        try:
-            self.enabletimetracker = config.getboolean('main','scantimelogger')
-        except Exception:
-            self.enabletimetracker = False
-            self.logger.debug("Exception getting 'scantimelogger'")
+        self._enabletimetracker= False
+        self.enabletimetracker = enable
 
-        self.logger.debug("enabletimetracker = %s" % self.enabletimetracker)
         self.timetracker = time.time()
         self.timings = []
+        self.port = port
 
-    def tracktime(self, tagname, plugin=False, prepender=False, appender=False):
+    @property
+    def enabletimetracker(self):
+        return self._enabletimetracker
+
+    @enabletimetracker.setter
+    def enabletimetracker(self, enabled):
+
+        if not enabled:
+            self._enabletimetracker = False
+            self.tracktime = self._dummy_noreturn
+            self.gettime = self._dummy_returnlist
+            self.sumtime = self._dummy_returnzero
+            self.report_timings = self._dummy_noreturn
+            self.report_plugintime = self._dummy_noreturn
+        else:
+            self._enabletimetracker = True
+            self.tracktime = self._tracktime
+            self.gettime = self._gettime
+            self.sumtime = self._sumtime
+            self.report_timings = self._report_timings
+            self.report_plugintime = self._report_plugintime
+            self.timetracker = time.time()
+            self.timings = []
+
+    def _dummy_noreturn(self, *args, **kwargs):
+        return
+
+    def _dummy_returnlist(self, *args, **kwargs):
+        return []
+
+    def _dummy_returnzero(self, *args, **kwargs):
+        return 0.0
+
+    def _tracktime(self, tagname, plugin=False, prepender=False, appender=False):
         """
         Given a tag name, track and store time since last call of same function
 
@@ -74,7 +95,7 @@ class SessionHandler(object):
         self.timetracker = newtime
         self.timings.append((tagname, difftime, plugin, prepender, appender))
 
-    def gettime(self, plugins=None, prependers=None, appenders=None):
+    def _gettime(self, plugins=None, prependers=None, appenders=None):
         """
         Get a list of timings stored (all/only plugins/exclude plugins)
 
@@ -98,7 +119,7 @@ class SessionHandler(object):
             timing_list.append(timeitem[:2])
         return timing_list
 
-    def sumtime(self, plugins=None, prependers=None, appenders=None):
+    def _sumtime(self, plugins=None, prependers=None, appenders=None):
         """
         Get total time spent.
 
@@ -116,6 +137,79 @@ class SessionHandler(object):
             return 0.0
         else:
             return reduce(lambda x, y: (x + y), puretimings)
+
+    def _report_timings(self, suspectid):
+        """
+        Report all the timings collected
+        Args:
+            suspectid (id):  the suspect id
+
+        """
+        self.timings_logger.info('port: %u, id: %s, total: %.3f' % (self.port, suspectid, self.sumtime()))
+        self.timings_logger.info('port: %u, id: %s, overhead: %.3f' % (self.port, suspectid,
+                                                                       self.sumtime(plugins=False,
+                                                                                    prependers=False,
+                                                                                    appenders=False)))
+        all_prependertimes = self.gettime(prependers=True)
+        for prependertime in all_prependertimes:
+            self.timings_logger.info('port: %u, id: %s, (PRE) %s: %.3f' % (self.port, suspectid, prependertime[0],
+                                                                           prependertime[1]))
+        all_plugintimes = self.gettime(plugins=True)
+        for plugintime in all_plugintimes:
+            self.timings_logger.info('port: %u, id: %s, (PLG) %s: %.3f' % (self.port, suspectid, plugintime[0],
+                                                                           plugintime[1]))
+        all_appendertimes = self.gettime(appenders=True)
+        for appendertime in all_appendertimes:
+            self.timings_logger.info('port: %u, id: %s, (APP) %s: %.3f' % (self.port, suspectid, appendertime[0],
+                                                                           appendertime[1]))
+        all_overheadtimes = self.gettime(plugins=False, prependers=False, appenders=False)
+        for overheadtime in all_overheadtimes:
+            self.timings_logger.debug('port: %u, id: %s, %s: %.3f' % (self.port, suspectid, overheadtime[0],
+                                                                      overheadtime[1]))
+
+    def _report_plugintime(self, suspectid, pluginname, end=True):
+        """
+        Report timings inside plugin
+
+        Args:
+            suspectid (str): the id of the suspect
+            pluginname (str): plugin name
+
+        Keyword Args:
+            end (bool): if true another timing called 'end' will be created before the report
+        """
+        if end:
+            self.tracktime('end')
+        all_timings = self.gettime()
+        for itime in all_timings:
+            self.timings_logger.debug('port: %u, id: %s, [%s] %s: %.3f' %
+                                      (self.port, suspectid, pluginname, itime[0], itime[1]))
+
+
+class SessionHandler(TrackTimings):
+
+    """thread handling one message"""
+
+    def __init__(self, protohandler, config, prependers, plugins, appenders, port):
+        TrackTimings.__init__(self, port=port)
+        self.logger = logging.getLogger("fuglu.SessionHandler")
+        self.action = DUNNO
+        self.config = config
+        self.prependers = prependers
+        self.plugins = plugins
+        self.appenders = appenders
+        self.stats = Statskeeper()
+        self.worker = None
+        self.message = None
+        self.protohandler = protohandler
+
+        try:
+            self.enabletimetracker = config.getboolean('main', 'scantimelogger')
+        except Exception as e:
+            self.enabletimetracker = False
+
+        self.logger.debug("enabletimetracker = %s" % self.enabletimetracker)
+
 
     def set_workerstate(self, status):
         if self.worker is not None:
@@ -294,6 +388,7 @@ class SessionHandler(object):
                         self.logger.warning('Could not remove tempfile %s' % suspect.tempfile)
                 else:
                     self.logger.warning('Keep tempfile %s for failed message' % suspect.tempfile)
+
             # try to remove the suspect
             try:
                 self.logger.debug('Remove suspect (current refs): %u' % sys.getrefcount(suspect))
@@ -306,25 +401,8 @@ class SessionHandler(object):
             # ---------------#
             # report timings #
             # ---------------#
-            self.tracktime("Ending")
+            self.report_timings(suspectid)
 
-            if self.enabletimetracker:
-                self.timings_logger.info('id: %s, total: %.3f' % (suspectid, self.sumtime()))
-                self.timings_logger.info('id: %s, overhead: %.3f' % (suspectid, self.sumtime(plugins=False,
-                                                                                             prependers=False,
-                                                                                             appenders=False)))
-                all_prependertimes = self.gettime(prependers=True)
-                for prependertime in all_prependertimes:
-                    self.timings_logger.info('id: %s, (PRE) %s: %.3f' % (suspectid, prependertime[0], prependertime[1]))
-                all_plugintimes = self.gettime(plugins=True)
-                for plugintime in all_plugintimes:
-                    self.timings_logger.info('id: %s, (PLG) %s: %.3f' % (suspectid, plugintime[0], plugintime[1]))
-                all_appendertimes = self.gettime(appenders=True)
-                for appendertime in all_appendertimes:
-                    self.timings_logger.info('id: %s, (APP) %s: %.3f' % (suspectid, appendertime[0], appendertime[1]))
-                all_overheadtimes = self.gettime(plugins=False, prependers=False, appenders=False)
-                for overheadtime in all_overheadtimes:
-                    self.timings_logger.debug('id: %s, %s: %.3f' % (suspectid, overheadtime[0], overheadtime[1]))
 
         self.logger.debug('Session finished')
 
