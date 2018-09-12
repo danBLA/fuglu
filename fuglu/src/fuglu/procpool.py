@@ -17,7 +17,7 @@
 #
 import fuglu.core
 import fuglu.logtools as logtools
-from fuglu.protocolbase import forking_load, forking_dumps
+from fuglu.protocolbase import compress_task, uncompress_task
 from fuglu.scansession import SessionHandler
 from fuglu.stats import Statskeeper, StatDelta
 from fuglu.addrcheck import Addrcheck
@@ -86,7 +86,7 @@ class ProcManager(object):
         if self._stayalive:
             self.tasks.put(session)
 
-    def add_task_from_socket(self, sock, handler_modulename, handler_classname):
+    def add_task_from_socket(self, sock, handler_modulename, handler_classname, port):
         """
         Consistent interface with procpool. Add a new task to the queu
         given the socket to receive the message.
@@ -95,9 +95,10 @@ class ProcManager(object):
             sock (socket): socket to receive the message
             handler_modulename (str): module name of handler
             handler_classname (str): class name of handler
+            port (int): original incoming port
         """
         try:
-            task = forking_dumps(sock), handler_modulename, handler_classname
+            task = compress_task(sock, handler_modulename, handler_classname, port)
             self.add_task(task)
         except Exception as e:
             self.logger.error("Exception happened trying to add task to queue: %s" % str(e))
@@ -147,7 +148,7 @@ class ProcManager(object):
                 if task is None: # poison pill
                     break
                 mark_defer_counter += 1
-                sock, handler_modulename, handler_classname = forking_load(task)
+                sock, handler_modulename, handler_classname = uncompress_task(task)
                 handler_class = getattr(importlib.import_module(handler_modulename), handler_classname)
                 handler_instance = handler_class(sock, self.config)
                 handler_instance.defer(return_message)
@@ -251,10 +252,10 @@ def fuglu_process_worker(queue, config, shared_state,child_to_server_messages, l
                     return
             workerstate.workerstate = 'starting scan session'
             logger.debug("%s: Child process starting scan session" % logtools.createPIDinfo())
-            sock, handler_modulename, handler_classname = forking_load(task)
+            sock, handler_modulename, handler_classname, port = uncompress_task(task)
             handler_class = getattr(importlib.import_module(handler_modulename), handler_classname)
             handler_instance = handler_class(sock, config)
-            handler = SessionHandler(handler_instance, config, prependers, plugins, appenders)
+            handler = SessionHandler(handler_instance, config, prependers, plugins, appenders, port)
             handler.handlesession(workerstate)
             del handler
             del handler_instance

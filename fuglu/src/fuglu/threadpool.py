@@ -23,7 +23,7 @@ except ImportError:
 import logging
 import weakref
 import importlib
-from fuglu.protocolbase import forking_load, forking_dumps
+from fuglu.protocolbase import compress_task, uncompress_task
 from fuglu.scansession import SessionHandler
 
 class ThreadPool(threading.Thread):
@@ -71,7 +71,7 @@ class ThreadPool(threading.Thread):
         if self._stayalive:
             self.tasks.put(session)
 
-    def add_task_from_socket(self, sock, handler_modulename, handler_classname):
+    def add_task_from_socket(self, sock, handler_modulename, handler_classname, port):
         """
         Consistent interface with procpool. Add a new task to the queu
         given the socket to receive the message.
@@ -80,9 +80,10 @@ class ThreadPool(threading.Thread):
             sock (socket): socket to receive the message
             handler_modulename (str): module name of handler
             handler_classname (str): class name of handler
+            port (int) : incoming port
         """
         try:
-            task = forking_dumps(sock), handler_modulename, handler_classname
+            task = compress_task(sock, handler_modulename, handler_classname, port)
             self.add_task(task)
         except Exception as e:
             self.logger.error("Exception happened trying to add task to queue: %s" % str(e))
@@ -101,7 +102,7 @@ class ThreadPool(threading.Thread):
             if task is None:
                 # Poison pill
                 return None
-            sock, handler_modulename, handler_classname = forking_load(task)
+            sock, handler_modulename, handler_classname, port = uncompress_task(task)
             handler_class = getattr(importlib.import_module(handler_modulename), handler_classname)
 
             controller = self.controller()
@@ -111,7 +112,7 @@ class ThreadPool(threading.Thread):
 
             handler_instance = handler_class(sock, controller.config)
             handler = SessionHandler(handler_instance, controller.config, controller.prependers,
-                                     controller.plugins, controller.appenders)
+                                     controller.plugins, controller.appenders, port)
             return handler
         else:
             return None

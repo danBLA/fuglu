@@ -133,27 +133,56 @@ class BasicTCPServer(object):
                 self.logger.debug('(%s) Incoming connection  [incoming server port: %s, prot: %s]' % (createPIDinfo(),self.port,self.protohandlerclass.protoname))
                 if self.controller.threadpool:
                     # this will block if queue is full
-                    self.controller.threadpool.add_task_from_socket(sock, handler_modulename, handler_classname)
+                    self.controller.threadpool.add_task_from_socket(sock, handler_modulename, handler_classname, self.port)
                 elif self.controller.procpool:
-                    self.controller.procpool.add_task_from_socket(sock, handler_modulename, handler_classname)
+                    self.controller.procpool.add_task_from_socket(sock, handler_modulename, handler_classname, self.port)
                 else:
                     ph = self.protohandlerclass(sock, self.controller.config)
                     engine = SessionHandler(ph, self.controller.config, self.controller.prependers,
-                                            self.controller.plugins, self.controller.appenders)
+                                            self.controller.plugins, self.controller.appenders, self.port)
                     engine.handlesession()
             except Exception as e:
                 exc = traceback.format_exc()
                 self.logger.error('Exception in serve(): %s - %s' % (str(e), exc))
 
 
-def forking_dumps(obj):
+def compress_task(sock, handler_modulename, handler_classname, port):
+    """
+    Compress all the inputs required for a task into a tuple
+    Args:
+        sock (socket): Receiving socket
+        handler_modulename (str): Modulename of the handler to be used
+        handler_classname (str): Classname of the handler to be used
+        port (int):  incoming port
+
+    Returns:
+        tuple: All information suitable to put as a task in a queue
+
+    """
     """ Pickle a socket This is required to pass the socket in multiprocessing"""
     buf = StringIO()
-    ForkingPickler(buf).dump(obj)
-    return buf.getvalue()
+    ForkingPickler(buf).dump(sock)
+    pickled_socket = buf.getvalue()
+
+    task = pickled_socket, handler_modulename, handler_classname, port
+    return task
 
 
-def forking_load(pickledTask):
-    pickled_socket, handler_modulename, handler_classname = pickledTask
+def uncompress_task(task):
+    """
+    Uncompress a task (which was created by "compress_task"
+
+    Args:
+        task (tuple): Tuple containing task information
+
+    Returns:
+        tuple: Tuple with uncompressed task objects
+
+    """
+    if task is None:
+        return None
+
+    pickled_socket, handler_modulename, handler_classname, port = task
     sock = pickle.loads(pickled_socket)
-    return sock,handler_modulename,handler_classname
+    return sock, handler_modulename, handler_classname, port
+
