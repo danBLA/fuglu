@@ -57,7 +57,7 @@ class AllpluginTestCase(unittest.TestCase):
             raise Exception("plugins not loaded")
 
         sesshandler = SessionHandler(
-            None, self.mc.config, self.mc.prependers, self.mc.plugins, self.mc.appenders)
+            None, self.mc.config, self.mc.prependers, self.mc.plugins, self.mc.appenders, 0)
         tempfilename = tempfile.mktemp(
             suffix='virus', prefix='fuglu-unittest', dir='/tmp')
         shutil.copy(TESTDATADIR + '/eicar.eml', tempfilename)
