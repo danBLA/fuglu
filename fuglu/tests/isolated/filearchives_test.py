@@ -52,7 +52,7 @@ class FileArchiveBase(unittest.TestCase):
         #---------#
         # content #
         #---------#
-        contentHandles = ['^application\/x-tar','^application\/x-gzip','^application\/x-bzip2']
+        contentHandles = ['^application\/x-tar','^application\/x-bzip2']
 
         # mail content regex as used in attachment
         for cnt in contentHandles:

@@ -1,0 +1,35 @@
+Support & FAQ
+=============
+
+Contents:
+
+.. toctree::
+   :maxdepth: 2
+
+---
+FAQ
+---
+
+Does Fuglu run with python3?
+............................
+
+(Last updated Jun '18): Since version 0.8.0 Fuglu runs on python3. Note that custom plugins might need to be adapted
+to work correctly when switching from python2 to python3.
+
+How can I submit changes to the documentation?
+..............................................
+
+The fuglu documentation is the folder ``documentation/source``. Please edit the text files in this folder and submit a pull request.
+
+How do I upgrade/downgrade Fuglu?
+.................................
+
+Just install the new (or downgrade ) version, overwriting the previous one. There are usually no breaking changes.
+Check the changelog to make sure: https://gitlab.com/fumail/fuglu/blob/master/fuglu/doc/CHANGELOG
+
+---------------
+Asking for help
+---------------
+
+ * The fuglu developers and users can be contacted through the fuglu mailing list. Subscribe here : http://fuglu.org/mailman/listinfo/fuglu-users_fuglu.org
+ * It's also ok to ask short questions in a gitlab issue

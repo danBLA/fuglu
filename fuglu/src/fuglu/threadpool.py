@@ -21,11 +21,14 @@ try:
 except ImportError:
     import Queue as queue
 import logging
-
+import weakref
+import importlib
+from fuglu.protocolbase import forking_load, forking_dumps
+from fuglu.scansession import SessionHandler
 
 class ThreadPool(threading.Thread):
 
-    def __init__(self, minthreads=1, maxthreads=20, queuesize=100):
+    def __init__(self, controller, minthreads=1, maxthreads=20, queuesize=100):
         self.workers = []
         self.queuesize = queuesize
         self.tasks = queue.Queue(queuesize)
@@ -41,6 +44,7 @@ class ThreadPool(threading.Thread):
         self._stayalive = True
         self.laststats = 0
         self.statinverval = 60
+        self.controller = weakref.ref(controller)  # keep a weak reference to controller
         threading.Thread.__init__(self)
         self.name = 'Threadpool'
         self.daemon = False
@@ -67,9 +71,48 @@ class ThreadPool(threading.Thread):
         if self._stayalive:
             self.tasks.put(session)
 
-    def get_task(self):
+    def add_task_from_socket(self, sock, handler_modulename, handler_classname):
+        """
+        Consistent interface with procpool. Add a new task to the queu
+        given the socket to receive the message.
+
+        Args:
+            sock (socket): socket to receive the message
+            handler_modulename (str): module name of handler
+            handler_classname (str): class name of handler
+        """
+        try:
+            task = forking_dumps(sock), handler_modulename, handler_classname
+            self.add_task(task)
+        except Exception as e:
+            self.logger.error("Exception happened trying to add task to queue: %s" % str(e))
+            self.logger.exception(e)
+
+    def get_task_sessionhandler(self):
+        """
+        Get task from queue, create a session handler and return it
+
+        Returns:
+            SessionHandler: a session handler to handle the task
+
+        """
         if self._stayalive:
-            return self.tasks.get(True)
+            task = self.tasks.get(True)
+            if task is None:
+                # Poison pill
+                return None
+            sock, handler_modulename, handler_classname = forking_load(task)
+            handler_class = getattr(importlib.import_module(handler_modulename), handler_classname)
+
+            controller = self.controller()
+            if controller is None:
+                # weak ref will point to None once object has been removed
+                return None
+
+            handler_instance = handler_class(sock, controller.config)
+            handler = SessionHandler(handler_instance, controller.config, controller.prependers,
+                                     controller.plugins, controller.appenders)
+            return handler
         else:
             return None
 
@@ -140,33 +183,53 @@ class ThreadPool(threading.Thread):
             self.workers.append(worker)
             worker.start()
 
-    def shutdown(self):
+    def shutdown(self, newmanager=None):
+        """
+        Shutdown manager, transfer queue to a new manager if available. Otherwise
+        mark messages as defer.
+
+        Keyword Args:
+            newmanager (ProcManager or ThreadPool): has to provide add_task accepting a pickled socket
+        """
 
         # set stayalive to False, this will send
         # poison pills to the workers
         self.stayalive = False
 
-
         # now remove elements from the queue
         # first, put another poison pill for the Threadpool itself
         self.tasks.put_nowait(None)
-        returnMessage = "Temporarily unavailable... Please try again later."
-        markDeferCounter = 0
-        while True:
-            # don't use the get_task from Threadpool since this will
-            # not give anything once stayalive is False
-            sesshandler = self.tasks.get(True)
-            if sesshandler == None:  # poison pill -> shut down
-                break
-            markDeferCounter += 1
-            sesshandler.protohandler.defer(returnMessage)
 
-        self.logger.info("Marked %s messages as '%s' to close queue" % (markDeferCounter,returnMessage))
+        if newmanager:
+            # new manager available. Transfer tasks to new manager
+            countmessages = 0
+            while True:
+                # don't use the get_task_sessionhandler from Threadpool since this will
+                # not give anything once stayalive is False
+                task = self.tasks.get(True)
+                if task is None:  # poison pill
+                    break
+                newmanager.add_task(task)
+                countmessages += 1
+            self.logger.info("Moved %u messages to queue of new manager" % countmessages)
+        else:
+            return_message = "Temporarily unavailable... Please try again later."
+            mark_defer_counter = 0
+            while True:
+                # don't use the get_task_sessionhandler from Threadpool since this will
+                # not give anything once stayalive is False
+                sesshandler = self.tasks.get(True)
+                if sesshandler is None:  # poison pill -> shut down
+                    break
+                mark_defer_counter += 1
+                sesshandler.protohandler.defer(return_message)
+
+            self.logger.info("Marked %s messages as '%s' to close queue" % (mark_defer_counter,return_message))
 
         # remove all the workers (joins them also)
         for worker in self.workers:
             worker.stayalive = False
-            worker.join(120) # wait 120 seconds max
+            worker.join(120)  # wait 120 seconds max
 
 class Worker(threading.Thread):
 
@@ -192,7 +255,7 @@ class Worker(threading.Thread):
             self.workerstate = 'waiting for task'
             if self.noisy:
                 self.logger.debug('Getting new task...')
-            sesshandler = self.pool.get_task()
+            sesshandler = self.pool.get_task_sessionhandler()
             if sesshandler == None:  # poison pill -> shut down
                 if self.noisy:
                     self.logger.debug("got a poison pill .. good bye world")
@@ -206,6 +269,8 @@ class Worker(threading.Thread):
             except Exception as e:
                 self.logger.error('Unhandled Exception : %s' % e)
             self.workerstate = 'task completed'
+
+            del sesshandler
 
         self.workerstate = 'ending'
         self.logger.debug('thread end')

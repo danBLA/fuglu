@@ -1,0 +1,661 @@
+Operation
+=========
+
+.. toctree::
+   :maxdepth: 2
+
+----------
+Monitoring
+----------
+
+Fuglu has various places where you can see what it is is currently doing (eg. for debugging purposes) or what it has done (for statistical analysis)
+
+Command Line Interface
+......................
+
+The ``fuglu_control`` command offers various options to get real-time information on fuglu internals
+
+
+**statistics:**
+
+::
+
+
+	#$ fuglu_control stats
+	Fuglu statistics
+	---------------
+	Uptime:		19:33:56.119661
+	Avg scan time:	3.9657
+	Total msgs:	86667
+	Ham:		547
+	Spam:		86124
+	Virus:		8
+
+
+**Status of currently running scanner threads:**
+
+::
+
+	#fuglu_control workerlist
+	Total 10 Threads
+
+	[98]: Suspect 8790fa16a3733350baf02d5b4e7d98e1: from=<redacted> to=<redacted> size=1043 , spam=no, virus=no tags={'virus': {'F-Prot': False, 'ClamAV': False}, 'FprotPlugin.time': '0.0080', 'spam': {}, 'incomingport': 10025, 'decisions': [('F-Prot Plugin', 0), ('ClamavPlugin', 0)], 'ClamavPlugin.time': '0.0055'} : Running Plugin SAPlugin
+	*******
+	[99]: Suspect b6f3019df4da4170888e144f98eaa3ad: from=<redacted> to=<redacted> size=5187 , spam=no, virus=no tags={'virus': {'F-Prot': False, 'ClamAV': False}, 'FprotPlugin.time': '0.0088', 'spam': {}, 'incomingport': 10025, 'decisions': [('F-Prot Plugin', 0), ('ClamavPlugin', 0)], 'ClamavPlugin.time': '0.0161'} : Running Plugin SAPlugin
+	*******
+	[100]: waiting for task
+	*******
+	[101]: Suspect eefa38e4ae4a9c2938670a46d6b2b922: from=<redacted> to=<redacted> size=5203 , spam=no, virus=no tags={'virus': {'F-Prot': False, 'ClamAV': False}, 'FprotPlugin.time': '0.0086', 'spam': {}, 'incomingport': 10025, 'decisions': [('F-Prot Plugin', 0), ('ClamavPlugin', 0)], 'ClamavPlugin.time': '0.0092'} : Running Plugin SAPlugin
+	*******
+	[102]: waiting for task
+	*******
+	[103]: waiting for task
+	*******
+	[104]: waiting for task
+	*******
+	[105]: waiting for task
+	*******
+	[106]: Suspect b47e2ebf00e3f0d83dc1c7f64dad69e8: from=<redacted> to=<redacted> size=29442 , spam=no, virus=no tags={'virus': {'F-Prot': False, 'ClamAV': False}, 'FprotPlugin.time': '0.0240', 'spam': {}, 'incomingport': 10025, 'decisions': [('F-Prot Plugin', 0), ('ClamavPlugin', 0)], 'ClamavPlugin.time': '0.0240'} : Running Plugin SAPlugin
+	*******
+	[107]: waiting for task
+
+
+Run fuglu_control without arguments to get a list of all supported commands.
+
+Logs
+....
+
+Fuglu writes to /var/log/fuglu/fuglu.log by default. A summary of each analyzed message is stored in that file immediately after it has been analyzed..
+
+
+Fuglu uses the standard python logging framework. This allows you to configure logging for each plugin individually (verbosity, own logfile, ...)
+
+Full documentation on the python logging configuration: http://docs.python.org/library/logging.html#configuring-logging
+
+Logging is configured in ``/etc/fuglu/logging.conf``
+
+In standard configuration, fuglu logs only INFO messages. Let's say you wanted to debug the spamassassin plugin. So you'd check if there is a section dealing with spamassassin and you'd find this:
+
+::
+
+
+	[logger_saplugin]
+	level=INFO
+	handlers=logfile
+	propagate=0
+	qualname=fuglu.plugin.SAPlugin
+
+
+
+
+You would change ``level=INFO`` to ``level=DEBUG``. Also you need to activate this special configuration for spamassassin by adding it to the loggers section at the top of the file:
+
+::
+
+	[loggers]
+	keys=root,saplugin
+
+
+After reloading fuglu, the spamassassin plugin should be very verbose:
+
+::
+
+	2009-04-08 17:11:07,693 fuglu.plugin.SAPlugin: DEBUG Contacting spamd localhost (Try 1 of 5)
+	2009-04-08 17:11:07,701 fuglu.plugin.SAPlugin: DEBUG Sent 4065 bytes to spamd
+	2009-04-08 17:11:10,033 fuglu.plugin.SAPlugin: DEBUG SPAMD/1.1 0 EX_OK
+
+	2009-04-08 17:11:10,034 fuglu.plugin.SAPlugin: DEBUG Got 4778 message bytes from back from spamd
+	2009-04-08 17:11:10,047 fuglu.plugin.SAPlugin: DEBUG Spamscore: 2.2
+	2009-04-08 17:11:10,047 fuglu.plugin.SAPlugin: DEBUG Message is not spam
+
+
+
+There should be logger sections configured for most tasks / plugins, if not, do not hesitate to open a bug on this.
+
+
+**Qualnames for new loggers** :
+
+Plugins usually use ``fuglu.plugin.<classname>``
+
+fuglu internal qualnames:
+
+ * ``fuglu.SessionHandler`` - What plugins are being run, what are the results, ...
+ * ``fuglu.smtp.incoming`` - Incoming smtp connections
+ * ``fuglu.smtp.incoming.<portnumber>`` - Incoming smtp sessions on port <portnumber>
+ * ``fuglu.smtpsession`` - information on the incoming smtp transaction
+ * ``fuglu.threadpool`` - information when threads are created / destroyed
+ * ``fuglu.suspectfilter`` - debug info on parsing/applying the special header filter config files
+
+
+**Additional handlers**
+
+In addition to python's `builtin handlers <https://docs.python.org/2/library/logging.handlers.html>`_ , fuglu supports:
+
+ * ``custom_handlers.GroupReadableRotatingFileHandler`` - Like python's `RotatingFileHandler <https://docs.python.org/2/library/logging.handlers.html#rotatingfilehandler>`_ , but the file is readable by fuglu's group
+ * ``custom_handlers.GroupWritableRotatingFileHandler`` - Like python's `RotatingFileHandler <https://docs.python.org/2/library/logging.handlers.html#rotatingfilehandler>`_ , but the file is readable/writable by fuglu's group
+ * ``custom_handlers.GroupReadableTimedRotatingFileHandler`` - Like python's `TimedRotatingFileHandler <https://docs.python.org/2/library/logging.handlers.html#timedrotatingfilehandler>`_ , but the file is readable by fuglu's group
+ * ``custom_handlers.GroupWritableTimedRotatingFileHandler`` - Like python's `TimedRotatingFileHandler <https://docs.python.org/2/library/logging.handlers.html#timedrotatingfilehandler>`_, but the file is readable/writable by fuglu's group
+
+MRTG
+....
+
+Fuglu can be configured to peridically write status files readable by mrtg. To do this, you only have to create a new directory (eg ``/usr/local/fuglu/mrtg``) and set this in ``fuglu.conf``:
+
+::
+
+	#Statistics
+	mrtgdir=/usr/local/fuglu/mrtg
+
+You'll need *mrtg* and a *webserver* for this to work... create a file called ``/etc/fuglu/fuglu_mrtg.cfg``  like this:
+
+
+::
+
+	Interval: 5
+	WorkDir: /usr/local/fuglu/mrtg/output
+	WriteExpires: yes
+	Options[_]: growright,nopercent
+	LogFormat: rrdtool
+
+	#---------------------------------------------------------------
+	Target[inout]: `cat /usr/local/fuglu/mrtg/inout`
+	PageTop[inout]: <H1>Messages in/out</H1>
+	Options[inout]: growright,nopercent
+	Title[inout]: Messages in/out
+	ShortLegend[inout]: msgs/s
+	YLegend[inout]: messages
+	LegendI[inout]: in
+	Legend1[inout]: Incoming Messages
+	Legend2[inout]: Messages re-injected
+	LegendO[inout]: re-inject
+	MaxBytes[inout]: 60000000
+
+	Target[hamspam]: `cat /usr/local/fuglu/mrtg/hamspam`
+	Options[hamspam]: growright,nopercent
+	Title[hamspam]: Ham / Spam
+	PageTop[hamspam]: <H1>Ham / Spam</H1>
+	YLegend[hamspam]: messages/second
+	ShortLegend[hamspam]: msgs/s
+	LegendI[hamspam]: ham
+	Legend1[hamspam]: Clean Messages (ham)
+	LegendO[hamspam]: spam
+	Legend2[hamspam]: Messages detected as spam
+	MaxBytes[hamspam]: 600000
+	AbsMax[hamspam]: 600000
+
+	Target[scantime]: `cat /usr/local/fuglu/mrtg/scantime`
+	Options[scantime]: growright,nopercent,gauge
+	Title[scantime]: Scan Time
+	PageTop[scantime]: <H1>Scan Time</H1>
+	WithPeak[scantime]: ymwd
+	YLegend[scantime]: sec
+	ShortLegend[scantime]: sec
+	Legend1[scantime]: Time needed to analyze message
+	LegendI[scantime]: scantime
+	LegendO[scantime]:
+	Legend2[scantime]:
+	Legend3[scantime]: Peak Scantime
+	Legend4[scantime]:
+	MaxBytes[scantime]: 600000
+	AbsMax[scantime]: 600000
+
+
+	Target[threads]: `cat /usr/local/fuglu/mrtg/threads`
+	Options[threads]: growright,nopercent,gauge
+	Title[threads]: Threads
+	PageTop[threads]: <H1>Running Threads</H1>
+	YLegend[threads]: threads
+	ShortLegend[threads]: threads
+	LegendO[threads]:
+	Legend1[threads]: Number of running threads
+	Legend2[threads]:
+	LegendI[threads]: threads
+	MaxBytes[threads]: 600000
+	AbsMax[threads]: 600000
+
+
+	Target[virus]: `cat /usr/local/fuglu/mrtg/virus`
+	Options[virus]: growright,nopercent
+	Title[virus]: virus
+	PageTop[virus]: <H1>Virus</H1>
+	YLegend[virus]: virus
+	ShortLegend[virus]: virus
+	#LegendO[virus]: virus
+	LegendI[virus]: virus
+	Legend1[virus]: Number of viri detected
+	MaxBytes[virus]: 600000
+	AbsMax[virus]: 600000
+
+
+Make sure, the path in WorkDir exists.
+
+Then create a script ``/usr/local/bin/fuglu_mrtg.sh``
+
+::
+
+
+	#!/bin/sh
+	/usr/bin/env LANG=C /usr/bin/mrtg /etc/fuglu/fuglu_mrtg.cfg
+
+
+run ``fuglu_mrtg.sh`` to check for errors.
+
+If all went well, add it to your crontab:
+
+::
+
+	*/5 * * * * /usr/local/bin/fuglu_mrtg.sh >/dev/null 2>&1
+
+
+install mrtg-rrd.cgi (probably rename it to fuglu.cgi ), and configure the path to fuglu_mrtg.cfg correctly:
+
+
+::
+
+	# EDIT THIS to reflect all your MRTG config files
+	BEGIN { @config_files = qw(/etc/fuglu/fuglu_mrtg.cfg); }
+
+
+after pointing your browser to ``http://yourfuglubox.example.com/cgi-bin/fuglu.cgi`` you should see nice graphs.
+
+----------
+Timing
+----------
+In case you are interested to know timings for processings messages there is one logger dedicated to
+summarize timings spent in plugins (PLG), prependers (PRE), appenders (APP) and for the remaining work.
+Time is given in seconds. To enable timing output, modify "/etc/fuglu/logging.conf". If you don't have
+a "logging.conf" copy the template "logging.conf.dist" which should also be located in "/etc/fuglu/". Besides
+the "root" logger and its configuration, make sure you have "timing" in loggers, "timingfile" in handlers
+and "timelogfileformatter" in "formatters". Timing output verbosity can be set by level=ERROR/INFO/DEBUG
+in "logger_timing" which will create no/basic/detailed timing output in the log file. Example:
+
+::
+
+    [loggers]
+    keys=root,timing
+
+    [handlers]
+    keys=logfile,timingfile
+
+    [formatters]
+    keys=logfileformatter,timelogfileformatter
+
+    [logger_root]
+    level=INFO
+    handlers=logfile
+
+    [logger_timing]
+    level=INFO
+    #to enable timing for message processing
+    #set level=INFO (plugin timings + overhead) or LEVEL=DEBUG (plugin timings + overhead details)
+    propagate=0
+    qualname=fuglu.Timings
+    handlers=timingfile
+
+    [handler_logfile]
+    class=handlers.TimedRotatingFileHandler
+    level=NOTSET
+    args=('/var/log/fuglu/fuglu.log','midnight',1,14)
+    formatter=logfileformatter
+
+    [handler_timingfile]
+    class=handlers.TimedRotatingFileHandler
+    level=NOTSET
+    args=('/var/log/fuglu/timings.log','midnight',1,2)
+    formatter=timelogfileformatter
+
+    [formatter_logfileformatter]
+    format=%(asctime)s %(name)-12s: %(levelname)s %(message)s
+
+    [formatter_logfileformatter]
+    format=%(asctime)s %(name)-12s: %(levelname)s %(message)s
+
+In the fuglu main config, enable scantime logging in the main section
+setting the variable "scantimelogger" to 1. The default is 0, so a config
+file without this option will not log scantime even if the "timings" logger
+is defind "logging.conf". This is to prevent a lot unwanted log messages using
+an older log config.
+
+::
+
+    [main]
+    # scantime logger disabled
+    # -> after enable also configure logger in logging.conf
+    scantimelogger = 1
+
+Restart fuglu after all the changes. Then
+sending a test mail creates timing output like:
+::
+
+    2018-08-28 15:59:06,200: INFO id: 215d440de4f64a08bc67d93dd92153d2, total: 0.652
+    2018-08-28 15:59:06,200: INFO id: 215d440de4f64a08bc67d93dd92153d2, overhead: 0.623
+    2018-08-28 15:59:06,200: INFO id: 215d440de4f64a08bc67d93dd92153d2, (PRE) Debugger: 0.002
+    2018-08-28 15:59:06,200: INFO id: 215d440de4f64a08bc67d93dd92153d2, (PRE) Plugin Skipper: 0.009
+    2018-08-28 15:59:06,200: INFO id: 215d440de4f64a08bc67d93dd92153d2, (PLG) Clam AV: 0.018
+
+and with "loglevel=DEBUG"
+::
+
+    2018-08-28 16:01:42,501: INFO id: 2110074a6a3d4d24b2650e0c1c171105, total: 0.840
+    2018-08-28 16:01:42,501: INFO id: 2110074a6a3d4d24b2650e0c1c171105, overhead: 0.820
+    2018-08-28 16:01:42,501: INFO id: 2110074a6a3d4d24b2650e0c1c171105, (PRE) Debugger: 0.001
+    2018-08-28 16:01:42,501: INFO id: 2110074a6a3d4d24b2650e0c1c171105, (PRE) Plugin Skipper: 0.002
+    2018-08-28 16:01:42,501: INFO id: 2110074a6a3d4d24b2650e0c1c171105, (PLG) Clam AV: 0.017
+    2018-08-28 16:01:42,501: DEBUG id: 2110074a6a3d4d24b2650e0c1c171105, SessionHandler-Setup: 0.000
+    2018-08-28 16:01:42,501: DEBUG id: 2110074a6a3d4d24b2650e0c1c171105, Message-Receive-Suspect: 0.749
+    2018-08-28 16:01:42,501: DEBUG id: 2110074a6a3d4d24b2650e0c1c171105, Before-Prependers: 0.004
+    2018-08-28 16:01:42,501: DEBUG id: 2110074a6a3d4d24b2650e0c1c171105, Before-Plugins: 0.000
+    2018-08-28 16:01:42,501: DEBUG id: 2110074a6a3d4d24b2650e0c1c171105, Adding-Headers: 0.000
+    2018-08-28 16:01:42,502: DEBUG id: 2110074a6a3d4d24b2650e0c1c171105, Debug-Suspect: 0.000
+    2018-08-28 16:01:42,502: DEBUG id: 2110074a6a3d4d24b2650e0c1c171105, Commitback: 0.066
+    2018-08-28 16:01:42,502: DEBUG id: 2110074a6a3d4d24b2650e0c1c171105, Increase-Stats: 0.000
+    2018-08-28 16:01:42,502: DEBUG id: 2110074a6a3d4d24b2650e0c1c171105, Increase-Counters: 0.000
+    2018-08-28 16:01:42,502: DEBUG id: 2110074a6a3d4d24b2650e0c1c171105, Before-Appenders: 0.000
+    2018-08-28 16:01:42,502: DEBUG id: 2110074a6a3d4d24b2650e0c1c171105, Remove-tempfile: 0.000
+    2018-08-28 16:01:42,502: DEBUG id: 2110074a6a3d4d24b2650e0c1c171105, Ending: 0.000
+
+In this small example most of the time is overhead (Message-Receive-Suspect).
+
+.. Note::
+    Default example is for writing the timing into a separate file "/var/log/fuglu/timing.log".
+    If output is to syslog, make be aware by default there is a limit for log messages, see
+    `link <https://support.asperasoft.com/hc/en-us/articles/216128628-How-to-disable-rsyslog-rate-limiting>`_
+    or `link <https://www.rsyslog.com/tag/rate-limiting/>`_ which might make timing information useless if not
+    disabled.
+
+Example: Fuglu timinig with Postfix
+....................................
+
+This example show how to extract information using the timing described before.
+Configuration is Postfix with FUGLU as after-queue filter. Fuglu runs in multiprocessing
+mode with 4 processes. The test consists in sending 24 messages using 8 threads.
+Timing output looks like:
+::
+
+    2018-08-28 16:32:08,565: INFO id: bbab7ef5a2974972aac6e5e5abdcbb81, total: 1.614
+    2018-08-28 16:32:08,654: INFO id: 214155f0242c462394fdc7f9cd52471f, total: 1.756
+    2018-08-28 16:32:08,759: INFO id: fda3c032e9a245fca0cb96f9f1c08006, total: 2.053
+    2018-08-28 16:32:08,866: INFO id: b02ef668164548ad8e1c43bbd3c0e3a4, total: 1.730
+    2018-08-28 16:32:09,418: INFO id: 083a13a28bd1440b8739f3802f555e3e, total: 0.845
+    2018-08-28 16:32:09,421: INFO id: f730d1ce028d49d5a515b2c3e6730ed5, total: 0.734
+    2018-08-28 16:32:09,501: INFO id: a1e880d8871641d18fb8b93129ca82b7, total: 0.705
+    2018-08-28 16:32:09,796: INFO id: 73412cb75a4342c6a10d8b83794a25c5, total: 0.890
+    2018-08-28 16:32:10,175: INFO id: ee8f753cb2d24ca3b1e80972363c25ba, total: 0.724
+    2018-08-28 16:32:10,174: INFO id: ba806290932845c299f9dc77340d7a0e, total: 0.652
+    2018-08-28 16:32:10,211: INFO id: e044a9836d264f768cb67769331aec3f, total: 0.759
+    2018-08-28 16:32:10,520: INFO id: aabe6169c7fe408983f03d9589737942, total: 0.686
+    2018-08-28 16:32:10,896: INFO id: 6064a0689f414849a5b13dfbe22885fa, total: 0.679
+    2018-08-28 16:32:10,907: INFO id: a6a09f5dca6849edbaa08fd91a85a3c0, total: 0.705
+    2018-08-28 16:32:12,394: INFO id: 4983965b0d9e468e9dad4c67ea2abc32, total: 2.128
+    2018-08-28 16:32:13,737: INFO id: 75f63480574849c5819006a5dba0c3c3, total: 2.820
+    2018-08-28 16:32:13,744: INFO id: c796aba4879447efa289b16fc24d4984, total: 2.826
+    2018-08-28 16:32:13,756: INFO id: a84ae0b77c1d43adbb1ecefd9d894588, total: 3.208
+    2018-08-28 16:32:14,289: INFO id: 0d2bcc7ef9014b2886ef67f6287e109a, total: 1.882
+    2018-08-28 16:32:16,965: INFO id: 6d8090e23ce54095969f1ac05c4bf80a, total: 3.200
+    2018-08-28 16:32:16,972: INFO id: d06f4c5c4ae84fc096d8b98f6b7e101a, total: 3.203
+    2018-08-28 16:32:16,975: INFO id: 55543848dee447579b2e57f0d665fe9b, total: 2.668
+    2018-08-28 16:32:16,991: INFO id: 6d84ccebf51c46fdb213a9f497eb2cb5, total: 3.227
+    2018-08-28 16:32:19,390: INFO id: 475786e12faa4eb580cd2ee79d5d3cef, total: 2.406
+
+In this output and also if more messages are sent, typically the following behavior can be observed:
+- First 4 messages need more time compared to the ones in the middle
+- Last 10 messages need more time compared to the ones sent in the middle
+
+Checking the plugin time reveals why the first 4 messages need more time:
+::
+
+    2018-08-28 16:32:08,566: INFO id: bbab7ef5a2974972aac6e5e5abdcbb81, (PLG) URIExtract: 0.288
+    2018-08-28 16:32:08,655: INFO id: 214155f0242c462394fdc7f9cd52471f, (PLG) URIExtract: 0.484
+    2018-08-28 16:32:08,760: INFO id: fda3c032e9a245fca0cb96f9f1c08006, (PLG) URIExtract: 0.537
+    2018-08-28 16:32:08,871: INFO id: b02ef668164548ad8e1c43bbd3c0e3a4, (PLG) URIExtract: 0.379
+    2018-08-28 16:32:09,419: INFO id: 083a13a28bd1440b8739f3802f555e3e, (PLG) URIExtract: 0.053
+    2018-08-28 16:32:09,422: INFO id: f730d1ce028d49d5a515b2c3e6730ed5, (PLG) URIExtract: 0.035
+    2018-08-28 16:32:09,502: INFO id: a1e880d8871641d18fb8b93129ca82b7, (PLG) URIExtract: 0.030
+    2018-08-28 16:32:09,818: INFO id: 73412cb75a4342c6a10d8b83794a25c5, (PLG) URIExtract: 0.019
+    2018-08-28 16:32:10,175: INFO id: ba806290932845c299f9dc77340d7a0e, (PLG) URIExtract: 0.036
+    2018-08-28 16:32:10,176: INFO id: ee8f753cb2d24ca3b1e80972363c25ba, (PLG) URIExtract: 0.019
+    2018-08-28 16:32:10,212: INFO id: e044a9836d264f768cb67769331aec3f, (PLG) URIExtract: 0.016
+    2018-08-28 16:32:10,521: INFO id: aabe6169c7fe408983f03d9589737942, (PLG) URIExtract: 0.048
+    2018-08-28 16:32:10,896: INFO id: 6064a0689f414849a5b13dfbe22885fa, (PLG) URIExtract: 0.026
+    2018-08-28 16:32:10,908: INFO id: a6a09f5dca6849edbaa08fd91a85a3c0, (PLG) URIExtract: 0.030
+    2018-08-28 16:32:12,396: INFO id: 4983965b0d9e468e9dad4c67ea2abc32, (PLG) URIExtract: 0.014
+    2018-08-28 16:32:13,738: INFO id: 75f63480574849c5819006a5dba0c3c3, (PLG) URIExtract: 0.016
+    2018-08-28 16:32:13,745: INFO id: c796aba4879447efa289b16fc24d4984, (PLG) URIExtract: 0.018
+    2018-08-28 16:32:13,757: INFO id: a84ae0b77c1d43adbb1ecefd9d894588, (PLG) URIExtract: 0.018
+    2018-08-28 16:32:14,290: INFO id: 0d2bcc7ef9014b2886ef67f6287e109a, (PLG) URIExtract: 0.016
+    2018-08-28 16:32:16,966: INFO id: 6d8090e23ce54095969f1ac05c4bf80a, (PLG) URIExtract: 0.015
+    2018-08-28 16:32:16,973: INFO id: d06f4c5c4ae84fc096d8b98f6b7e101a, (PLG) URIExtract: 0.051
+    2018-08-28 16:32:16,976: INFO id: 55543848dee447579b2e57f0d665fe9b, (PLG) URIExtract: 0.015
+    2018-08-28 16:32:16,992: INFO id: 6d84ccebf51c46fdb213a9f497eb2cb5, (PLG) URIExtract: 0.036
+    2018-08-28 16:32:19,391: INFO id: 475786e12faa4eb580cd2ee79d5d3cef, (PLG) URIExtract: 0.016
+
+The reason is in the beginning the URIExtract plugin loads domain skip lists from a file. Every
+one of the 4 worker processes available is loading the file in the beginning therefore the plugin
+needs more time.
+
+::
+
+    2018-08-28 16:32:08,567: DEBUG id: bbab7ef5a2974972aac6e5e5abdcbb81, Commitback: 0.052
+    2018-08-28 16:32:08,656: DEBUG id: 214155f0242c462394fdc7f9cd52471f, Commitback: 0.059
+    2018-08-28 16:32:08,761: DEBUG id: fda3c032e9a245fca0cb96f9f1c08006, Commitback: 0.111
+    2018-08-28 16:32:08,892: DEBUG id: b02ef668164548ad8e1c43bbd3c0e3a4, Commitback: 0.053
+    2018-08-28 16:32:09,420: DEBUG id: 083a13a28bd1440b8739f3802f555e3e, Commitback: 0.081
+    2018-08-28 16:32:09,424: DEBUG id: f730d1ce028d49d5a515b2c3e6730ed5, Commitback: 0.021
+    2018-08-28 16:32:09,503: DEBUG id: a1e880d8871641d18fb8b93129ca82b7, Commitback: 0.047
+    2018-08-28 16:32:09,824: DEBUG id: 73412cb75a4342c6a10d8b83794a25c5, Commitback: 0.091
+    2018-08-28 16:32:10,176: DEBUG id: ba806290932845c299f9dc77340d7a0e, Commitback: 0.052
+    2018-08-28 16:32:10,178: DEBUG id: ee8f753cb2d24ca3b1e80972363c25ba, Commitback: 0.050
+    2018-08-28 16:32:10,214: DEBUG id: e044a9836d264f768cb67769331aec3f, Commitback: 0.057
+    2018-08-28 16:32:10,522: DEBUG id: aabe6169c7fe408983f03d9589737942, Commitback: 0.088
+    2018-08-28 16:32:10,908: DEBUG id: 6064a0689f414849a5b13dfbe22885fa, Commitback: 0.043
+    2018-08-28 16:32:10,909: DEBUG id: a6a09f5dca6849edbaa08fd91a85a3c0, Commitback: 0.068
+    2018-08-28 16:32:12,399: DEBUG id: 4983965b0d9e468e9dad4c67ea2abc32, Commitback: 1.493
+    2018-08-28 16:32:13,740: DEBUG id: 75f63480574849c5819006a5dba0c3c3, Commitback: 2.403
+    2018-08-28 16:32:13,747: DEBUG id: c796aba4879447efa289b16fc24d4984, Commitback: 2.350
+    2018-08-28 16:32:13,759: DEBUG id: a84ae0b77c1d43adbb1ecefd9d894588, Commitback: 2.709
+    2018-08-28 16:32:14,291: DEBUG id: 0d2bcc7ef9014b2886ef67f6287e109a, Commitback: 1.582
+    2018-08-28 16:32:16,967: DEBUG id: 6d8090e23ce54095969f1ac05c4bf80a, Commitback: 2.663
+    2018-08-28 16:32:16,977: DEBUG id: 55543848dee447579b2e57f0d665fe9b, Commitback: 2.342
+    2018-08-28 16:32:16,987: DEBUG id: d06f4c5c4ae84fc096d8b98f6b7e101a, Commitback: 2.675
+    2018-08-28 16:32:16,993: DEBUG id: 6d84ccebf51c46fdb213a9f497eb2cb5, Commitback: 2.675
+    2018-08-28 16:32:19,393: DEBUG id: 475786e12faa4eb580cd2ee79d5d3cef, Commitback: 2.076
+
+"Commitback" includes re_inject of the message into the queue and sending back an answer
+to postfix who sent the mail to Fuglu.
+Independent of sending 24 or 100 messages the last 10 messages took more time. The reason
+for this is actually a postfix caching configuration (http://www.postfix.org/CONNECTION_CACHE_README.html).
+Disable connection caching in Postfix ("smtp_connection_cache_on_demand = no" in ""/etc/postfix/main.cf")
+provides a more uniform time for "Commitback":
+
+::
+
+    2018-08-28 17:10:17,813: DEBUG id: cd1f24aa3fb64f34b0f38172977d66c0, Commitback: 0.067
+    2018-08-28 17:10:19,331: DEBUG id: 0bc7907f82d94804bd98dd1c5c19049c, Commitback: 0.079
+    2018-08-28 17:10:19,763: DEBUG id: 6fd3f6b6f2bd4d929ba088eca1e07909, Commitback: 0.062
+    2018-08-28 17:10:19,946: DEBUG id: 678641c3c0584801b042ca74daba7e3e, Commitback: 0.030
+    2018-08-28 17:10:19,966: DEBUG id: 0fd25ee5d5b3469a83bc9ef6b1c4740d, Commitback: 0.090
+    2018-08-28 17:10:20,040: DEBUG id: f4019147caf648158c44b5700bf34558, Commitback: 0.060
+    2018-08-28 17:10:20,576: DEBUG id: 79342b19ac6346669f78deee0404f5c1, Commitback: 0.028
+    2018-08-28 17:10:20,670: DEBUG id: aef87d19cd4049b2a08ba09e7aaa0d6b, Commitback: 0.028
+    2018-08-28 17:10:20,714: DEBUG id: 03ba346c27e8458bbe8a674fa9688e4e, Commitback: 0.058
+    2018-08-28 17:10:20,806: DEBUG id: e16ad58c734f48baaf6061bdcdc60d19, Commitback: 0.059
+    2018-08-28 17:10:21,295: DEBUG id: 3381c75f19b048c59fb792fe1c8477a6, Commitback: 0.048
+    2018-08-28 17:10:21,377: DEBUG id: 6143066549af418bae03219fecb8d6ed, Commitback: 0.023
+    2018-08-28 17:10:21,511: DEBUG id: 44c964366b14498caefcee242084e37d, Commitback: 0.080
+    2018-08-28 17:10:21,606: DEBUG id: 82106780e343426b987de889a982b6e8, Commitback: 0.054
+    2018-08-28 17:10:22,046: DEBUG id: 446e28b2583b4acfb0dcc9d442d80694, Commitback: 0.019
+    2018-08-28 17:10:22,063: DEBUG id: f1cb4fd140534380ac4a7d7f8dbfb955, Commitback: 0.020
+    2018-08-28 17:10:22,122: DEBUG id: 02f1766b1efa467f99eccb8ddecb4d0d, Commitback: 0.017
+    2018-08-28 17:10:22,214: DEBUG id: 5f9ca7c40e5f4abbbbb857f578206234, Commitback: 0.047
+    2018-08-28 17:10:22,826: DEBUG id: 859a069e3b364f418fc00db62a9774c2, Commitback: 0.020
+    2018-08-28 17:10:22,874: DEBUG id: 0d6ddc0e151c40c0a06c40621a108314, Commitback: 0.015
+    2018-08-28 17:10:22,902: DEBUG id: ce03db18ce564a1093d119a514493c3f, Commitback: 0.023
+    2018-08-28 17:10:23,007: DEBUG id: be9cd141a5244488b8b918acc466b413, Commitback: 0.057
+    2018-08-28 17:10:23,304: DEBUG id: 29cda3659cda4d52b3dc2dadfc5e116d, Commitback: 0.020
+    2018-08-28 17:10:23,349: DEBUG id: b1885d2585da4a75b31b32fc5412803b, Commitback: 0.011
+
+In general caching should reduce the time per mail, in the present small example it is however
+not so clear since the total time with caching disabled is similar to the one with caching
+or it might even be the same. This might be due to the fact the connection Postfix-Fuglu
+is only local.
+::
+
+    2018-08-28 17:10:17,811: INFO id: cd1f24aa3fb64f34b0f38172977d66c0, total: 1.533
+    2018-08-28 17:10:19,329: INFO id: 0bc7907f82d94804bd98dd1c5c19049c, total: 1.509
+    2018-08-28 17:10:19,761: INFO id: 6fd3f6b6f2bd4d929ba088eca1e07909, total: 3.209
+    2018-08-28 17:10:19,943: INFO id: 678641c3c0584801b042ca74daba7e3e, total: 3.589
+    2018-08-28 17:10:19,964: INFO id: 0fd25ee5d5b3469a83bc9ef6b1c4740d, total: 0.603
+    2018-08-28 17:10:20,037: INFO id: f4019147caf648158c44b5700bf34558, total: 3.596
+    2018-08-28 17:10:20,574: INFO id: 79342b19ac6346669f78deee0404f5c1, total: 0.790
+    2018-08-28 17:10:20,668: INFO id: aef87d19cd4049b2a08ba09e7aaa0d6b, total: 0.660
+    2018-08-28 17:10:20,711: INFO id: 03ba346c27e8458bbe8a674fa9688e4e, total: 0.747
+    2018-08-28 17:10:20,804: INFO id: e16ad58c734f48baaf6061bdcdc60d19, total: 0.720
+    2018-08-28 17:10:21,293: INFO id: 3381c75f19b048c59fb792fe1c8477a6, total: 0.702
+    2018-08-28 17:10:21,374: INFO id: 6143066549af418bae03219fecb8d6ed, total: 0.694
+    2018-08-28 17:10:21,509: INFO id: 44c964366b14498caefcee242084e37d, total: 0.780
+    2018-08-28 17:10:21,604: INFO id: 82106780e343426b987de889a982b6e8, total: 0.769
+    2018-08-28 17:10:22,044: INFO id: 446e28b2583b4acfb0dcc9d442d80694, total: 0.730
+    2018-08-28 17:10:22,061: INFO id: f1cb4fd140534380ac4a7d7f8dbfb955, total: 0.674
+    2018-08-28 17:10:22,120: INFO id: 02f1766b1efa467f99eccb8ddecb4d0d, total: 0.583
+    2018-08-28 17:10:22,211: INFO id: 5f9ca7c40e5f4abbbbb857f578206234, total: 0.584
+    2018-08-28 17:10:22,821: INFO id: 859a069e3b364f418fc00db62a9774c2, total: 0.757
+    2018-08-28 17:10:22,872: INFO id: 0d6ddc0e151c40c0a06c40621a108314, total: 0.582
+    2018-08-28 17:10:22,900: INFO id: ce03db18ce564a1093d119a514493c3f, total: 0.754
+    2018-08-28 17:10:23,005: INFO id: be9cd141a5244488b8b918acc466b413, total: 0.916
+    2018-08-28 17:10:23,299: INFO id: 29cda3659cda4d52b3dc2dadfc5e116d, total: 0.418
+    2018-08-28 17:10:23,346: INFO id: b1885d2585da4a75b31b32fc5412803b, total: 0.513
+
+---------------------------
+Troubleshooting & Debugging
+---------------------------
+
+Fuglu doesn't even start
+........................
+
+ * run ``fuglu --lint`` as root. are there any errors?
+ * did you create /etc/fuglu/logging.conf (by renaming the logging.conf.dist file) ?
+ * check if the log directory (/var/log/fuglu/ by default) exists an is writable by the user running fuglu
+ * check for errors in /var/log/fuglu.log
+ * run fuglu fuglu in foreground using ``fuglu --foreground`` or by setting ``daemonize=0`` in fuglu.conf and check for errors
+
+
+Debug Trace a single message
+............................
+
+Fuglu runs but you want to know what exactly would happen to a single email message?
+
+Make sure message debugging is enabled (it is by default, but if you screwed up your config...) :
+
+ * ``prependers=`` should start with ``debug`` to make sure the debugger plugin is loaded
+ * ``incomingport`` option should contain port 10888 (eg. incomingport=10025,10099,10888 ) , so fuglu listens on the debugging port
+ * in the [debug] section, set debugport=10888 and debugfile=/tmp/fuglu_debug.log , so the debugger plugin knows what port to treat as debug port and where to store debug information
+ * ``nobounce`` should be set to True, so debugged messages can not be bounced
+ * ``noreinject`` shoud be set to True, so debugged messages are not re-injected to postfix for further processing
+ * ``noappender`` should be set to True, so appenders are not run for debugged messages
+
+Save the message on the server (rfc822 format), and run
+
+::
+
+	fuglu_debug /path/to/message.eml
+
+you may add envelope sender and recipient if these are relevant for your test, eg:
+
+::
+
+	fuglu_debug /path/to/message.eml sender@example.org recipient@example.net
+
+
+then check ``/tmp/fuglu_debug.log``
+
+.. _debug-suspect-filter:
+
+Debug a suspect filter
+......................
+
+So you have this filter in a plugin with hundreds of rules and you just don't know which one matched a specific message?
+
+fuglu_suspectfilter to the rescue! just pass a rule file and a message eml file as arguments and it will list all matches.
+
+
+::
+
+  fuglu_suspectfilter /etc/fuglu/myfilterfile.regex /tmp/testmessage.eml
+  INFO:fuglu.suspectfilter:Reloading Rulefile /etc/fuglu/myfilterfile.regex
+  INFO:root:194 valid rules found
+  INFO:root:1 matches found
+
+  Match #1:
+  Matched header/field: From
+  Matched value in message: "Edgar" <edgarmail@example.com>
+  Regex : edgarmail@example\.com
+  Rule argument : Messages from Edgar
+
+
+Add a `-D` argument for a full debug trace of the suspect filter.
+
+Debug the fuglu core
+....................
+
+If you are a python developer and would like to inspect fuglu at run-time, add the argument ``--console`` when starting fuglu.
+You will then get an interactive python console where all plugins etc are available from the 'mc' (MainController) object.
+
+Starting with fuglu 0.6.1 it is also possible to start a network-enabled python shell using the command ``fuglu_control netconsole [<port> [<bindaddress>]]``
+
+Example:
+on the host running fuglu:
+
+::
+
+	# fuglu_control netconsole 9999 0.0.0.0
+	Python interactive console starting on 0.0.0.0 port 9999
+
+
+on your host:
+
+::
+
+	$ nc 192.168.1.40 9999
+	Fuglu Python Shell - MainController available as 'mc'
+	>>>
+
+---------------
+Runtime control
+---------------
+It is possible to change some core parameters at runtime and tell fuglu to reload the configuration. Sending ``SIGHUP`` to
+the main process will check for changes in the configuration and reload fuglu as needed to apply the changes:
+- Changes in configuration files (fuglu.conf or plugin configuration files) will restart the threads/process pool.
+- Changes in logging.conf will restart the logging configuration
+
+What can be changed at runtime
+..............................
+- plugins loaded and plugin configuration
+- threading mode : number of threads
+- process mode: number of processes
+- logging configuration, for example
+
+ - log-level
+ - handlers
+ - loggers
+
+- backend process/thread
+
+Please note it is recommended to change backend (process/thread) while the load is low. Changing the backend
+or the number of processes (initialprocs in process mode) will create a new processor pool. Changing the number
+of processes this creates a new pool which will take over for new messages. The old pool exist until all the tasks
+(messages) are processed. Therefore, the number of processes is the sum of the old processes plus the new processes
+until the old pool is closed.
+
+The command to reload Fuglu is
+::
+
+    $ systemctl reload fuglu
+
+Note you have to put the current "fuglu.service" file in the system and
+run
+::
+
+    $ systemctl daemon-reload
+
+before you can use the reload option for fuglu. Previous versions of fuglu.service
+did not support reload.

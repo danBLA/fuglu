@@ -1,0 +1,430 @@
+Configuration
+=============
+
+Contents:
+
+.. toctree::
+   :maxdepth: 2
+
+
+-------------------
+Basic Configuration
+-------------------
+
+Fuglu
+.....
+
+First of all, remove the .dist ending from all files in ``/etc/fuglu``, so you have a basic default configuration.
+
+edit ``/etc/fuglu/fuglu.conf`` and change parameters if you like
+
+Note: If you don't have Clamav (clamd) or Spamassassin (spamd) , you need to remove those entries from the plugins option.
+
+eg, change
+
+::
+
+	plugins=archive,clamav,spamassassin,attachment
+
+to
+
+::
+
+	plugins=archive,attachment
+
+to disable both Antispam and Antivirus. 
+
+
+
+Make sure the logging directory exists:
+
+::
+
+
+	mkdir -p /var/log/fuglu
+	chown nobody /var/log/fuglu
+
+
+Then check if fuglu is happy with your configuration:
+
+
+::
+
+	fuglu --lint
+
+
+example:
+
+::
+
+  fuglu --lint
+  Fuglu 0.6.1
+  ---------- LINT MODE ----------
+  Checking dependencies...
+  sqlalchemy: installed
+  BeautifulSoup: installed
+  magic: installed
+  Loading extensions...
+  fuglu.extensions.sql: enabled (available)
+  Loading plugins...
+  Plugin loading complete
+  Linting  main configuration
+  OK
+
+  Linting Plugin  Archive Config section: ArchivePlugin
+  OK
+
+  Linting Plugin  Attachment Blocker Config section: FiletypePlugin
+  Found python-file magic library
+  No database configured. Using per user/domain file configuration from /etc/fuglu/rules
+  OK
+
+  Linting Plugin  Clam AV Config section: ClamavPlugin
+  Virusaction: DELETE
+  Got Pong: PONG
+
+  Clamav found virus {'stream': 'Eicar-Test-Signature'}
+  OK
+
+  Linting Plugin  SpamAssassin Config section: SAPlugin
+  Got: SPAMD/1.5 0 PONG
+
+  GTUBE Has been detected correctly
+  OK
+
+  Linting Plugin  Debugger Config section: debug
+  OK
+
+  Linting Plugin  Plugin Skipper Config section: PluginSkipper
+  OK
+  0 plugins reported errors.
+
+
+
+If all went fine, run ``fuglu`` without parameters to start the daemon. 
+In ``/var/log/fuglu/fuglu.log`` you should then see output similar to this:
+
+::
+
+  2014-08-13 15:25:46,093 root        : INFO FuGLU Version 0.6.1 starting up
+  2014-08-13 15:25:46,094 fuglu.MainController: INFO Init Stat Engine
+  2014-08-13 15:25:46,094 fuglu.MainController: INFO Init Threadpool
+  2014-08-13 15:25:46,095 fuglu.MainController: INFO Starting interface sockets...
+  2014-08-13 15:25:46,095 fuglu.MainController: INFO starting connector smtp/10025
+  2014-08-13 15:25:46,096 fuglu.MainController: INFO starting connector smtp/10099
+  2014-08-13 15:25:46,096 fuglu.incoming.10025: INFO SMTP (After Queue) Server running on port 10025
+  2014-08-13 15:25:46,096 fuglu.MainController: INFO starting connector smtp/10888
+  2014-08-13 15:25:46,096 fuglu.incoming.10099: INFO SMTP (After Queue) Server running on port 10099
+  2014-08-13 15:25:46,097 fuglu.incoming.10888: INFO SMTP (After Queue) Server running on port 10888
+  2014-08-13 15:25:46,097 fuglu.MainController: INFO Startup complete
+  2014-08-13 15:25:46,097 fuglu.control.fuglu_control.sock: INFO Control/Info Server running on port /tmp/fuglu_control.sock
+
+
+fuglu comes with init scripts/systemd service files if you want to start fuglu like other system daemons
+
+Postfix
+.......
+
+Once fuglu is up and running, we need to tell Postfix to use it as an after queue filter.
+
+Detailed documentation is available on the `postfix <http://www.postfix.org/FILTER_README.html>`_ website, but here is a quick example. 
+
+Add to ``master.cf`` :
+
+
+::
+
+	#fuglu
+	fuglu_default   unix  -       -       n       -       10      smtp
+		-o smtp_send_xforward_command=yes
+		-o disable_mime_output_conversion=yes
+
+	fuglu_trusted   unix  -       -       n       -       10      smtp
+		-o smtp_send_xforward_command=yes
+		-o disable_mime_output_conversion=yes
+
+	#
+	localhost:10026 inet  n       -       n       -       10      smtpd
+		-o content_filter=
+		-o receive_override_options=no_unknown_recipient_checks,no_header_body_checks,no_milters,no_address_mappings
+		-o smtpd_helo_restrictions=
+		-o smtpd_client_restrictions=
+		-o smtpd_sender_restrictions=
+		-o smtpd_recipient_restrictions=permit_mynetworks,reject
+		-o mynetworks=127.0.0.0/8
+		-o smtpd_authorized_xforward_hosts=127.0.0.0/8
+
+
+This creates two filters ``fuglu_trusted`` for outgoing mail and ``fuglu_default`` for incoming mail. An additional postfix instance will listen on port *10026* where fuglu can re-inject filtered messages.
+
+Create a new file ``/etc/postfix/filter_default``
+
+::
+
+	# filter for others
+	/./ FILTER fuglu_default:[127.0.0.1]:10025
+
+
+This tells postfix to send untrusted messages to fuglu on port 10025
+
+Create a new file ``/etc/postfix/filter_trusted``
+
+::
+
+	# filter for authenticated users 
+	/./ FILTER fuglu_trusted:[127.0.0.1]:10099
+
+This tells postfix to send trusted (outgoing) mail to fuglu on port 10099. Fuglu can be configured to treat outgoing mail differently, eg. skip spam scanning but keep antivirus scanning 
+
+In ``main.cf`` add
+
+
+::
+
+	smtpd_recipient_restrictions = 	check_client_access pcre:/etc/postfix/filter_trusted,
+									permit_sasl_authenticated,
+									permit_mynetworks,
+									reject_unauth_destination,
+									pcre:/etc/postfix/filter_default
+
+	fuglu_trusted_destination_recipient_limit=1
+	fuglu_default_destination_recipient_limit=1
+
+
+
+Run ``postfix reload`` and check your maillog for errors. from now on, messages should be filtered by fuglu!
+
+
+---------------
+Advanced Config
+---------------
+
+
+Running a plugin multiple times with different config sections
+..............................................................
+
+By default, plugins search your configfile for a section named like the 
+plugin itself, for example, the ArchivePlugin looks for a [ArchivePlugin] section. You can pass the plugin definition an argument to override this with a section named to suit your needs.
+This can also allow running a plugin multiple times per scan with different config options:
+
+
+Example:
+
+::
+
+	plugins=archive(ArchiveConfig1),spamassassin,clamav,archive(ArchiveConfig2)
+
+	[ArchiveConfig1]
+	....
+
+	[ArchiveConfig2]
+
+
+
+Fuglu in Before-Queue Mode
+..........................
+
+The fuglu ESMTP connector enables fuglu to run in before-queue mode, i.e. while the smtp session with the remote system is still active. This allows rejecting spam / infected mails.
+
+
+**Postfix config**:
+edit ``master.cf`` as described in http://www.postfix.org/SMTPD_PROXY_README.html
+
+
+::
+
+
+    # Before-filter SMTP server. Receive mail from the network and
+    # pass it to the content filter on localhost port 10025.
+    #
+    smtp      inet  n       -       n       -       20      smtpd
+        -o smtpd_proxy_filter=127.0.0.1:10025
+        -o smtpd_client_connection_count_limit=10
+	# Postfix 2.7 and later performance feature.
+	# -o smtpd_proxy_options=speed_adjust
+    #
+    # After-filter SMTP server. Receive mail from the content filter
+    # on localhost port 10026.
+    #
+    127.0.0.1:10026 inet n  -       n       -        -      smtpd
+        -o smtpd_authorized_xforward_hosts=127.0.0.0/8
+        -o smtpd_client_restrictions=
+        -o smtpd_helo_restrictions=
+        -o smtpd_sender_restrictions=
+        -o smtpd_recipient_restrictions=permit_mynetworks,reject
+        -o smtpd_data_restrictions=
+        -o mynetworks=127.0.0.0/8
+        -o receive_override_options=no_unknown_recipient_checks
+
+fuglu config:
+
+Enable the esmtp connector on the incoming port (10025) in ``/etc/fuglu/fuglu.conf``:
+
+::
+
+	incomingport=esmtp:10025,10099,10888
+
+
+**rejecting spam**:
+
+In the fuglu configuration set ``DEFAULTHIGHSPAMACTION=REJECT`` (do the same for ``DEFAULTLOWSPAMACTION`` if you want to reject all spam). in the Spamassassin Pluginconfiguration, you can configure a custom reject message which supports various template variables: 
+
+ * *${from_address}* : sender address
+ * *${to_address}* : recipient address
+ * *${from_domain}* : sender domain
+ * *${to_domain}* : recipient domain
+ * *${subject}* : message subject
+ * *${spamscore}* : spamassassin score
+ * *${date}* : current date
+ * *${time}* : current time 
+
+Example:
+
+::
+
+	rejectmessage=message from ${from_address} to ${to_domain} identified as spam (score=${spamscore})
+
+
+**rejecting viruses**:
+
+This works the same way as rejecting spam, by setting ``DEFAULTVIRUSACTION=REJECT`` and configuring the ``rejectmessage`` in the antivirus plugin section.
+
+
+
+**Example fuglu configuration**
+
+With this example pre-queue configuration fuglu will scan for spam, virus and blocked attachments. low spam will be tagged, high spam (level>=10) will be rejected. 
+
+::
+
+	[main]
+	plugins=clamav,spamassassin,attachment
+	incomingport=esmtp:10025,10099,10888
+
+	[spam]
+	DEFAULTLOWSPAMACTION=DUNNO
+	DEFAULTHIGHSPAMACTION=REJECT
+
+	[virus]
+	DEFAULTVIRUSACTION=REJECT
+
+	[FiletypePlugin]
+	sendbounce=0
+	blockaction=REJECT
+
+	[SAPlugin]
+	rejectmessage=Sorry, this message looks like spam to me!
+	highspamlevel=10
+
+
+Running fuglu as a milter
+.........................
+
+!! Warning, this is an EXPERIMENTAL feature - untested, may or may not work !!
+
+!! Note: fuglu milter does not currently support message header/body modification, just actions like REJECT/DEFER/DISCARD !!
+
+To run fuglu as a milter, add ``milter:<portnumber`` to the ``incomingport`` configuration option in fuglu.conf.
+
+::
+
+	incomingport=10025,10099,10888,milter:10028
+
+Then enable milters in your MTA. postfix example (main.cf) :
+
+::
+
+	milter_protocol = 2
+	milter_default_action = accept
+	milter_content_timeout = 30s
+	smtpd_milters=inet:127.0.0.1:10028
+
+
+Running fuglu in netcat-mode
+............................
+
+fuglu supports message processing by simply "piping" them into a socket. To enable this socket, add ``netcat:<portnumber>`` to the ``incomingport`` configuration option in fuglu.conf.
+
+::
+
+	incomingport=10025,10099,10888,netcat:20099
+
+When restarting fuglu, you should see something like ``INFO NETCAT Server running on port 20099`` in the logs. you may then pipe an eml from the shell
+
+::
+
+	(sleep 0.1; cat eicar.eml) | nc -c localhost 20099
+
+
+In some special setups, people use fuglu as an after-delivery filter with this method.
+
+Example procmail filter:
+
+::
+
+	# netcat send msg copy to fuglu
+	:0c
+	| nc localhost 20099
+
+Note: in netcat mode fuglu only receives message headers and body, no envelope data. Fuglu will assign the dummy value ``unknown@example.org`` for both envelope sender and recipient. 
+
+
+Fetching scan-time configuration values from a database
+.......................................................
+It is now possible to fetch certain configuration options at runtime, based on the recipient email address or domain.
+
+For this to work you need to have sqlalchemy installed ( running `fuglu --lint` should show `enabled` for the sql extension)
+
+SQL script to create the the table:
+
+::
+
+	CREATE TABLE `fugluconfig` (
+	  `scope` varchar(255) NOT NULL,
+	  `section` varchar(255) NOT NULL,
+	  `option` varchar(255) NOT NULL,
+	  `value` varchar(255) NOT NULL,
+	  PRIMARY KEY (`scope`,`section`,`option`)
+	)
+
+
+The process is very similar to spamassassin's SQL configuration  (http://wiki.apache.org/spamassassin/UsingSQL ), with a few minor differences:
+
+ * we require two columns to identify a preference: `section` and `option`
+ * username is called `scope`
+ * fuglu does not load the full configuration per user, only the actual config options requested by plugins supporting db overrides
+ 
+Enable configuration lookups by providing a standard sql alchemy connectstring in your configuration (section `databaseconfig` option `dbconnectstring`)
+ 
+::
+
+	[databaseconfig]
+	dbconnectstring=mysql://root@localhost/fuglu
+
+If you use the above table structure in MariaDB / MySQl, the built-in default sql statement should work, but you may use a custom statement (`sql=SELECT ....` in the same section.  ) use `:section`, `:option` and the usual suspect variables like `:to_domain` and `:to_address` as placeholders.
+
+
+Note: only the following plugins currently supports reading database overrides for the listed options: 
+ * Spamassassin: `lowspamaction`, `highspamaction`, `highspamlevel`
+ * FiletypePlugin: `sendbounce`, `checkarchivenames`, `checkarchivecontent`, `enabledarchivetypes`
+
+multi-processing mode
+.....................
+
+by default, fuglu runs multi-threaded. This is usually a fine choice as many tasks are I/O-bound (waiting on sockets etc). However, for environments running CPU-bound tasks directly in fuglu plugins this can become a bottleneck. Due to the python global interpreter lock, only one operation can run at a time and fuglu does utilize only one CPU core.  
+
+For these setups, fuglu can be switched to multiprocessing mode:
+
+::
+
+	[performance]
+	backend=process
+	initialprocs=0
+
+`initialprocs` defines the number of worker processes that fuglu should start. If set to `0` , fuglu will default to twice the number of available virtual CPU cores.
+
+Most things will work similarly as in threaded mode, but there are a few differences:
+ * in threaded mode, there is only one instance per plugin. In multiprocessing there is one instance per worker. This means increased memory usage, as in-memory caches are built multiple times.
+ * dynamic config reloading is not currently supported in multiprocessing mode. Restart fuglu for config changes to take effect.
+ * the number of workers is not auto-adapted like in threading mode
+

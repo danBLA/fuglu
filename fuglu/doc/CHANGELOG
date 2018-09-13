@@ -127,11 +127,11 @@ Developers:
 Developers:
  * plugdummy tool: can run run multiple plugins in one go, autodetects plugin type, can read messages from stdin
  * suspect.get_tag() now takes a default argument which will be returned if the requested tag is not found
- 
+
 -- Fuglu 0.6.1, 2013-11-15
  * new Plugin: ScriptFilter (dynamically loaded filter scripts)
- * new (experimental) domain authentication plugins: DKIM Sign / Verify, SPF Check 
- * Archive Plugin: 
+ * new (experimental) domain authentication plugins: DKIM Sign / Verify, SPF Check
+ * Archive Plugin:
     * new options chown/chgrp/chmod to change owner/permissions of archived file
     * storage directory and filename are now configurable using templates. "makedomainsubdir" option is deprecated
  * fuglu start script has more common options like --foreground, --pidfile, -c <configfile>
@@ -140,7 +140,7 @@ Developers:
  * Prequeue Bugfix: correctly close connection to 2nd postfix instance when message is deferred/rejected/discarded
  * Fuglu doesn't completely shut down anymore if one connector fails to start
  * SQL extension: (experimental) Some configuration values can now be dynamically loaded from a database
-   see: http://fumail.github.io/fuglu/configuration-index.html#fetching-scan-time-configuration-values-from-a-database
+   see: https://fumail.gitlab.io/fuglu/configuration-index.html#fetching-scan-time-configuration-values-from-a-database
  * Reduce log and header noise: The log template is now configurable, removed tag logging by default (use ${tags} in logtemplate to get the old behaviour)
    The suspect-id header can now be disabled
 
@@ -152,7 +152,7 @@ Developers:
  * suspectfilter get_args can now optionally return extended info about a match (matched field, used regex, matched value)
  * suspect has a new method get_client_info which tries to extract helo, ip and reverse dns information from received headers
  * fuglu_control has a new command 'netconsole' which starts a python interactive shell on a network socket. This allows runtime debugging of plugins or fuglu itself.
- 
+
 -- Fuglu 0.6.0, 2012-07-04
  * various bugfixes and improvements in before-queue support
  * new Plugin: ActionOverride (Custom action based on filter)
@@ -162,26 +162,26 @@ Developers:
  * new Plugin: Killer (Deletes All messages) - used in some special setups
  * Vacation Plugin: Now supports domain wide ooo messages
  * SuspectFilter Files now have support advanced regex format /<perl style regular expression>/<modifiers>
-   see:  http://fumail.github.io/fuglu/plugins-index.html?highlight=suspectfilter#suspect-filters
+   see:  https://fumail.gitlab.io/fuglu/plugins-index.html#suspect-filters
  * Archive Plugin: Improved Logging
  * Attachment Plugin: bugfix, sendbounce option could not be disabled
  * Spamassassin Plugin: bugfix, better detection of spamflag header
  * Clamav Plugin / Spamassassin Plugin / Attachment Plugin: new option 'rejectmessage' for before queue rejects
- * improved core support for multi recipient messages. it is no longer absoultely required to set fuglu_*_destination_recipient_limit=1 
+ * improved core support for multi recipient messages. it is no longer absoultely required to set fuglu_*_destination_recipient_limit=1
    (but some plugins still only act on the first recipient)
  * outgoinghelo is no longer mandatory, fuglu auto-detects the local hostname if the config option is empty
  * new tool: fuglu_conf to export current config, show differences from the default (fuglu_conf -n) etc
  * the message returned to the connecting client is now configurable
 
-Developers: 
+Developers:
  * suspect.addheader() has a new 'immediate' option to make headers visible for consecutive plugins. by default, headers are only added before re-injecting
  * Spamassassin Plugin: writes new tag "SAPlugin.skipreason' if the message was not scanned
- * new way of defining required config variables. plugins can now provide defaults and config option descriptions. 
-   see: http://fumail.github.io/fuglu/plugins-index.html#define-configuration-options-for-your-plugin
+ * new way of defining required config variables. plugins can now provide defaults and config option descriptions.
+   see: https://fumail.gitlab.io/fuglu/plugins-index.html#define-configuration-options-for-your-plugin
    important: for default values to work, make sure your plugin doesn't read it's own config values in __init__ !
  * Suspect.getSource() now has an optional maxsize parameter to limit the amount of body data read into memory
  * new development tool: 'plugdummy.py', dry-run and debug your plugins without a running fuglu
-   see: http://fumail.github.io/fuglu/plugins-index.html#debug-a-plugin-without-running-fuglu
+   see: https://fumail.gitlab.io/fuglu/plugins-index.html#debug-a-plugin-without-running-fuglu
 
 -- Fuglu 0.5.0, Released 2011-10-28
  * started changelog ;-)
@@ -189,7 +189,7 @@ Developers:
  * bugfix: Incorrect unquoting of two leading dots in smtp transactions could lead to broken s/mime sigs
  * A few plugins now have a 'PROBLEMACTION' so it is now configurable if a message should be deferred or accepted if for example the clamav daemon is not reachable
  * new option: [main] trashlog (boolean), default False, if True, Fuglu writes a 00-fuglutrash.log file in the trashdir listing all deleted messages
- * SuspectFilters (previously 'HeaderFilters'): 
+ * SuspectFilters (previously 'HeaderFilters'):
  	* now supports header wildcard (Character '*')
  	* accepts colon at the end
  	* alias "from_address" for envelope_from and "to_address" for envelope_to
@@ -220,5 +220,5 @@ Developers:
  * Appenderplugins can now read the tag "injectanswer" which contains the final smtp answer from SMTP reinjects
  * (sql extension) DBFiles allow reading sql tables and treat them like config files
  * HeaderFilter is now called SuspectFilter
- 
+
 -- Fuglu 0.4.5, Released 2010-05-20

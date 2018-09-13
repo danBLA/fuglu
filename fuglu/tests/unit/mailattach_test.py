@@ -6,8 +6,6 @@ from os.path import join
 from fuglu.mailattach import Mailattachment_mgr, Mailattachment
 from fuglu.shared import Suspect
 from unittestsetup import TESTDATADIR
-import tempfile
-import shutil
 
 class Mailattachment_mgr_test(unittest.TestCase):
     def test_manager(self):
@@ -191,6 +189,35 @@ class SuspectTest(unittest.TestCase):
         # list has to be sorted according to filename in order to be able to match
         # target list in Python2 and 3
         fullAttList = sorted(mAttachMgr.get_objectlist(None),key=lambda obj: obj.filename)
+        for att,afname in zip(fullAttList,fnames_all_levels):
+            print(att)
+            self.assertEqual(afname,att.filename)
+
+    def testSuspectintegration_gz(self):
+        """Test the integration of the manager with Suspect"""
+
+        tempfile = join(TESTDATADIR,"attachment_exclamation_marks_points.eml")
+
+        suspect = Suspect('sender@unittests.fuglu.org',
+                          'recipient@unittests.fuglu.org', tempfile)
+
+        mAttachMgr = suspect.att_mgr
+        fnames_all_levels   = sorted(["unnamed.htm", "aaa.aa!aaaaaaaaa.aa!2345678910!1234567891.xml"])
+
+        print("Filenames, Level  [0:0] : [%s]"%", ".join(mAttachMgr.get_fileslist()))
+        print("Filenames, Levels [0:1] : [%s]"%", ".join(mAttachMgr.get_fileslist(1)))
+        print("Filenames, Levels [0:2] : [%s]"%", ".join(mAttachMgr.get_fileslist(2)))
+        print("Filenames, Levels [0: ] : [%s]"%", ".join(mAttachMgr.get_fileslist(None)))
+
+        self.assertEqual(fnames_all_levels,  sorted(mAttachMgr.get_fileslist(None)))
+
+        print("\n")
+        print("--------------------------------------------")
+        print("- Extract objects until there's no archive -")
+        print("--------------------------------------------")
+        # list has to be sorted according to filename in order to be able to match
+        # target list in Python2 and 3
+        fullAttList = sorted(mAttachMgr.get_objectlist(None), key=lambda obj: obj.filename)
         for att,afname in zip(fullAttList,fnames_all_levels):
             print(att)
             self.assertEqual(afname,att.filename)
