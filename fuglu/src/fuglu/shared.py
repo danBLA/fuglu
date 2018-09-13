@@ -1422,7 +1422,7 @@ class FileList(object):
     """
 
     def __init__(self, filename=None, strip=True, skip_empty=True, skip_comments=True, lowercase=False, additional_filters=None, minimum_time_between_reloads=5):
-        self.filename = filename
+        self._filename = filename
         self.minium_time_between_reloads = minimum_time_between_reloads
         self._lastreload = 0
         self.linefilters = []
@@ -1454,7 +1454,20 @@ class FileList(object):
 
         if filename is not None:
             self._reload_if_necessary()
-
+            
+    
+    @property
+    def filename(self):
+        return self._filename
+    
+    
+    @filename.setter
+    def filename(self, value):
+        if self._filename != value:
+            self._filename = value
+            self._reload_if_necessary()
+    
+    
     def _reload_if_necessary(self):
         """Calls _reload if the file has been changed since the last reload"""
         now = time.time()
@@ -1470,7 +1483,8 @@ class FileList(object):
         finally:
             self.lock.release()
         return True
-
+    
+    
     def _reload(self):
         """Reload the file and build the list"""
         self.logger.info('Reloading file %s' % self.filename)
@@ -1491,7 +1505,8 @@ class FileList(object):
                 newcontent.append(line)
 
         self.content = newcontent
-
+    
+    
     def file_changed(self):
         """Return True if the file has changed on disks since the last reload"""
         if not os.path.isfile(self.filename):
@@ -1501,7 +1516,8 @@ class FileList(object):
         if ctime > self._lastreload:
             return True
         return False
-
+    
+    
     def get_list(self):
         """Returns the current list. If the file has been changed since the last call, it will rebuild the list automatically."""
         self._reload_if_necessary()
