@@ -31,6 +31,7 @@ except ImportError:
 import logging
 import sys
 import traceback
+import weakref
 from fuglu.shared import default_template_values
 
 modlogger = logging.getLogger('fuglu.extensions.sql')
@@ -108,7 +109,14 @@ class DBConfig(RawConfigParser):
 
     def __init__(self, config, suspect):
         RawConfigParser.__init__(self)
-        self.suspect = suspect
+
+        # store weak reference to suspect
+        # otherwise (python 3), the instance of DBConfig does not reduce the
+        # refcount to suspect even if it goes out of scope and the suspect
+        # object does not get freed until a (manual or automatic) run of the
+        # garbage collector "gc.collect()"
+        self.suspect = weakref.ref(suspect)
+
         self.logger = logging.getLogger('fuglu.sql.dbconfig')
         self.cloneFrom(config)
 
@@ -142,7 +150,7 @@ class DBConfig(RawConfigParser):
             'section': section,
             'option': option,
         }
-        default_template_values(self.suspect, sqlvalues)
+        default_template_values(self.suspect(), sqlvalues)
 
         result = None
         try:

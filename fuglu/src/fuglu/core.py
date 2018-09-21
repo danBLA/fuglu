@@ -140,6 +140,12 @@ class MainController(object):
                 'description': "run as a daemon? (fork)",
                 'default': "1",
             },
+            
+            'scantimelogger':{
+                'section':'main',
+                'description':"Enable session scantime logger",
+                'default':"0",
+            },
 
             'user': {
                 'section': 'main',
@@ -506,12 +512,12 @@ class MainController(object):
         myclass = self.__class__.__name__
         loggername = "fuglu.%s" % (myclass,)
         return logging.getLogger(loggername)
-
-    def start_connector(self, portspec):
+    
+    @staticmethod
+    def get_connectorinfo(portspec, default_protocol, default_bindaddress):
+        protocol = default_protocol
+        bindaddress = default_bindaddress
         port = portspec.strip()
-        protocol = 'smtp'
-        bindaddress = self.config.get('main', 'bindaddress')
-
         portformat = port.count(':')
         # 0: "port" -> example: 10028
         # 1: "protocol:port" -> example: milter:10028
@@ -524,6 +530,13 @@ class MainController(object):
             protocol, bindaddress, port = port.split(':')
         else:
             raise ValueError("Error in bind definition: %s"%portspec)
+        return protocol, bindaddress, port
+
+    def start_connector(self, portspec):
+        protocol = 'smtp'
+        bindaddress = self.config.get('main', 'bindaddress')
+
+        protocol, bindaddress, port = MainController.get_connectorinfo(portspec, protocol, bindaddress)
 
         self.logger.info("starting connector %s/%s/%s" % (protocol, bindaddress, port))
         try:
@@ -582,7 +595,7 @@ class MainController(object):
             maxthreads = 3
 
         queuesize = maxthreads * 10
-        return ThreadPool(minthreads, maxthreads, queuesize)
+        return ThreadPool(self,minthreads, maxthreads, queuesize)
 
     def _start_processpool(self):
         numprocs = self.config.getint('performance','initialprocs')
@@ -733,7 +746,7 @@ class MainController(object):
                     self.logger.info('Threadpool config changed, initialising new threadpool')
                     currentthreadpool = self.threadpool
                     self.threadpool = self._start_threadpool()
-                    currentthreadpool.shutdown()
+                    currentthreadpool.shutdown(self.threadpool)
                 else:
                     self.logger.info('Keep existing threadpool')
             else:
@@ -743,7 +756,7 @@ class MainController(object):
             # stop existing procpool
             if self.procpool is not None:
                 self.logger.info('Delete old procpool')
-                self.procpool.shutdown()
+                self.procpool.shutdown(self.threadpool)
                 self.procpool = None
 
         elif backend == 'process':
@@ -757,12 +770,12 @@ class MainController(object):
             #    into account (each worker process has its own controller unlike using threadpool)
             if currentProcPool is not None:
                 self.logger.info('Delete old processpool')
-                currentProcPool.shutdown()
+                currentProcPool.shutdown(self.procpool)
 
             # stop existing threadpool
             if self.threadpool is not None:
                 self.logger.info('Delete old threadpool')
-                self.threadpool.shutdown()
+                self.threadpool.shutdown(self.procpool)
                 self.threadpool = None
         else:
             self.logger.error('backend not detected -> ignoring input!')
@@ -773,11 +786,13 @@ class MainController(object):
         portlist = []
 
         for portspec in portspeclist:
-            if portspec.find(':') > 0:
-                (protocol, port) = portspec.split(':')
-                port = int(port)
-            else:
-                port = int(portspec)
+            protocol = 'smtp'
+            bindaddress = self.config.get('main', 'bindaddress')
+            protocol, bindaddress, port = MainController.get_connectorinfo(portspec, protocol, bindaddress)
+
+            # ideally we should check all three arguments
+            port = int(port)
+
             portlist.append(port)
             alreadyRunning = False
             for serv in self.servers:

@@ -60,15 +60,6 @@ KEY_ARCHIVENAME = u"archive-name"
 KEY_ARCHIVECTYPE = u"archive-ctype"
 
 
-# workarounds for mimetypes
-# - always takes .ksh for text/plain
-# - python3 takes .exe for application/octet-stream which is often used for content types
-#   unknwon to the creating MUA (e.g. pdf files are often octet-stream)
-MIMETYPE_EXT_OVERRIDES = {
-    'text/plain': 'txt',
-    'application/octet-stream': None,
-}
-
 class RulesCache(object):
 
     """caches rule files"""
@@ -423,7 +414,7 @@ The other common template variables are available as well.
 
         self.blockedfiletemplate = self.config.get(
             self.section, 'template_blockedfile')
-        
+
         runtimeconfig = DBConfig(self.config, suspect)
         self.checkarchivenames = runtimeconfig.getboolean(self.section, 'checkarchivenames')
         self.checkarchivecontent = runtimeconfig.getboolean(self.section, 'checkarchivecontent')

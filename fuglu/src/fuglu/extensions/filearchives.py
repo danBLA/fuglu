@@ -1,5 +1,4 @@
-# -*- coding: UTF-8 -*-
-#
+# -*- coding: UTF-8 -*- #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -23,6 +22,7 @@ import sys
 import zipfile
 import tarfile
 import re
+import os.path
 
 STATUS = "available: zip, tar"
 ENABLED = True
@@ -43,6 +43,16 @@ try:
 except (ImportError, OSError):
     pass
 
+GZIP_AVAILABLE = 0
+try:
+    import gzip
+    import struct
+    import os.path
+    GZIP_AVAILABLE = 1
+    STATUS += ", gz"
+except (ImportError, OSError):
+    pass
+
 
 #-------------#
 #- Interface -#
@@ -52,8 +62,14 @@ class Archive_int(object):
     Archive_int is the interface for the archive handle implementations
     """
 
-    def __init__(self, filedescriptor):
+    def __init__(self, filedescriptor, archivename=None):
         self._handle = None
+        self._archivename = archivename
+        if archivename is not None:
+            try:
+                self._archivename = os.path.basename(str(archivename))
+            except Exception:
+                pass
 
     def close(self):
         try:
@@ -98,8 +114,8 @@ class Archive_int(object):
 # below the implementations in class Archivehandle
 
 class Archive_zip(Archive_int):
-    def __init__(self,filedescriptor):
-        super(Archive_zip, self).__init__(filedescriptor)
+    def __init__(self,filedescriptor,archivename=None):
+        super(Archive_zip, self).__init__(filedescriptor, archivename)
 
         if sys.version_info < (2, 7):
             try:
@@ -111,6 +127,11 @@ class Archive_zip(Archive_int):
             except Exception:
                 pass
         self._handle = zipfile.ZipFile(filedescriptor)
+        if self._archivename is None:
+            try:
+                self._archivename = os.path.basename(str(filedescriptor))
+            except Exception:
+                self._archivename = "generic.zip"
 
     @staticmethod
     def fix_python26_zipfile_bug(zipFileContainer):
@@ -184,9 +205,14 @@ class Archive_zip(Archive_int):
         return self._handle.getinfo(path).file_size
 
 class Archive_rar(Archive_int):
-    def __init__(self, filedescriptor):
-        super(Archive_rar, self).__init__(filedescriptor)
+    def __init__(self, filedescriptor, archivename=None):
+        super(Archive_rar, self).__init__(filedescriptor, archivename)
         self._handle = rarfile.RarFile(filedescriptor)
+        if self._archivename is None:
+            try:
+                self._archivename = os.path.basename(str(filedescriptor))
+            except Exception:
+                self._archivename = "generic.rar"
 
     def namelist(self):
         """ Get archive file list
@@ -221,12 +247,19 @@ class Archive_rar(Archive_int):
         return self._handle.getinfo(path).file_size
 
 class Archive_tar(Archive_int):
-    def __init__(self, filedescriptor):
-        super(Archive_tar, self).__init__(filedescriptor)
+    def __init__(self, filedescriptor, archivename=None):
+        super(Archive_tar, self).__init__(filedescriptor, archivename)
         try:
             self._handle = tarfile.open(fileobj=filedescriptor)
+            if self._archivename is None:
+                self._archivename = "generic.tar"
         except AttributeError:
             self._handle = tarfile.open(filedescriptor)
+            if self._archivename is None:
+                try:
+                    self._archivename = os.path.basename(str(filedescriptor))
+                except Exception:
+                    self._archivename = "generic.tar"
 
     def namelist(self):
         """ Get archive file list
@@ -269,14 +302,20 @@ class Archive_tar(Archive_int):
         return arinfo.size
 
 class Archive_7z(Archive_int):
-    def __init__(self, filedescriptor):
-        super(Archive_7z, self).__init__(filedescriptor)
+    def __init__(self, filedescriptor, archivename=None):
+        super(Archive_7z, self).__init__(filedescriptor, archivename)
         self._fdescriptor = None
         try:
             self._handle = py7zlib.Archive7z(filedescriptor)
         except AttributeError:
             self._fdescriptor = open(filedescriptor,'rb')
             self._handle = py7zlib.Archive7z(self._fdescriptor)
+
+        if self._archivename is None:
+            try:
+                self._archivename = os.path.basename(str(filedescriptor))
+            except Exception:
+                self._archivename = "generic.7z"
 
     def namelist(self):
         """ Get archive file list
@@ -316,6 +355,183 @@ class Archive_7z(Archive_int):
                 pass
         self._fdescriptor = None
 
+class Archive_gz(Archive_int):
+    def __init__(self, filedescriptor, archivename=None):
+        super(Archive_gz, self).__init__(filedescriptor, archivename)
+        self._filesize = None
+        if sys.version_info > (3,):
+            # --
+            # Python 3 gzip.open handles both filename and file object
+            # --
+            self._handle = gzip.open(filedescriptor)
+            if isinstance(filedescriptor,(str,bytes)):
+                try:
+                    self._archivename = os.path.basename(str(filedescriptor))
+                except Exception:
+                    self._archivename = "generic.gz"
+            else:
+                if self._archivename is None:
+                    # if there is not archive name defined yet
+                    try:
+                        # eventually it is possible to get the filename from
+                        # the GzipFile object
+                        self._archivename = os.path.basename(self._handle.name)
+                        if not self._archivename:
+                            # If input is io.BytesIO then the name attribute
+                            # stores an empty string, set generic
+                            self._archivename = "generic.gz"
+                    except:
+                        # any error, set generic
+                        self._archivename = "generic.gz"
+        else:
+            try:
+                # --
+                # Python 2 gzip.open expects a filename
+                # --
+                self._handle = gzip.open(filedescriptor)
+                # Python 2
+                if self._archivename is None:
+                    try:
+                        self._archivename = os.path.basename(str(filedescriptor))
+                    except Exception:
+                        self._archivename = "generic.gz"
+
+            except TypeError as e:
+                # --
+                # Python 2 if input is a file object
+                # --
+
+                # if input is not a filename there's a type error
+                self._handle = gzip.GzipFile(fileobj=filedescriptor,mode='rb')
+                if self._archivename is None:
+                    # if there is not archive name defined yet
+                    try:
+                        # eventually it is possible to get the filename from
+                        # the GzipFile object
+                        self._archivename = os.path.basename(self._handle.name)
+                        if not self._archivename:
+                            # If input is io.BytesIO then the name attribute
+                            # stores an empty string, set generic
+                            self._archivename = "generic.gz"
+                    except:
+                        # any error, set generic
+                        self._archivename = "generic.gz"
+
+    def namelist(self):
+        """ Get archive file list
+
+        Returns:
+            (list) Returns a list of file paths within the archive
+        """
+
+        # try to create a name from the archive name
+        # because a gzipped file doesn't have information about the
+        # original filename
+        # gzipping a file creates the archive name by appending ".gz"
+        genericfilename = self._archivename
+
+        if not genericfilename:
+            genericfilename = "generic.unknown.gz"
+
+        try:
+            # get list of file extensions
+            fileendinglist = Archivehandle.avail_archive_extensionlist4type['gz']
+            replacedict = {"wmz": "wmf",
+                           "emz": "emf"}
+            for ending in fileendinglist:
+                endingwithdot = "."+ending
+                if genericfilename.endswith(endingwithdot):
+                    if ending in replacedict:
+                        genericfilename = genericfilename[:-len(ending)]+replacedict[ending]
+                    else:
+                        genericfilename = genericfilename[:-len(endingwithdot)]
+                    break
+
+        except Exception as e:
+            print(e)
+            pass
+        return [genericfilename]
+
+    def extract(self, path, archivecontentmaxsize):
+        """extract a file from the archive into memory
+
+        Args:
+            path (str): is the filename in the archive as returned by namelist
+            archivecontentmaxsize (int,None): maximum file size allowed to be extracted from archive
+        Returns:
+            (bytes or None) returns the file content or None if the file would be larger than the setting archivecontentmaxsize
+
+        """
+        if archivecontentmaxsize is not None and self.filesize(path) > archivecontentmaxsize:
+            return None
+
+        initial_position = self._handle.fileobj.tell()
+        filecontent = self._handle.read()
+        self._handle.fileobj.seek(initial_position)
+        return filecontent
+
+    def filesize(self, path):
+        """get extracted file size
+
+        Args:
+            path (str): is the filename in the archive as returned by namelist
+        Returns:
+            (int) file size in bytes
+        """
+        try:
+            return len(self.extract(path, None))
+        except Exception as e:
+            return 0
+
+class Archive_tgz():
+    """
+    Archive combining tar and gzip extractor
+
+    This archive combining gzip/tar extractor arises from a problem created when
+    Archive_gz was introduced:  Reason are files with content "application/(x-)gzip".
+
+    implemented_archive_ctypes = {
+        ...
+        '^application\/gzip': 'gz'
+        '^application\/x-gzip': 'gz'
+        ...}
+
+    Ctype is checked before file ending, so a file [*].tar.gz is detected as gzip, extracted to
+    [*].tar and then needs a second extraction to [*] using tar archive extractor.
+    This is inconsistent with previous behavior. A solution currently passing the tests is to
+    remove "^application\/gzip","^application\/x-gzip" from the implemented_archive_ctypes dict.
+    Like this, the archive extractor is selected based on the file ending which detects "tar.gz"
+    as tar before ".gz" (as gzip)
+
+    A second solution is the creation of Archive_tgz which allows to keep the content type detection.
+    This extractor will first try tar extractor and if this fails the gz extractor. This has the advantage
+    we can keep content detection for gzip and be backward compatible.
+    """
+    def __init__(self, filedescriptor, archivename=None):
+        # first try extract using tar
+        # check if it is possible to extract filenames
+        try:
+            self._archive_impl = Archive_tar(filedescriptor,archivename)
+            filenamelist = self._archive_impl.namelist()
+        except Exception as e:
+            if GZIP_AVAILABLE:
+                self._archive_impl = Archive_gz(filedescriptor,archivename)
+            else:
+                raise e
+
+    def __getattr__(self, name):
+        """
+        Delegate to implementation stored in self._archive_impl
+
+        Args:
+            name (str): name of attribute/method
+
+        Returns:
+            delegated result
+
+        """
+        return getattr(self._archive_impl, name)
+
 #--                  --#
 #- use class property -#
 #--                  --#
@@ -344,7 +560,7 @@ class Archivehandle(object):
                                           # [ "rar", "zip" ]
         Archivehandle.avail_archive_extensions_list # returns a list of archive extensions (sorted by extension length)
                                                     # for example ['tar.bz2', 'tar.gz', 'tar', 'zip', 'tgz']
-        Archivehandle.avail_archive_ctypes_list # returns a list of mnail content type regex expressions,
+        Archivehandle.avail_archive_ctypes_list # returns a list of mail content type regex expressions,
                                                 # for example ['^application\\/x-tar', '^application\\/zip',
                                                                '^application\\/x-bzip2', '^application\\/x-gzip']
 
@@ -361,21 +577,26 @@ class Archivehandle(object):
     archive_impl = {"zip": Archive_zip,
                     "rar": Archive_rar,
                     "tar": Archive_tar,
-                    "7z" : Archive_7z}
+                    "7z" : Archive_7z,
+                    "tgz": Archive_tgz,
+                    "gz" : Archive_gz}
 
     # Dict storing if archive type is available
     archive_avail= {"zip": True,
                     "rar": (RARFILE_AVAILABLE > 0),
                     "tar": True,
-                    "7z" : (SEVENZIP_AVAILABLE > 0)}
+                    "7z" : (SEVENZIP_AVAILABLE > 0),
+                    "gz" : (GZIP_AVAILABLE > 0),
+                    "tgz": (GZIP_AVAILABLE > 0)}
 
 
     # key: regex matching content type as returned by file magic, value: archive type
     implemented_archive_ctypes = {
         '^application\/zip': 'zip',
         '^application\/x-tar': 'tar',
-        '^application\/x-gzip': 'tar',
+        '^application\/x-gzip': 'tgz',
         '^application\/x-bzip2': 'tar',
+        '^application\/gzip': 'tgz',
         '^application\/x-rar': 'rar',         # available only if RARFILE_AVAILABLE > 0
         '^application\/x-7z-compressed': '7z' # available only if SEVENZIP_AVAILABLE > 0
     }
@@ -389,8 +610,11 @@ class Archivehandle(object):
         'tar.gz': 'tar',
         'tgz': 'tar',
         'tar.bz2': 'tar',
-        'rar': 'rar', # available only if RARFILE_AVAILABLE > 0
-        '7z': '7z',   # available only if SEVENZIP_AVAILABLE > 0
+        'gz': 'gz',    # available only if GZIP_AVAILABLE > 0
+        'emz': 'gz',    # available only if GZIP_AVAILABLE > 0
+        'wmz': 'gz',    # available only if GZIP_AVAILABLE > 0
+        'rar': 'rar',  # available only if RARFILE_AVAILABLE > 0
+        '7z': '7z',    # available only if SEVENZIP_AVAILABLE > 0
     }
 
     #--
@@ -417,6 +641,11 @@ class Archivehandle(object):
     # key: file ending
     # value: archive type
     _avail_archive_extensions = None
+
+    # "avail_archive_extensionlist" dict with list of file extensions for given archive type
+    # key: archive type
+    # value: list with file endings
+    _avail_archive_extensionlist4type = None
 
     @classproperty
     def avail_archive_extensions_list(cls):
@@ -474,7 +703,25 @@ class Archivehandle(object):
 
         return cls._avail_archive_extensions
 
+    @classproperty
+    def avail_archive_extensionlist4type(cls):
+        # first time this dict has to be created based on what's available
+        if cls._avail_archive_extensionlist4type is None:
+            newDict = {}
+            for regex,atype in iter(Archivehandle.implemented_archive_extensions.items()):
+                # regex is the file extension
+                # atype is the archive type
+                if Archivehandle.avail(atype):
+                    try:
+                        # append ending to list of endings for given archive type
+                        newDict[atype].append(regex)
+                    except KeyError:
+                        # create a new list for given archive type containg current file ending
+                        newDict[atype] = [regex]
+            cls._avail_archive_extensionlist4type = newDict
+        return cls._avail_archive_extensionlist4type
 
+        return cls._avail_archive_extensions
     @staticmethod
     def impl(archive_type):
         """
@@ -532,7 +779,10 @@ class Archivehandle(object):
         for regex, atype in iter(ctypes2check.items()):
             if re.match(regex, content_type, re.I):
                 archive_type = atype
+                print("MATCH for regex: %s and ctype: %s which belongs to %s" % (regex,content_type,atype))
                 break
+            else:
+                print("no match for regex: %s and ctype: %s which belongs to %s" % (regex,content_type,atype))
 
         return archive_type
 
@@ -573,7 +823,7 @@ class Archivehandle(object):
                 break
         return archive_type
 
-    def __new__(cls,archive_type,filedescriptor):
+    def __new__(cls,archive_type, filedescriptor, archivename=None):
         """
         Factory method that will produce and return the correct implementation depending
         on the archive type
@@ -585,6 +835,6 @@ class Archivehandle(object):
 
         assert Archivehandle.impl(archive_type), "Archive type %s not in list of supported types: %s" % (archive_type, ",".join(Archivehandle.archive_impl.keys()))
         assert Archivehandle.avail(archive_type), "Archive type %s not in list of available types: %s" % (archive_type, ",".join(Archivehandle.avail_archives_list))
-
-        return Archivehandle.archive_impl[archive_type](filedescriptor)
+        print("Return Archivehandle for archive type: %s"%archive_type)
+        return Archivehandle.archive_impl[archive_type](filedescriptor,archivename)
 

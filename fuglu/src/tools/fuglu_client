@@ -141,7 +141,8 @@ class ConsoleInterface(object):
         appenders = []
         if self.options.appenders:
             appenders = controller.appenders
-        session = SessionHandler(connector, config, controller.prependers, controller.plugins, appenders)
+        session = SessionHandler(connector, config, controller.prependers,
+                                 controller.plugins, appenders, self.options.port)
         session.handlesession()
         return connector.exitcode
 

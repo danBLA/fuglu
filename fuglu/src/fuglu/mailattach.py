@@ -22,6 +22,7 @@ from email.header import decode_header
 import email
 import sys
 import logging
+import weakref
 from fuglu.extensions.filearchives import Archivehandle
 from fuglu.extensions.filetype import filetype_handler
 from fuglu.caching import smart_cached_property, smart_cached_memberfunc, Cachelimits
@@ -38,11 +39,12 @@ MIMETYPE_EXT_OVERRIDES = {
 }
 
 
-class Mailattachment(threading.local, Cachelimits):
+class Mailattachment(Cachelimits):
     """
     Mail attachment object or a file contained in the attachment.
     """
     objectCounter = 0
+
     def __init__(self, buffer, filename, mgr, filesize=None, in_obj=None, contenttype_mime=None, maintype_mime=None,
                  subtype_mime=None, ismultipart_mime=None, content_charset_mime=None):
         """
@@ -64,19 +66,23 @@ class Mailattachment(threading.local, Cachelimits):
         self.filesize = filesize
         self.buffer = buffer
         self._buffer_archobj = {}
-        self.in_obj = in_obj
+
+        # use weak reference to avoid cyclic dependency
+        self.in_obj = weakref.ref(in_obj) if in_obj is not None else None
         self.contenttype_mime     = contenttype_mime
         self.maintype_mime        = maintype_mime
         self.subtype_mime         = subtype_mime
         self.ismultipart_mime     = ismultipart_mime
         self.content_charset_mime = content_charset_mime
-        self._mgr = mgr
+
+        # use weak reference to avoid cyclic dependency
+        self._mgr = weakref.ref(mgr) if mgr is not None else None # keep only weak reference
 
         # try to increment object counter in manager for each object created.
         # this helps debugging and testing caching...
         try:
-            self._mgr._increment_ma_objects()
-        except AttributeError:
+            self._mgr()._increment_ma_objects()
+        except (AttributeError, TypeError):
             pass
 
     def content_fname_check(self,maintype=None,ismultipart=None,subtype=None,contenttype=None,contenttype_start=None,
@@ -215,6 +221,7 @@ class Mailattachment(threading.local, Cachelimits):
 
         # try guessing the archive type based on magic content type first
         archive_type = Archivehandle.archive_type_from_content_type(self.contenttype)
+        print("archive_type after checking content: %s"%str(archive_type))
 
         # if it didn't work, try to guess by the filename extension, if it is enabled
         if archive_type is None:
@@ -226,6 +233,7 @@ class Mailattachment(threading.local, Cachelimits):
                     # store archive extension for internal use
                     self._arext = arext
                     break
+        print("archive_type after checking extension: %s"%str(archive_type))
         return archive_type
 
     @smart_cached_memberfunc(inputs=['archive_type'])
@@ -411,11 +419,11 @@ class Mailattachment(threading.local, Cachelimits):
                         else:
                             noextractinfo.append((fname,"archivehandle","(no info)"))
                     return None
-                obj = Mailattachment(buffer, fname, self._mgr, filesize=filesize, in_obj=self)
+                obj = Mailattachment(buffer, fname, self._mgr(), filesize=filesize, in_obj=self)
 
                 # This object caching is outside the caching decorator used in other parts of this
                 # file (not for this function anyway...).
-                if self._mgr.use_caching(filesize):
+                if self._mgr().use_caching(filesize):
                     self._buffer_archobj[fname] = obj
             return obj
 
@@ -466,7 +474,7 @@ class Mailattachment(threading.local, Cachelimits):
         if self.buffer is None:
             return None
         else:
-            return Archivehandle(self.archive_type, BytesIO(self.buffer))
+            return Archivehandle(self.archive_type, BytesIO(self.buffer),archivename=self.filename)
 
     @smart_cached_property(inputs=['archive_handle'])
     def fileslist_archive(self):
@@ -499,10 +507,10 @@ class Mailattachment(threading.local, Cachelimits):
 
         """
         parentsList = []
-        upstream_obj = self
-        while upstream_obj.in_obj is not None:
-            parentsList.append(upstream_obj.in_obj)
-            upstream_obj = upstream_obj.in_obj
+        upstream_obj = weakref.ref(self)
+        while upstream_obj() is not None and upstream_obj().in_obj is not None:
+            parentsList.append(upstream_obj().in_obj)
+            upstream_obj = upstream_obj().in_obj
         return parentsList
 
 
@@ -524,7 +532,8 @@ Size (bytes) : %s
 Location     : %s        
 Archive type : %s        
 Content type : %s""" % (self.filename,u'(unknown)' if self.filesize is None else str(self.filesize),
-                        self.filename + element_of + element_of.join([u"{" + obj.filename +u"}" for obj in self.parent_archives]),
+                        self.filename + element_of +
+                        element_of.join([u"{" + obj().filename +u"}" for obj in self.parent_archives]),
                         self.archive_type,
                         self.contenttype)
 
@@ -561,6 +570,7 @@ class Mailattachment_mgr(object):
         self._new_att_cache = 0
         self._cache_limit = cachelimit
         self._mailatt_obj_counter = 0
+        self._att_file_dict = None
 
     def _increment_ma_objects(self):
         """
@@ -677,6 +687,8 @@ class Mailattachment_mgr(object):
         """
 
         counter = 0
+        if self._msgrep is None:
+            return
         for part in self.walk_all_parts(self._msgrep):
             if part.is_multipart():
                 continue
@@ -755,7 +767,10 @@ class Mailattachment_mgr(object):
             if ext.strip() == '':
                 att_name = "unnamed"
             else:
-                att_name = 'unnamed.%s' % ext
+                if ext.startswith("."):
+                    att_name = 'unnamed%s' % ext
+                else:
+                    att_name = 'unnamed.%s' % ext
 
         buffer = part.get_payload(decode=True) # Py2: string, Py3: bytes
         # try to get size from buffer length

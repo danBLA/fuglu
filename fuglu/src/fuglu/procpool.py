@@ -17,6 +17,7 @@
 #
 import fuglu.core
 import fuglu.logtools as logtools
+from fuglu.protocolbase import compress_task, uncompress_task
 from fuglu.scansession import SessionHandler
 from fuglu.stats import Statskeeper, StatDelta
 from fuglu.addrcheck import Addrcheck
@@ -26,10 +27,16 @@ import multiprocessing.queues
 import signal
 import logging
 import traceback
-import pickle
 import threading
+import sys
+import os
 
 import importlib
+try:
+    import objgraph
+    OBJGRAPH_EXTENSION_ENABLED = True
+except ImportError:
+    OBJGRAPH_EXTENSION_ENABLED = False
 
 
 
@@ -79,6 +86,24 @@ class ProcManager(object):
         if self._stayalive:
             self.tasks.put(session)
 
+    def add_task_from_socket(self, sock, handler_modulename, handler_classname, port):
+        """
+        Consistent interface with procpool. Add a new task to the queu
+        given the socket to receive the message.
+
+        Args:
+            sock (socket): socket to receive the message
+            handler_modulename (str): module name of handler
+            handler_classname (str): class name of handler
+            port (int): original incoming port
+        """
+        try:
+            task = compress_task(sock, handler_modulename, handler_classname, port)
+            self.add_task(task)
+        except Exception as e:
+            self.logger.error("Exception happened trying to add task to queue: %s" % str(e))
+            self.logger.exception(e)
+
     def _create_worker(self):
         self._child_id_counter +=1
         worker_name = "Worker-%s"%self._child_id_counter
@@ -95,7 +120,7 @@ class ProcManager(object):
         # Start the child-to-parent message listener
         self.message_listener.start()
 
-    def shutdown(self):
+    def shutdown(self, newmanager=None):
         # setting stayalive equal to False
         # will send poison pills to all processors
         self.logger.debug("Shutdown procpool -> send poison pills")
@@ -104,20 +129,30 @@ class ProcManager(object):
         # add another poison pill for the ProcManager itself removing tasks...
         self.tasks.put_nowait(None)
 
-        returnMessage = "Temporarily unavailable... Please try again later."
-        markDeferCounter = 0
-        while True:
-            task = self.tasks.get()
-            if task is None: # poison pill
-                break
-            markDeferCounter += 1
-            sock, handler_modulename, handler_classname = fuglu_process_unpack(task)
-            handler_class = getattr(importlib.import_module(handler_modulename), handler_classname)
-            handler_instance = handler_class(sock, self.config)
-            handler_instance.defer(returnMessage)
-            #handler = SessionHandler(handler_instance, self.config,None, None, None)
-            #handler._defer("temporarily not available")
-        self.logger.info("Marked %s messages as '%s' to close queue" % (markDeferCounter,returnMessage))
+        if newmanager:
+            # new manager available. Transfer tasks
+            # to new manager
+            countmessages = 0
+            while True:
+                task = self.tasks.get()
+                if task is None:  # poison pill
+                    break
+                newmanager.add_task(task)
+                countmessages += 1
+            self.logger.info("Moved %u messages to queue of new manager" % countmessages)
+        else:
+            return_message = "Temporarily unavailable... Please try again later."
+            mark_defer_counter = 0
+            while True:
+                task = self.tasks.get()
+                if task is None: # poison pill
+                    break
+                mark_defer_counter += 1
+                sock, handler_modulename, handler_classname = uncompress_task(task)
+                handler_class = getattr(importlib.import_module(handler_modulename), handler_classname)
+                handler_instance = handler_class(sock, self.config)
+                handler_instance.defer(return_message)
+            self.logger.info("Marked %s messages as '%s' to close queue" % (mark_defer_counter, return_message))
 
         # join the workers
         self.logger.debug("Join workers")
@@ -162,12 +197,8 @@ class MessageListener(threading.Thread):
                     print(traceback.format_exc())
 
 
-def fuglu_process_unpack(pickledTask):
-    pickled_socket, handler_modulename, handler_classname = pickledTask
-    sock = pickle.loads(pickled_socket)
-    return sock,handler_modulename,handler_classname
-
 def fuglu_process_worker(queue, config, shared_state,child_to_server_messages, logQueue):
+
 
     signal.signal(signal.SIGHUP, signal.SIG_IGN)
 
@@ -221,11 +252,25 @@ def fuglu_process_worker(queue, config, shared_state,child_to_server_messages, l
                     return
             workerstate.workerstate = 'starting scan session'
             logger.debug("%s: Child process starting scan session" % logtools.createPIDinfo())
-            sock, handler_modulename, handler_classname = fuglu_process_unpack(task)
+            sock, handler_modulename, handler_classname, port = uncompress_task(task)
             handler_class = getattr(importlib.import_module(handler_modulename), handler_classname)
             handler_instance = handler_class(sock, config)
-            handler = SessionHandler(handler_instance, config,prependers, plugins, appenders)
+            handler = SessionHandler(handler_instance, config, prependers, plugins, appenders, port)
             handler.handlesession(workerstate)
+            del handler
+            del handler_instance
+            del handler_class
+            del handler_modulename
+            del handler_classname
+            del sock
+
+            # developers only:
+            # for debugging memory this can be enabled
+            # Note this can NOT be copied to threadpool worker because
+            # it will create a memory leak
+            if OBJGRAPH_EXTENSION_ENABLED and False:
+                debug_procpoolworkermemory(logger, config)
+
     except KeyboardInterrupt:
         workerstate.workerstate = 'ended'
     except Exception:
@@ -236,6 +281,55 @@ def fuglu_process_worker(queue, config, shared_state,child_to_server_messages, l
     finally:
         controller.shutdown()
 
+def debug_procpoolworkermemory(logger, config):
+    """
+    Debug memory usage using the objgraph library, eventually
+    write graphs to file in tmp directory
+
+    Args:
+        logger (logging.Logger): logger to log into
+        config (RawConfigParser): configuration used for temporary file dir
+
+    """
+    # now check what remains
+
+    # can be set to true for debugging
+    # -> remaining objects will be written to the dot files in the tmp folder
+    # -> use "xdot" to visualise the file which contains the objects referencing the corresponding
+    #    object instance and preventing direct deallocation because of the reference count
+    writedebuggraphs = False
+
+    suspectobjects = objgraph.by_type('Suspect')
+    if len(suspectobjects) > 0:
+        if writedebuggraphs:
+            objgraph.show_backrefs(suspectobjects[-1], max_depth=5,refcounts=True,
+                                   filename=os.path.join(config.get('main', 'tempdir'), 'suspects.dot'))
+        logger.info("Refcounts on last subject: %u" % sys.getrefcount(suspectobjects[-1]))
+    mailattachmentobjects = objgraph.by_type('Mailattachment')
+    if len(mailattachmentobjects) > 0:
+        if writedebuggraphs:
+            objgraph.show_backrefs(mailattachmentobjects[-1], max_depth=5, refcounts=True,
+                                   filename=os.path.join(config.get('main', 'tempdir'),
+                                                         'mailattachments.dot'))
+        logger.info("Refcounts on last mailattachment: %u" % sys.getrefcount(mailattachmentobjects[-1]))
+    mailattachmentmanagerobjects = objgraph.by_type('Mailattachment_mgr')
+    if len(mailattachmentmanagerobjects) > 0:
+        if writedebuggraphs:
+            objgraph.show_backrefs(mailattachmentmanagerobjects[-1], max_depth=5, refcounts=True,
+                                   filename=os.path.join(config.get('main', 'tempdir'),
+                                                         'mailattachmentsmgr.dot'))
+        logger.info("Refcounts on last mailattachmentmgr: %u"
+                    % sys.getrefcount(mailattachmentmanagerobjects[-1]))
+    allobjects = suspectobjects + mailattachmentobjects + mailattachmentmanagerobjects
+    if len(allobjects) > 0:
+        logger.error('objects in memory: Suspect: %u, MailAttachments: %u, MailAttachment_mgr: %u'
+                     % (len(suspectobjects),len(mailattachmentobjects),len(mailattachmentmanagerobjects)))
+    else:
+        logger.debug('objects in memory: Suspect: %u, MailAttachments: %u, MailAttachment_mrt: %u'
+                     % (len(suspectobjects),len(mailattachmentobjects),len(mailattachmentmanagerobjects)))
+    del suspectobjects
+    del mailattachmentobjects
+    del mailattachmentmanagerobjects
 
 class WorkerStateWrapper(object):
     def __init__(self, shared_state_dict, initial_state='created', process=None):

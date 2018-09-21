@@ -11,36 +11,24 @@ unittests:
   script:
     - cd fuglu
     - nosetests --rednose tests/unit
-  only:
-    - master
-    - develop
 
 isolated:
   stage: test_isolated
   script:
     - cd fuglu
     - nosetests --rednose tests/isolated --with-isolation
-  only:
-    - master
-    - develop
 
 unittests_py3:
   stage: test
   script:
     - cd fuglu
     - nosetests-3.4 --rednose tests/unit
-  only:
-    - master
-    - develop
 
 isolated_py3:
   stage: test_isolated
   script:
     - cd fuglu
     - nosetests-3.4 --rednose tests/isolated  --with-isolation
-  only:
-    - master
-    - develop
 
 integrationtests:
   stage: test
@@ -48,9 +36,6 @@ integrationtests:
     - /usr/local/bin/start-services.sh
     - cd fuglu
     - nosetests --rednose tests/integration
-  only:
-    - master
-    - develop
 
 integrationtests_py3:
   stage: test
@@ -58,9 +43,6 @@ integrationtests_py3:
     - /usr/local/bin/start-services.sh
     - cd fuglu
     - nosetests-3.4 --rednose tests/integration
-  only:
-    - master
-    - develop
 
 
 # define RSYNC_TARGET in gitlab -> project domainmagic -> settings -> variables
@@ -73,9 +55,6 @@ buildfuglu:
     - rename '.dist' '' /etc/fuglu/*.dist
     - mkdir -p /var/log/fuglu
     - chown nobody /var/log/fuglu
-  only:
-    - master
-    - develop
 
 
 buildfuglu_py3:
@@ -86,9 +65,6 @@ buildfuglu_py3:
     - rename '.dist' '' /etc/fuglu/*.dist
     - mkdir -p /var/log/fuglu
     - chown nobody /var/log/fuglu
-  only:
-    - master
-    - develop
 
 pages:
   image: alpine
@@ -107,3 +83,4 @@ pages:
     - public
   only:
     - master
+    - develop

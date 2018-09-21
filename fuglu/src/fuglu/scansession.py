@@ -26,12 +26,172 @@ import time
 import os
 import datetime
 
+class TrackTimings(object):
+    def __init__(self, enable=False, port=-1):
+        """
+        Constructor, setting function handles to real functions or dummies
 
-class SessionHandler(object):
+        Args:
+            enable (bool): enable/disable time tracker
+            port (int): incoming port
+        """
+        self.timings_logger = logging.getLogger("%s.Timings" % __package__)
+
+        # timings
+        self._enabletimetracker= False
+        self.enabletimetracker = enable
+
+        self.timetracker = time.time()
+        self.timings = []
+        self.port = port if port is not None else -1
+
+    @property
+    def enabletimetracker(self):
+        return self._enabletimetracker
+
+    @enabletimetracker.setter
+    def enabletimetracker(self, enabled):
+
+        if not enabled:
+            self._enabletimetracker = False
+            self.tracktime = self._dummy_noreturn
+            self.gettime = self._dummy_returnlist
+            self.sumtime = self._dummy_returnzero
+            self.report_timings = self._dummy_noreturn
+            self.report_plugintime = self._dummy_noreturn
+        else:
+            self._enabletimetracker = True
+            self.tracktime = self._tracktime
+            self.gettime = self._gettime
+            self.sumtime = self._sumtime
+            self.report_timings = self._report_timings
+            self.report_plugintime = self._report_plugintime
+            self.timetracker = time.time()
+            self.timings = []
+
+    def _dummy_noreturn(self, *args, **kwargs):
+        return
+
+    def _dummy_returnlist(self, *args, **kwargs):
+        return []
+
+    def _dummy_returnzero(self, *args, **kwargs):
+        return 0.0
+
+    def _tracktime(self, tagname, plugin=False, prepender=False, appender=False):
+        """
+        Given a tag name, track and store time since last call of same function
+
+        Args:
+            tagname (str): String with tag name
+
+        Keyword Args:
+            plugin (bool): tag belongs to plugin timing (default=False)
+            prepender (bool): tag belongs to prepender timing (default=False)
+            appender (bool): tag belongs to appender timing (default=False)
+        """
+        newtime = time.time()
+        difftime = newtime - self.timetracker
+        self.timetracker = newtime
+        self.timings.append((tagname, difftime, plugin, prepender, appender))
+
+    def _gettime(self, plugins=None, prependers=None, appenders=None):
+        """
+        Get a list of timings stored (all/only plugins/exclude plugins)
+
+        Keyword Args:
+            plugins (bool or None): 'None': ignore this restriction, True: timing must have 'plugin' tag, False: timing must not have plugin tag
+            prependers (bool or None): 'None': ignore this restriction, True: timing must have 'plugin' tag, False: timing must not have plugin tag
+            appenders (bool or None): 'None': ignore this restriction, True: timing must have 'plugin' tag, False: timing must not have plugin tag
+
+        Returns:
+            list of tuples (name, time)
+
+        """
+        timing_list = []
+        for timeitem in self.timings:
+            if plugins is not None and timeitem[2] != plugins:
+                continue
+            if prependers is not None and timeitem[3] != prependers:
+                continue
+            if appenders is not None and timeitem[4] != appenders:
+                continue
+            timing_list.append(timeitem[:2])
+        return timing_list
+
+    def _sumtime(self, plugins=None, prependers=None, appenders=None):
+        """
+        Get total time spent.
+
+        Keyword Args:
+            plugins (bool or None): For 'None' return total time, True: time spent in plugins, False: time spent outside plugins
+            appenders (bool or None): For 'None' return total time, True: time spent in appenders, False: time spent outside appenders
+            prependers (bool or None): For 'None' return total time, True: time spent in prependers, False: time spent outside prependers
+
+        Returns:
+            float: total time spent, given restriction
+
+        """
+        puretimings = [a[1] for a in self.gettime(plugins=plugins, prependers=prependers, appenders=appenders)]
+        if len(puretimings) == 0:
+            return 0.0
+        else:
+            return reduce(lambda x, y: (x + y), puretimings)
+
+    def _report_timings(self, suspectid):
+        """
+        Report all the timings collected
+        Args:
+            suspectid (id):  the suspect id
+
+        """
+        self.timings_logger.info('port: %u, id: %s, total: %.3f' % (self.port, suspectid, self.sumtime()))
+        self.timings_logger.info('port: %u, id: %s, overhead: %.3f' % (self.port, suspectid,
+                                                                       self.sumtime(plugins=False,
+                                                                                    prependers=False,
+                                                                                    appenders=False)))
+        all_prependertimes = self.gettime(prependers=True)
+        for prependertime in all_prependertimes:
+            self.timings_logger.info('port: %u, id: %s, (PRE) %s: %.3f' % (self.port, suspectid, prependertime[0],
+                                                                           prependertime[1]))
+        all_plugintimes = self.gettime(plugins=True)
+        for plugintime in all_plugintimes:
+            self.timings_logger.info('port: %u, id: %s, (PLG) %s: %.3f' % (self.port, suspectid, plugintime[0],
+                                                                           plugintime[1]))
+        all_appendertimes = self.gettime(appenders=True)
+        for appendertime in all_appendertimes:
+            self.timings_logger.info('port: %u, id: %s, (APP) %s: %.3f' % (self.port, suspectid, appendertime[0],
+                                                                           appendertime[1]))
+        all_overheadtimes = self.gettime(plugins=False, prependers=False, appenders=False)
+        for overheadtime in all_overheadtimes:
+            self.timings_logger.debug('port: %u, id: %s, %s: %.3f' % (self.port, suspectid, overheadtime[0],
+                                                                      overheadtime[1]))
+
+    def _report_plugintime(self, suspectid, pluginname, end=True):
+        """
+        Report timings inside plugin
+
+        Args:
+            suspectid (str): the id of the suspect
+            pluginname (str): plugin name
+
+        Keyword Args:
+            end (bool): if true another timing called 'end' will be created before the report
+        """
+        if end:
+            self.tracktime('end')
+        all_timings = self.gettime()
+        for itime in all_timings:
+            self.timings_logger.debug('port: %u, id: %s, [%s] %s: %.3f' %
+                                      (self.port, suspectid, pluginname, itime[0], itime[1]))
+
+
+class SessionHandler(TrackTimings):
 
     """thread handling one message"""
 
-    def __init__(self, protohandler, config, prependers, plugins, appenders):
+    def __init__(self, protohandler, config, prependers, plugins, appenders, port):
+        TrackTimings.__init__(self, port=port)
         self.logger = logging.getLogger("fuglu.SessionHandler")
         self.action = DUNNO
         self.config = config
@@ -42,6 +202,14 @@ class SessionHandler(object):
         self.worker = None
         self.message = None
         self.protohandler = protohandler
+
+        try:
+            self.enabletimetracker = config.getboolean('main', 'scantimelogger')
+        except Exception as e:
+            self.enabletimetracker = False
+
+        self.logger.debug("enabletimetracker = %s" % self.enabletimetracker)
+
 
     def set_workerstate(self, status):
         if self.worker is not None:
@@ -54,11 +222,12 @@ class SessionHandler(object):
         try:
             suspect = None
             self.set_workerstate('receiving message')
+            self.tracktime("SessionHandler-Setup")
             suspect = self.protohandler.get_suspect()
             if suspect is None:
                 self.logger.error('No Suspect retrieved, ending session')
                 return
-
+            self.tracktime("Message-Receive-Suspect")
             self.stats.increase_counter_values(StatDelta(in_=1))
 
             if len(suspect.recipients) != 1:
@@ -100,12 +269,14 @@ class SessionHandler(object):
             # add suspect id for tracking
             if self.config.getboolean('main', 'suspectidheader'):
                 suspect.addheader('%sSuspect' % prependheader, suspect.id)
+            self.tracktime("Adding-Headers")
 
             # checks done.. print out suspect status
             logformat = self.config.get('main', 'logtemplate')
             if logformat.strip() != '':
                 self.logger.info(suspect.log_format(logformat))
             suspect.debug(suspect)
+            self.tracktime("Debug-Suspect")
 
             # check if one of the plugins made a decision
             result = self.action
@@ -116,7 +287,9 @@ class SessionHandler(object):
             if result == ACCEPT or result == DUNNO:
                 try:
                     self.protohandler.commitback(suspect)
+                    self.tracktime("Commitback")
                     self.stats.increase_counter_values(StatDelta(out=1))
+                    self.tracktime("Increase-Stats")
 
                 except KeyboardInterrupt:
                     sys.exit()
@@ -149,6 +322,7 @@ class SessionHandler(object):
             # run appenders (stats plugin etc) unless msg is deferred
             if not message_is_deferred:
                 self.stats.increasecounters(suspect)
+                self.tracktime("Increase-Counters")
                 self.run_appenders(suspect, result)
             else:
                 self.logger.warning("DEFERRED %s" % suspect.id)
@@ -158,6 +332,7 @@ class SessionHandler(object):
                 os.remove(suspect.tempfile)
                 self.logger.debug('Removed tempfile %s' % suspect.tempfile)
                 suspect.tempfile = None
+                self.tracktime("Remove-tempfile")
             except OSError:
                 self.logger.warning('Could not remove tempfile %s' % suspect.tempfile)
         except KeyboardInterrupt:
@@ -213,6 +388,21 @@ class SessionHandler(object):
                         self.logger.warning('Could not remove tempfile %s' % suspect.tempfile)
                 else:
                     self.logger.warning('Keep tempfile %s for failed message' % suspect.tempfile)
+
+            # try to remove the suspect
+            try:
+                self.logger.debug('Remove suspect (current refs): %u' % sys.getrefcount(suspect))
+                suspectid = suspect.id
+                del suspect
+            except Exception as e:
+                suspectid = "unknown"
+                pass
+
+            # ---------------#
+            # report timings #
+            # ---------------#
+            self.report_timings(suspectid)
+
 
         self.logger.debug('Session finished')
 
@@ -292,6 +482,7 @@ class SessionHandler(object):
     def run_plugins(self, suspect, pluglist):
         """Run scannerplugins on suspect"""
         suspect.debug('Will run plugins: %s' % pluglist)
+        self.tracktime("Before-Plugins")
         for plugin in pluglist:
             try:
                 self.logger.debug('Running plugin %s' % plugin)
@@ -357,10 +548,13 @@ class SessionHandler(object):
                 self.logger.error('Plugin %s failed: %s' % (str(plugin), exc))
                 suspect.debug(
                     'Plugin failed : %s . Please check fuglu log for more details' % e)
+            finally:
+                self.tracktime(str(plugin), plugin=True)
 
     def run_prependers(self, suspect):
         """Run prependers on suspect"""
         plugcopy = self.plugins[:]
+        self.tracktime("Before-Prependers")
         for plugin in self.prependers:
             try:
                 self.logger.debug('Running prepender %s' % plugin)
@@ -388,6 +582,8 @@ class SessionHandler(object):
                 exc = traceback.format_exc()
                 self.logger.error(
                     'Prepender plugin %s failed: %s' % (str(plugin), exc))
+            finally:
+                self.tracktime(str(plugin), prepender=True)
         return plugcopy
 
     def run_appenders(self, suspect, finaldecision):
@@ -395,6 +591,7 @@ class SessionHandler(object):
         if suspect.get_tag('noappenders'):
             return
 
+        self.tracktime("Before-Appenders")
         for plugin in self.appenders:
             try:
                 self.logger.debug('Running appender %s' % plugin)
@@ -410,3 +607,5 @@ class SessionHandler(object):
                 exc = traceback.format_exc()
                 self.logger.error(
                     'Appender plugin %s failed: %s' % (str(plugin), exc))
+            finally:
+                self.tracktime(str(plugin), appender=True)
