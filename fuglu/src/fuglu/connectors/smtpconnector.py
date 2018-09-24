@@ -163,7 +163,8 @@ class SMTPSession(object):
     ST_RCPT = 3
     ST_DATA = 4
     ST_QUIT = 5
-
+    
+    
     def __init__(self, socket, config):
         self.config = config
         self.from_address = None
@@ -176,7 +177,8 @@ class SMTPSession(object):
         self.logger = logging.getLogger("fuglu.smtpsession")
         self.tempfilename = None
         self.tempfile = None
-
+    
+    
     def endsession(self, code, message):
         self.socket.send(force_bString("%s %s\r\n" % (code, message)))
 
@@ -201,7 +203,8 @@ class SMTPSession(object):
             else:
                 self.closeconn()
                 return
-
+    
+    
     def closeconn(self):
         try:
             self.socket.shutdown(socket.SHUT_RDWR)
@@ -209,11 +212,13 @@ class SMTPSession(object):
             pass
         finally:
             self.socket.close()
-
+    
+    
     def _close_tempfile(self):
         if self.tempfile and not self.tempfile.closed:
             self.tempfile.close()
-
+    
+    
     def getincomingmail(self):
         """return true if mail got in, false on error Session will be kept open"""
         self.socket.send(force_bString("220 fuglu scanner ready \r\n"))
@@ -263,16 +268,24 @@ class SMTPSession(object):
                 else:
                     # EOF
                     return False
-
+    
+    
     def doCommand(self, data):
         """Process a single SMTP Command"""
         cmd = data[0:4]
         cmd = cmd.upper()
         keep = 1
-        rv = None
+        rv = "250 OK"
         if cmd == "HELO":
             self.state = SMTPSession.ST_HELO
             self.helo = data
+        elif cmd == 'EHLO':
+            self.state = SMTPSession.ST_HELO
+            self.helo = data
+            helo = self.config.get('main', 'outgoinghelo')
+            if helo.strip() == '':
+                helo = socket.gethostname()
+            rv = '250-%s\n250-8BITMIME\n250 SMTPUTF8' % helo
         elif cmd == "RSET":
             self.from_address = None
             self.recipients = []
@@ -307,16 +320,13 @@ class SMTPSession(object):
             except Exception as e:
                 self.endsession(421, "could not create file: %s" % str(e))
                 self._close_tempfile()
-
             return "354 OK, Enter data, terminated with a \\r\\n.\\r\\n", 1
         else:
-            return "505 Eh? WTF was that?", 1
+            return "505 Bad SMTP command", 1
 
-        if rv:
-            return rv, keep
-        else:
-            return "250 OK", keep
-
+        return rv, keep
+    
+    
     def doData(self, data):
         """Store data in temporary file
 
@@ -344,11 +354,13 @@ class SMTPSession(object):
         else:
             self.tempfile.write(data)
             return None
-
+    
+    
     def unquoteData(self, data):
         """two leading dots at the beginning of a line must be unquoted to a single dot"""
         return re.sub(b'(?m)^\.\.', b'.', force_bString(data))
-
+    
+    
     def stripAddress(self, address):
         """
         Strip the leading & trailing <> from an address.  Handy for
