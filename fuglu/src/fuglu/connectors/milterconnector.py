@@ -33,30 +33,43 @@ class MilterHandler(ProtocolHandler):
 
     def __init__(self, sock, config):
         ProtocolHandler.__init__(self, sock, config)
-        self.sess = MilterSession(sock, config)
         try:
             self._att_mgr_cachesize = config.getint('performance', 'att_mgr_cachesize')
         except Exception:
             self._att_mgr_cachesize = None
 
         try:
-            configstring = config.getint('milter', 'milter_mode')
+            configstring = config.get('milter', 'milter_mode')
         except Exception:
-            configstring = "accept, tags"
+            configstring = "tags"
 
-        self.enable_mode_auto = "auto" in configstring
-        self.enable_mode_readonly = "readonly" in configstring
-        self.enable_mode_tags = "tags" in configstring
+        configstring = configstring.lower()
+
+        if not configstring:
+            self.logger.debug("milter_mode: setting to default value: 'tags'")
+            configstring = "tags"
+
+        if configstring not in ["auto", "readonly", "tags", "replace_demo"]:
+            self.logger.warning("milter_mode: '%s' not recognised, resetting to 'tags'" % configstring)
+
+        self.enable_mode_auto = (configstring == "auto")
+        self.enable_mode_readonly = (configstring == "readonly")
+        self.enable_mode_tags = (configstring == "tags")
+        self.replace_demo = (configstring == "replace_demo")
+
+        sess_options = 0x00 if self.enable_mode_readonly else lm.SMFIF_ALLOPTS
+        self.sess = MilterSession(sock, config, options=sess_options)
 
         self.logger.info("Milter mode: auto=%s, readonly=%s, tags=%s" %
                          (self.enable_mode_auto, self.enable_mode_readonly, self.enable_mode_tags))
 
+        # options (can be combined into a string): "all" "body" "headers" "from" "to"
         try:
-            self.milter_mode_options = config.getint('milter', 'milter_mode_options')
+            self.milter_mode_options = config.get('milter', 'milter_mode_options')
         except Exception:
             self.milter_mode_options = ""
 
-        self.logger.info("Milter config: all=%s, body=%s, headers=%s, from=%s, to=%s" %
+        self.logger.info("Milter config fixed replacements: all=%s, body=%s, headers=%s, from=%s, to=%s" %
                          ("all" in self.milter_mode_options, "body" in self.milter_mode_options,
                           "headers" in self.milter_mode_options, "from" in self.milter_mode_options,
                           "to" in self.milter_mode_options))
@@ -94,7 +107,7 @@ class MilterHandler(ProtocolHandler):
             return
         self.sess.replBody(force_bString(newbody))
 
-    def addheader(self,key,value):
+    def addheader(self, key, value):
         """
         Add header in message sending corresponding command to MTA
         using protocol stored in self.sess
@@ -109,9 +122,9 @@ class MilterHandler(ProtocolHandler):
                               (self.sess.has_option(lm.SMFIF_ADDHDRS, client="fuglu"),
                                self.sess.has_option(lm.SMFIF_ADDHDRS, client="mta")))
             return
-        self.sess.addHeader(force_bString(key),force_bString(value))
+        self.sess.addHeader(force_bString(key), force_bString(value))
 
-    def changeheader(self,key,value):
+    def changeheader(self, key, value):
         """
         Change header in message sending corresponding command to MTA
         using protocol stored in self.sess
@@ -136,7 +149,7 @@ class MilterHandler(ProtocolHandler):
         """
         if not self.sess.has_option(lm.SMFIF_CHGFROM):
             self.logger.error('Change from called without the proper opts set, '
-                              'availability -> fuglu: %s, mta: %s'%
+                              'availability -> fuglu: %s, mta: %s' %
                               (self.sess.has_option(lm.SMFIF_CHGFROM, client="fuglu"),
                                self.sess.has_option(lm.SMFIF_CHGFROM, client="mta")))
             return
@@ -191,8 +204,17 @@ class MilterHandler(ProtocolHandler):
             suspect (fuglu.shared.Suspect): the suspect
 
         """
-        suspect.set_message_rep(self.replacement_mail())
-        suspect.set_tag('milter_replace','all')
+        if self.enable_mode_readonly:
+            self.sess.send(lm.CONTINUE)
+            self.endsession()
+            return
+
+        if self.replace_demo:
+            msg = suspect.get_message_rep()
+            from_address = msg.get("From", "unknown")
+            to_address = msg.get("To", "unknown")
+            suspect.set_message_rep(MilterHandler.replacement_mail(from_address, to_address))
+            suspect.set_tag('milter_replace', 'all')
 
         # --------------- #
         # modifications   #
@@ -202,12 +224,20 @@ class MilterHandler(ProtocolHandler):
         replace_from = False
         replace_to = False
 
+        # --
+        # check for changes if automatic mode is enabled
+        # --
         if self.enable_mode_auto:
             replace_headers = False
             replace_body = suspect.is_modified()
             replace_from = suspect.orig_from_address_changed()
             replace_to = suspect.orig_recipients_changed()
+            self.logger.debug("Mode auto -> replace headers:%s, body:%s, from:%s, to:%s" %
+                              (replace_headers, replace_body, replace_from, replace_to))
 
+        # --
+        # apply milter options from config
+        # --
         if self.milter_mode_options:
             if "all" in self.milter_mode_options:
                 replace_headers = True
@@ -222,24 +252,36 @@ class MilterHandler(ProtocolHandler):
                 replace_from = True
             if "to" in self.milter_mode_options:
                 replace_from = True
+            self.logger.debug("Mode options -> replace headers:%s, body:%s, from:%s, to:%s" %
+                              (replace_headers, replace_body, replace_from, replace_to))
 
-        milter_replace_tag = suspect.get_tag('milter_replace')
-        if milter_replace_tag:
-            milter_replace_tag = milter_replace_tag.lower()
-            if "all" in milter_replace_tag:
-                replace_headers = True
-                replace_body = True
-                replace_from = True
-                replace_to = True
-            if "body" in milter_replace_tag:
-                replace_body = True
-            if "headers" in milter_replace_tag:
-                replace_headers = True
-            if "from" in milter_replace_tag:
-                replace_from = True
-            if "to" in milter_replace_tag:
-                replace_from = True
+        # --
+        # apply milter options from tags (which can be set by plugins)
+        # --
 
+        if self.enable_mode_tags:
+            milter_replace_tag = suspect.get_tag('milter_replace')
+            if milter_replace_tag:
+                milter_replace_tag = milter_replace_tag.lower()
+                if "all" in milter_replace_tag:
+                    replace_headers = True
+                    replace_body = True
+                    replace_from = True
+                    replace_to = True
+                if "body" in milter_replace_tag:
+                    replace_body = True
+                if "headers" in milter_replace_tag:
+                    replace_headers = True
+                if "from" in milter_replace_tag:
+                    replace_from = True
+                if "to" in milter_replace_tag:
+                    replace_from = True
+                self.logger.debug("Mode tags -> replace headers:%s, body:%s, from:%s, to:%s" %
+                                  (replace_headers, replace_body, replace_from, replace_to))
+
+        # ----------------------- #
+        # replace data in message #
+        # ----------------------- #
         if replace_from:
             self.logger.debug("Set new envelope \"from address\": %s" % suspect.from_address)
             self.change_from(suspect.from_address)
@@ -255,7 +297,7 @@ class MilterHandler(ProtocolHandler):
 
         if self.enable_mode_auto and not replace_headers:
             self.logger.debug("Modify(%u)/add(%u) headers according to modification track in suspect" %
-                              (len(suspect.added_headers),len(suspect.modified_headers)))
+                              (len(suspect.added_headers), len(suspect.modified_headers)))
             for key, val in iter(suspect.added_headers.items()):
                 hdr = Header(val, header_name=key, continuation_ws=' ')
                 self.addheader(key, hdr.encode())
@@ -265,11 +307,13 @@ class MilterHandler(ProtocolHandler):
                 self.changeheader(key, hdr.encode())
 
         if replace_headers:
-            msg = suspect.get_message_rep()
-            self.logger.debug("Remove %u original headers " % len(msg))
+            self.logger.debug("Remove %u original headers " % len(self.sess.original_headers))
             self.remove_headers()
+
+            msg = suspect.get_message_rep()
             self.logger.debug("Add %u headers from suspect mail" % len(msg))
             for key, val in iter(msg.items()):
+                self.logger.debug("Add header from msg-> %s: %s" % (key, val))
                 hdr = Header(val, header_name=key, continuation_ws=' ')
                 self.addheader(key, hdr.encode())
         # --
@@ -278,51 +322,58 @@ class MilterHandler(ProtocolHandler):
         self.logger.debug("Add %u headers as defined in suspect" % len(suspect.addheaders))
         for key, val in iter(suspect.addheaders.items()):
             hdr = Header(val, header_name=key, continuation_ws=' ')
+            self.logger.debug("Add suspect header-> %s: %s" % (key, val))
             self.addheader(key, hdr.encode())
 
         if replace_body:
             self.logger.debug("Replace message body")
-            msg = suspect.get_message_rep()
-            if msg.is_multipart():
-
-            self.replacebody(suspect.get_source)
+            msg_string = suspect.get_message_rep().as_string()
+            # just dump everything below the headers
+            self.replacebody(msg_string[msg_string.find("\n\n")+len("\n\n"):])
 
         self.sess.send(lm.CONTINUE)
         self.endsession()
 
-    def replacement_mail(self):
-        import email
+    @staticmethod
+    def replacement_mail(from_address, to_address):
+        """
+        Create a mail replacing the whole original mail. This
+        is for testing purposes...
+
+        Args:
+            from_address (str): New address for 'From' header
+            to_address (str):  New address for 'To' header
+
+        Returns:
+            email: Python email representation
+
+        """
         from email.mime.multipart import MIMEMultipart
         from email.mime.text import MIMEText
-
-        # me == my email address
-        # you == recipient's email address
 
         # Create message container - the correct MIME type is multipart/alternative.
         msg = MIMEMultipart('alternative')
         msg['Subject'] = "Replacement message info"
-        msg['From'] = "from@testmail.tld"
-        msg['To'] = "to@testmail.tld"
-        msg['bad'] = "luck"
+        msg['From'] = from_address
+        msg['To'] = to_address
 
         # Create the body of the message (a plain-text and an HTML version).
-        text = "Hi!\nBad luck, your message has been replaced completely :-)"
+        text = "Hi!\nBad luck, your message has been replaced completely :-("
         html = u"""\
         <html>
           <head></head>
           <body>
             <p>Hi!<br>
                Bad luck!<br>
-               Your message has been replaced completely :-)
+               Your message has been replaced completely &#9785
             </p>
           </body>
         </html>
         """
 
-
         # Record the MIME types of both parts - text/plain and text/html.
         part1 = MIMEText(text, 'plain')
-        part2 = MIMEText(html, 'html',_charset="UTF-8")
+        part2 = MIMEText(html, 'html', _charset="UTF-8")
 
         # Attach parts into message container.
         # According to RFC 2046, the last part of a multipart message, in this case
@@ -369,9 +420,9 @@ class MilterHandler(ProtocolHandler):
 
 
 class MilterSession(lm.MilterProtocol):
-    def __init__(self, sock, config):
+    def __init__(self, sock, config, options=lm.SMFIF_ALLOPTS):
         # enable options for version 2 protocol
-        lm.MilterProtocol.__init__(self, opts=lm.SMFIF_ALLOPTS)
+        lm.MilterProtocol.__init__(self, opts=options)
         self.transport = sock
         self.config = config
         self.logger = logging.getLogger('fuglu.miltersession2')
@@ -379,7 +430,7 @@ class MilterSession(lm.MilterProtocol):
         self.recipients = []
         self.from_address = None
         self.heloname = None
-        self.ip = None
+        self.addr = None
         self.rdns = None
         self._tempfile = None
         self._exit_incomingmail = False
@@ -411,8 +462,7 @@ class MilterSession(lm.MilterProtocol):
 
         Args:
             smfif_option (int): SMFIF_* option as defined in libmilter
-        Keyword Args:
-            client (str,unicode): which client to check ("fuglu","mta" or both)
+            client (str,unicode,None): which client to check ("fuglu","mta" or both)
 
         Returns:
             (bool): True if available
@@ -429,7 +479,6 @@ class MilterSession(lm.MilterProtocol):
 
     def getincomingmail(self):
         self._sockLock = lm.DummyLock()
-        self._exit_incomingmail = False
         while True and not self._exit_incomingmail:
             buf = ''
             try:
@@ -481,20 +530,20 @@ class MilterSession(lm.MilterProtocol):
         return lm.CONTINUE
 
     @lm.noReply
-    def mailFrom(self , from_address, command_dict):
+    def mailFrom(self, from_address, command_dict):
         # store exactly what was received
         self.from_address = from_address
         return lm.CONTINUE
 
     @lm.noReply
-    def rcpt(self, recipient , command_dict):
+    def rcpt(self, recipient, command_dict):
         # store exactly what was received
         self.recipients.append(recipient)
         return lm.CONTINUE
 
     @lm.noReply
     def header(self, key, val, command_dict):
-        self.log('%s: %s' % (key, val))
+        self.log('header: %s: %s' % (key, val))
         self.tempfile.write(key+b": "+val+b"\n")
         # backup original headers
         self.original_headers.append((key, val))
@@ -502,19 +551,22 @@ class MilterSession(lm.MilterProtocol):
 
     @lm.noReply
     def eoh(self, command_dict):
+        self.log('End of headers')
         self.tempfile.write(b"\n")
         return lm.CONTINUE
 
-    def data(self , command_dict):
+    def data(self, command_dict):
+        self.log('Data command')
         return lm.CONTINUE
 
     @lm.noReply
-    def body(self, chunk , command_dict):
+    def body(self, chunk, command_dict):
         self.log('Body chunk: %d' % len(chunk))
         self.tempfile.write(chunk)
         return lm.CONTINUE
 
     def eob(self, command_dict):
+        self.log('End of body')
         try:
             self.tempfile.close()
         except Exception as e:
@@ -530,6 +582,7 @@ class MilterSession(lm.MilterProtocol):
 
     def close(self):
         # close the socket
+        self.log('Close')
         try:
             try:
                 self.transport.shutdown(socket.SHUT_RDWR)
@@ -547,7 +600,7 @@ class MilterSession(lm.MilterProtocol):
 
     def abort(self):
         self.log('Abort has been called')
-        self.recipients = None
+        self.recipients = []
         try:
             self.tempfile.close()
         except Exception:
