@@ -26,13 +26,28 @@ import os
 from fuglu.stringencode import force_bString, force_uString
 from email.header import Header
 
-import libmilter as lm
+try:
+    import libmilter as lm
+    LIMBMILTER_AVAILABLE = True
+except ImportError:
+    class lm:
+        MilterProtocol = object
+        SMFIF_ALLOPTS = None
+        @staticmethod
+        def noReply(self):
+            pass
+
+    LIMBMILTER_AVAILABLE = False
+    pass
 
 class MilterHandler(ProtocolHandler):
     protoname = 'MILTER V2'
 
     def __init__(self, sock, config):
         ProtocolHandler.__init__(self, sock, config)
+        if not LIMBMILTER_AVAILABLE:
+            raise ImportError("libmilter not available, not possible to use MilterHandler")
+
         try:
             self._att_mgr_cachesize = config.getint('performance', 'att_mgr_cachesize')
         except Exception:
@@ -613,3 +628,5 @@ class MilterServer(BasicTCPServer):
 
     def __init__(self, controller, port=10125, address="127.0.0.1"):
         BasicTCPServer.__init__(self, controller, port, address, MilterHandler)
+        if not LIMBMILTER_AVAILABLE:
+            raise ImportError("libmilter not available, not possible to use MilterServer")
