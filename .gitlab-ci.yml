@@ -84,3 +84,4 @@ pages:
   only:
     - master
     - develop
+    - milter

@@ -67,10 +67,11 @@ class MilterHandler(ProtocolHandler):
         if configstring not in ["auto", "readonly", "tags", "replace_demo"]:
             self.logger.warning("milter_mode: '%s' not recognised, resetting to 'tags'" % configstring)
 
-        self.enable_mode_auto = (configstring == "auto")
-        self.enable_mode_readonly = (configstring == "readonly")
-        self.enable_mode_tags = (configstring == "tags")
-        self.replace_demo = (configstring == "replace_demo")
+        self.enable_mode_manual = ("manual" in configstring)
+        self.enable_mode_auto = ("auto" in configstring)
+        self.enable_mode_readonly = ("readonly" in configstring)
+        self.enable_mode_tags = ("tags" in configstring)
+        self.replace_demo = ("replace_demo" in configstring)
 
         sess_options = 0x00 if self.enable_mode_readonly else lm.SMFIF_ALLOPTS
         self.sess = MilterSession(sock, config, options=sess_options)
@@ -231,6 +232,7 @@ class MilterHandler(ProtocolHandler):
             to_address = msg.get("To", "unknown")
             suspect.set_message_rep(MilterHandler.replacement_mail(from_address, to_address))
             self.logger.warning("Replace message by dummy template...")
+            self.enable_mode_tags = True
             suspect.set_tag('milter_replace', 'all')
 
         # --------------- #
@@ -255,7 +257,7 @@ class MilterHandler(ProtocolHandler):
         # --
         # apply milter options from config
         # --
-        if self.milter_mode_options:
+        if self.enable_mode_manual and self.milter_mode_options:
             if "all" in self.milter_mode_options:
                 replace_headers = True
                 replace_body = True

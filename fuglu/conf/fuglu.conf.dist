@@ -128,7 +128,7 @@ spf=fuglu.plugins.domainauth.SPFPlugin
 srs=fuglu.plugins.domainauth.SenderRewriteScheme
 
 [milter]
-# choices: readonly/auto/tags/replace_demo
+# available options: readonly,manual,auto,tags,replace_demo
 milter_mode=readonly
 
 # available options: all,body,headers,from,to
