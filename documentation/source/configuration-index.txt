@@ -320,10 +320,6 @@ With this example pre-queue configuration fuglu will scan for spam, virus and bl
 Running fuglu as a milter
 .........................
 
-!! Warning, this is an EXPERIMENTAL feature - untested, may or may not work !!
-
-!! Note: fuglu milter does not currently support message header/body modification, just actions like REJECT/DEFER/DISCARD !!
-
 To run fuglu as a milter, add ``milter:<portnumber`` to the ``incomingport`` configuration option in fuglu.conf.
 
 ::
@@ -338,6 +334,39 @@ Then enable milters in your MTA. postfix example (main.cf) :
 	milter_default_action = accept
 	milter_content_timeout = 30s
 	smtpd_milters=inet:127.0.0.1:10028
+
+
+The following configuration options are available and can be added to fuglu.conf in the namelist [milter]
+
+::
+
+    [milter]
+    # choices: readonly/auto/tags/replace_demo
+    milter_mode=readonly
+
+    # available options: all,body,headers,from,to
+    milter_mode_options=
+
+**milter_mode**:
+ * readonly     -> this does not allow to change anything, but it is possible to REJECT/DEFER/DISCARD based on plugin results
+ * auto         -> this will check if the suspect has been changed and then replace corresponding message parts
+ * tags         -> check for actions in the suspect tag: milter_replace
+ * replace_demo -> TESTING ONLY this will replace all messages by a dummy replacement message keeping only from/to
+
+
+**milter_mode_options**:
+ * all     -> replace whole message by fuglu suspect
+ * body    -> replace body by fuglu suspect body (careful to remain consistent with headers (multipart msg))
+ * headers -> replace headers by fuglu headers (carefule to remain consistent with body (multipart msg))
+ * from    -> replace envelope from by fuglu suspect from_address
+ * to      -> replace envelope to fuglu suspect to_address
+
+**NOTE**:
+ * headers added by fuglu to suspect will be added anyway
+ * options can be combined, for example: "from,to"
+ * the mode-options force a replace even if milter_mode (if in "auto" or "tags" mode) would not replace the option
+
+
 
 
 Running fuglu in netcat-mode
