@@ -93,6 +93,7 @@ class MilterHandler(ProtocolHandler):
         if not self.sess.getincomingmail():
             self.logger.error('MILTER SESSION NOT COMPLETED')
             return None
+        self.logger.debug("After getting incoming mail...")
 
         sess = self.sess
         from_address = force_uString(sess.from_address)
@@ -229,6 +230,7 @@ class MilterHandler(ProtocolHandler):
             from_address = msg.get("From", "unknown")
             to_address = msg.get("To", "unknown")
             suspect.set_message_rep(MilterHandler.replacement_mail(from_address, to_address))
+            self.logger.warning("Replace message by dummy template...")
             suspect.set_tag('milter_replace', 'all')
 
         # --------------- #
@@ -408,6 +410,8 @@ class MilterHandler(ProtocolHandler):
             self.sess.setReply(450, "4.7.1", reason)
         else:
             self.sess.setReply(450, "", reason)
+
+        self.logger.debug("defer message, reason: %s" % reason)
         self.endsession()
 
     def reject(self, reason):
@@ -421,6 +425,7 @@ class MilterHandler(ProtocolHandler):
         else:
             self.sess.setReply(550, "", reason)
 
+        self.logger.debug("reject message, reason: %s" % reason)
         self.endsession()
 
     def discard(self, reason):
@@ -452,6 +457,7 @@ class MilterSession(lm.MilterProtocol):
         self._tempfile = None
         self.tempfilename = None
         self.original_headers = []
+        self.be_verbose = False
 
     @property
     def tempfile(self):
@@ -497,31 +503,32 @@ class MilterSession(lm.MilterProtocol):
         while True and not self._exit_incomingmail:
             buf = ''
             try:
-                self.logger.debug("receive data from transport")
+                self.log("receive data from transport")
                 buf = self.transport.recv(lm.MILTER_CHUNK_SIZE)
-                self.logger.debug("after receive")
+                self.log("after receive")
             except (AttributeError, socket.error, socket.timeout):
                 # Socket has been closed, error or timeout happened
                 pass
             if not buf:
-                self.logger.debug("buf is empty -> return")
+                self.log("buf is empty -> return")
                 return True
             try:
                 self.dataReceived(buf)
             except Exception as e:
-                self.log('AN EXCEPTION OCCURED IN %s: %s' % (self.id, e))
+                self.logger.error('AN EXCEPTION OCCURED IN %s: %s' % (self.id, e))
                 self.logger.exception(e)
-                if lm.DEBUG:
-                    traceback.print_exc()
-                    lm.debug('AN EXCEPTION OCCURED: %s' % e, 1, self.id)
-                self.logger.debug("Call connectionLost")
+                self.log("Call connectionLost")
                 self.connectionLost()
-                self.logger.debug("fail -> return false")
+                self.log("fail -> return false")
                 return False
         return self._exit_incomingmail
 
     def log(self, msg):
-        self.logger.debug(msg)
+        # function will be used by libmilter as well for logging
+        # this is only for development/debugging, that's why it has
+        # to be enabled in the source code
+        if self.be_verbose:
+            self.logger.debug(msg)
 
     @lm.noReply
     def connect(self, hostname, family, ip, port, command_dict):
