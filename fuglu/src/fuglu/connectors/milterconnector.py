@@ -22,11 +22,11 @@ import socket
 from fuglu.shared import Suspect
 from fuglu.protocolbase import ProtocolHandler, BasicTCPServer
 import tempfile
-import fuglu.lib.libmilter as lm
 import os
 from fuglu.stringencode import force_bString, force_uString
 from email.header import Header
 
+import libmilter as lm
 
 class MilterHandler(ProtocolHandler):
     protoname = 'MILTER V2'
