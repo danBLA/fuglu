@@ -33,7 +33,7 @@ class PluginTime(AppenderPlugin):
             return
 
         host = self.config.get(self.section, 'host')
-        port = int(self.config.get(self.section, 'port'))
+        port = self.config.getint(self.section, 'port')
 
         buffer = ""
         if self.sock is None:
@@ -76,7 +76,7 @@ class MessageStatus(AppenderPlugin):
         buffer = "%s.fuglu.decision.%s:1|c\n" % (self.nodename, actioncode_to_string(decision))
 
         host = self.config.get(self.section, 'host')
-        port = int(self.config.get(self.section, 'port'))
+        port = self.config.getint(self.section, 'port')
 
         if self.sock is None:
             addr_f = socket.getaddrinfo(host, 0)[0][0]
@@ -133,7 +133,7 @@ class MessageStatusPerRecipient(AppenderPlugin):
         recipient = recipient.replace('@', '--')
 
         host = self.config.get(self.section, 'host')
-        port = int(self.config.get(self.section, 'port'))
+        port = self.config.getint(self.section, 'port')
 
         buffer = ""
         if self.sock is None:

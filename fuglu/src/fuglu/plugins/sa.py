@@ -529,7 +529,7 @@ Tags:
         unixsocket = False
 
         try:
-            int(self.config.get(self.section, 'port'))
+            self.config.getint(self.section, 'port')
         except ValueError:
             unixsocket = True
 
@@ -545,8 +545,8 @@ Tags:
                 raise Exception('Could not reach spamd using unix socket %s' % sock)
         else:
             host = self.config.get(self.section, 'host')
-            port = int(self.config.get(self.section, 'port'))
-            timeout = self.config.getint(self.section, 'timeout')
+            port = self.config.getint(self.section, 'port')
+            timeout = self.config.getfloat(self.section, 'timeout')
             try:
                 s = socket.create_connection((host, port), timeout)
             except socket.error:

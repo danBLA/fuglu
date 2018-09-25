@@ -201,7 +201,7 @@ Prerequisites: requires an ICAP capable antivirus engine somewhere in your netwo
         unixsocket = False
 
         try:
-            int(self.config.get(self.section, 'port'))
+            self.config.getint(self.section, 'port')
         except ValueError:
             unixsocket = True
 
@@ -218,8 +218,8 @@ Prerequisites: requires an ICAP capable antivirus engine somewhere in your netwo
                     'Could not reach ICAP server using unix socket %s' % sock)
         else:
             host = self.config.get(self.section, 'host')
-            port = int(self.config.get(self.section, 'port'))
-            timeout = int(self.config.get(self.section, 'timeout'))
+            port = self.config.getint(self.section, 'port')
+            timeout = self.config.getfloat(self.section, 'timeout')
             try:
                 s = socket.create_connection((host, port), timeout)
             except socket.error:
