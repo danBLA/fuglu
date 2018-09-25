@@ -320,10 +320,6 @@ With this example pre-queue configuration fuglu will scan for spam, virus and bl
 Running fuglu as a milter
 .........................
 
-!! Warning, this is an EXPERIMENTAL feature - untested, may or may not work !!
-
-!! Note: fuglu milter does not currently support message header/body modification, just actions like REJECT/DEFER/DISCARD !!
-
 To run fuglu as a milter, add ``milter:<portnumber`` to the ``incomingport`` configuration option in fuglu.conf.
 
 ::
@@ -339,6 +335,49 @@ Then enable milters in your MTA. postfix example (main.cf) :
 	milter_content_timeout = 30s
 	smtpd_milters=inet:127.0.0.1:10028
 
+
+The following configuration options are available and can be added to fuglu.conf in the namelist ``[milter]``
+
+::
+
+    [milter]
+    # available options: readonly,manual,auto,tags,replace_demo
+    milter_mode=readonly
+
+    # available options: all,body,headers,from,to
+    milter_mode_options=
+
+**milter_mode**:
+ * ``readonly``     -> this does not allow to change anything, but it is possible to REJECT/DEFER/DISCARD based on plugin results
+ * ``replace_demo`` -> TESTING ONLY this will replace all messages by a dummy replacement message keeping only from/to
+ * ``manual``       -> use options defined in "milter_mode_options"
+ * ``auto``         -> this will check if the suspect has been changed and then replace corresponding message parts
+ * ``tags``         -> check for actions in the suspect tag: milter_replace
+
+
+**milter_mode_options**:
+ * ``all``     -> replace whole message by fuglu suspect
+ * ``body``    -> replace body by fuglu suspect body (careful to remain consistent with headers (multipart msg))
+ * ``headers`` -> replace headers by fuglu headers (careful to remain consistent with body (multipart msg))
+ * ``from``    -> replace envelope from by fuglu suspect from_address
+ * ``to``      -> replace envelope to fuglu suspect to_address
+
+**NOTE**:
+ * headers added by fuglu to suspect will be added anyway
+ * options can be combined, for example: ``milter_mode_options=from,to`` or ``milter_mode=manual,tags``
+ * if ``readonly`` or ``replace_demo`` is in ``milter_mode``, no other option will apply
+ * ``milter_mode`` options are applied in the order: ``auto`` -> ``manual`` -> ``tags`` so tags can overwrite previous values
+ * the mode-options force a replace even if milter_mode (if in ``auto`` or ``tags`` mode) would not replace the option
+
+**Control milter replacing message parts in plugins**
+
+If ``tags`` is in ``milter_mode`` it is possible to define replacement options on a per-message base using
+message tags in Suspect. Same options as in ``milter_mode_options`` can be set in the tag ``milter_replace``
+using the method ``set_tag`` of Suspect
+
+::
+
+  suspect.set_tag["milter_replace"] = "from,to"
 
 Running fuglu in netcat-mode
 ............................

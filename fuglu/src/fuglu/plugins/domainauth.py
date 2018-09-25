@@ -773,10 +773,7 @@ class SenderRewriteScheme(ScannerPlugin):
         else:
             new_hdr = '<%s>' % to_address
         
-        msgrep['To'] = new_hdr
-        # no need to reset attachment manager because of a header change
-        suspect.set_message_rep(msgrep,att_mgr_reset=False)
-    
+        suspect.set_header('To',new_hdr)    
     
     
     def examine(self, suspect):

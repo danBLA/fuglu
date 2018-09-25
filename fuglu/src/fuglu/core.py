@@ -45,6 +45,7 @@ from fuglu.debug import ControlServer, CrashStore
 from fuglu import FUGLU_VERSION
 from fuglu.funkyconsole import FunkyConsole
 
+
 #--------------------#
 #- exit error codes -#
 #--------------------#
@@ -873,6 +874,14 @@ class MainController(object):
         except ImportError:
             print(fc.strcolor('magic: not installed', 'yellow') +
                   " Optional dependency, without python-file or python-magic the attachment plugin's automatic file type detection will easily be fooled")
+
+        try:
+            import libmilter
+            libmilter_vers = libmilter.__version__
+            print(fc.strcolor('libmilter: found %s' % libmilter_vers, 'green'))
+        except ImportError:
+            print(fc.strcolor('libmilter: not installed', 'yellow') +
+                  " Optional dependency, only needed if fuglu runs as milter")
 
     def lint(self):
         errors = 0

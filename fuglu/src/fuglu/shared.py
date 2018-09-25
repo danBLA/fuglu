@@ -253,7 +253,6 @@ class Suspect(object):
             if not Addrcheck().valid(rec):
                 raise ValueError("Invalid recipient address: %s"%rec)
 
-
         # additional basic information
         self.timestamp = time.time()
         self.id = self._generate_id()
@@ -275,6 +274,25 @@ class Suspect(object):
 
         self._att_mgr = None
         """Attachment manager"""
+
+        # ------------- #
+        # modifications #
+        # ------------- #
+        self.modified_headers = {}
+        """To keep track of modified headers"""
+
+        self.added_headers = {}
+        """To keep track of already added headers (not in self.addheaders)"""
+
+        # keep track of original sender/receivers
+        self.original_from_address = self.from_address
+        self.original_recipients   = self.recipients
+
+    def orig_from_address_changed(self):
+        return self.original_from_address != self.from_address
+
+    def orig_recipients_changed(self):
+        return self.original_recipients != self.recipients
 
     @property
     def att_mgr(self):
@@ -414,17 +432,59 @@ class Suspect(object):
         :return: True if subject was altered, False otherwise
         """
         msgrep = self.get_message_rep()
-        oldsubj = msgrep.get("subject","")
+        oldsubj = msgrep.get("subject",None)
+
+        oldsubj_exists = True
+
+        if oldsubj is None:
+            oldsubj = ""
+            oldsubj_exists = False
+
         newsubj = subject_cb(oldsubj, **cb_params)
         if oldsubj != newsubj:
             del msgrep["subject"]
             msgrep["subject"] = newsubj
+
+            # store as modified header
+            if oldsubj_exists:
+                self.modified_headers["subject"] = newsubj
+            else:
+                self.added_headers["subject"] = newsubj
+
             # no need to reset attachment manager because of a header change
             self.set_message_rep(msgrep,att_mgr_reset=False)
             if self.get_tag('origsubj') is None:
                 self.set_tag('origsubj', oldsubj)
             return True
         return False
+
+
+    def set_header(self, key, value):
+        """
+        Replace existing header or create a new one
+
+        Args:
+            key (string): header key
+            value (string): header value
+
+        """
+        msg = self.get_message_rep()
+
+        # convert inputs if needed
+        key = force_uString(key)
+        value = force_uString(value)
+
+        oldvalue = msg.get(key,None)
+        if oldvalue is not None:
+            if force_uString(oldvalue) == value:
+                return
+            del msg[key]
+            self.modified_headers[key] = value
+        else:
+            self.added_headers[key] = value
+
+        msg[key] = value
+        self.set_message_rep(msg,att_mgr_reset=False)
 
 
     def add_header(self, key, value, immediate=False):
@@ -446,6 +506,8 @@ class Suspect(object):
 
             # no need to reset the attachment manager when just adding a header
             self.set_source(src,att_mgr_reset=False)
+            # keep track of headers already added
+            self.added_headers[key] = value
         else:
             self.addheaders[key] = value
 
