@@ -21,7 +21,7 @@ def git_version():
         ret = x.wait()
         if ret == 0:
             stdout, stderr = x.communicate()
-            vers = stdout.strip()
+            vers = stdout.decode('ascii','ignore').strip()
             # replace fuglu version in file
             if os.path.isfile(VERSFILE):
                 OLD_VERSFILE_CONTENT = open(VERSFILE, 'r').read()
