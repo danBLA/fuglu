@@ -78,10 +78,13 @@ class SMTPHandler(ProtocolHandler):
         helo = self.config.get('main', 'outgoinghelo')
         if helo.strip() == '':
             helo = socket.gethostname()
-        client.helo(helo)
+
+        # todo: helo/ehlo automatic
+        #client.helo(helo)
+        client.ehlo(helo)
 
         # for sending, make sure the string to sent is byte string
-        client.sendmail(suspect.from_address, suspect.recipients, force_bString(msgcontent))
+        client.sendmail(suspect.from_address, suspect.recipients, force_bString(msgcontent), mail_options=["SMTPUTF8"])
         # if we did not get an exception so far, we can grab the server answer using the patched client
         # servercode=client.lastservercode
         serveranswer = client.lastserveranswer
