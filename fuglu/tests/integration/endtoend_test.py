@@ -1,3 +1,4 @@
+# -*- coding: UTF-8 -*-
 from integrationtestsetup import guess_clamav_socket, TESTDATADIR, CONFDIR, DummySMTPServer
 import unittest
 import tempfile
