@@ -376,4 +376,15 @@ class SMTPSession(object):
             end = len(address)
         retaddr = address[start:end]
         retaddr = retaddr.strip()
+
+        remaining = u""
+        if end+1 < len(address):
+            remaining = address[end+1:]
+            remaining = remaining.strip()
+        if remaining:
+            remaining = remaining.lower()
+            self.logger.debug("stripAddress has remaining part, addr: %s, remaining: %s" %
+                              (retaddr, remaining))
+            if "smtputf8" in remaining:
+                self.logger.debug("Address requires SMTPUTF8 support")
         return retaddr
