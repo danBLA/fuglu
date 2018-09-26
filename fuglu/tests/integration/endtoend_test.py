@@ -150,6 +150,55 @@ Don't dare you change any of my bytes or even remove one!"""
         self.assertEqual(testmessage, payload, "Message body has been altered. In: %s bytes, Out: %s bytes, teststring=->%s<- result=->%s<-" %
                          (inbytes, outbytes, testmessage, payload))
 
+    def test_SMTPUTF8_E2E(self):
+        """test if a UTF-8 message runs through"""
+
+        # give fuglu time to start listener
+        time.sleep(1)
+
+        import logging
+        import sys
+
+        root = logging.getLogger()
+        root.setLevel(logging.DEBUG)
+        ch = logging.StreamHandler(sys.stdout)
+        ch.setLevel(logging.DEBUG)
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        ch.setFormatter(formatter)
+        root.addHandler(ch)
+
+        # send test message
+        smtpclient = smtplib.SMTP('127.0.0.1', EndtoEndTestTestCase.FUGLU_PORT)
+        # smtpServer.set_debuglevel(1)
+        smtpclient.ehlo('test.e2e')
+        testmessage = """Hello World!\r
+Don't dare you change any of my bytes or even remove one!"""
+
+        # TODO: this test fails if we don't put in the \r in there... (eg,
+        # fuglu adds it) - is this a bug or wrong test?
+
+        msg = MIMEText(testmessage)
+        msg["Subject"] = "End to End Test"
+        msgstring = msg.as_string()
+        inbytes = len(msg.get_payload())
+        smtpclient.sendmail( u'sänder@fuglu.org', ['röcipient@fuglu.org', 'récipiènt2@fuglu.org'], msgstring, mail_options=["SMTPUTF8"])
+        #smtpclient.sendmail( u'sänder@fuglu.org', ['recipient@fuglu.org', 'recipient2@fuglu.org'], msgstring, mail_options=["SMTPUTF8"])
+        smtpclient.quit()
+
+        # get answer
+        gotback = self.smtp.suspect
+        self.assertFalse(
+            gotback == None, "Did not get message from dummy smtp server")
+
+        # check a few things on the received message
+        msgrep = gotback.get_message_rep()
+        self.assertTrue('X-Fuglutest-Spamstatus' in msgrep,
+                        "Fuglu SPAM Header not found in message")
+        payload = msgrep.get_payload()
+        outbytes = len(payload)
+        self.assertEqual(testmessage, payload, "Message body has been altered. In: %s bytes, Out: %s bytes, teststring=->%s<- result=->%s<-" %
+                         (inbytes, outbytes, testmessage, payload))
+
 
 class DKIMTestCase(unittest.TestCase):
 
