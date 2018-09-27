@@ -60,6 +60,7 @@ class SMTPHandler(ProtocolHandler):
         except Exception:
             self._att_mgr_cachesize = None
 
+
     def re_inject(self, suspect):
         """Send message back to postfix"""
         if suspect.get_tag('noreinject'):
@@ -79,12 +80,16 @@ class SMTPHandler(ProtocolHandler):
         if helo.strip() == '':
             helo = socket.gethostname()
 
-        # todo: helo/ehlo automatic
-        #client.helo(helo)
-        client.ehlo(helo)
+        # if there are SMTP options (SMTPUTF8, ...) then use ehlo
+        mail_options = list(suspect.smtp_options)
+        if mail_options:
+            client.ehlo(helo)
+        else:
+            client.helo(helo)
 
         # for sending, make sure the string to sent is byte string
-        client.sendmail(suspect.from_address, suspect.recipients, force_bString(msgcontent), mail_options=["SMTPUTF8"])
+        client.sendmail(suspect.from_address, suspect.recipients, force_bString(msgcontent),
+                        mail_options=mail_options)
         # if we did not get an exception so far, we can grab the server answer using the patched client
         # servercode=client.lastservercode
         serveranswer = client.lastserveranswer
@@ -109,7 +114,8 @@ class SMTPHandler(ProtocolHandler):
         tempfilename = sess.tempfilename
 
         try:
-            suspect = Suspect(fromaddr, sess.recipients, tempfilename, att_cachelimit=self._att_mgr_cachesize)
+            suspect = Suspect(fromaddr, sess.recipients, tempfilename,
+                              att_cachelimit=self._att_mgr_cachesize, smtp_options=sess.smtpoptions)
         except ValueError as e:
             if len(sess.recipients) > 0:
                 toaddr = sess.recipients[0]
@@ -180,7 +186,8 @@ class SMTPSession(object):
         self.logger = logging.getLogger("fuglu.smtpsession")
         self.tempfilename = None
         self.tempfile = None
-    
+        self.smtpoptions = set()
+
     
     def endsession(self, code, message):
         self.socket.send(force_bString("%s %s\r\n" % (code, message)))
@@ -385,9 +392,13 @@ class SMTPSession(object):
             remaining = address[end+1:]
             remaining = remaining.strip()
         if remaining:
-            remaining = remaining.lower()
+            remaining = remaining.upper()
             self.logger.debug("stripAddress has remaining part, addr: %s, remaining: %s" %
                               (retaddr, remaining))
-            if "smtputf8" in remaining:
+            if "SMTPUTF8" in remaining:
                 self.logger.debug("Address requires SMTPUTF8 support")
+                self.smtpoptions.add("SMTPUTF8")
+            if "8BITMIME" in remaining:
+                self.logger.debug("mail contains 8bit-MIME")
+                self.smtpoptions.add("8BITMIME")
         return retaddr

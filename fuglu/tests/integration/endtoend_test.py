@@ -151,6 +151,46 @@ Don't dare you change any of my bytes or even remove one!"""
         self.assertEqual(testmessage, payload, "Message body has been altered. In: %s bytes, Out: %s bytes, teststring=->%s<- result=->%s<-" %
                          (inbytes, outbytes, testmessage, payload))
 
+class EndtoEndBaseTestCase(unittest.TestCase):
+
+    """Full check if mail runs through but no plugins applied"""
+
+    FUGLU_HOST = "127.0.0.1"
+    FUGLU_PORT = 7711
+    DUMMY_PORT = 7712
+    FUGLUCONTROL_PORT = 7713
+
+    def setUp(self):
+        self.config = RawConfigParser()
+        self.config.read([TESTDATADIR + '/endtoendbasetest.conf'])
+        self.config.set(
+            'main', 'incomingport', str(EndtoEndTestTestCase.FUGLU_PORT))
+        self.config.set(
+            'main', 'outgoinghost', str(EndtoEndTestTestCase.FUGLU_HOST))
+        self.config.set(
+            'main', 'outgoingport', str(EndtoEndTestTestCase.DUMMY_PORT))
+        self.config.set(
+            'main', 'controlport', str(EndtoEndTestTestCase.FUGLUCONTROL_PORT))
+        guess_clamav_socket(self.config)
+        # init core
+        self.mc = MainController(self.config)
+
+        # start listening smtp dummy server to get fuglus answer
+        self.smtp = DummySMTPServer(
+            self.config, EndtoEndTestTestCase.DUMMY_PORT, EndtoEndTestTestCase.FUGLU_HOST)
+        e2edss = threading.Thread(target = self.smtp.serve, args = ())
+        e2edss.daemon = True
+        e2edss.start()
+
+        # start fuglu's listening server
+        fls = threading.Thread(target = self.mc.startup, args = ())
+        fls.daemon = True
+        fls.start()
+
+    def tearDown(self):
+        self.mc.shutdown()
+        self.smtp.shutdown()
+
     def test_SMTPUTF8_E2E(self):
         """test if a UTF-8 message runs through"""
 
@@ -182,8 +222,8 @@ Don't dare you change any of my bytes or even remove one!"""
         msg["Subject"] = "End to End Test"
         msgstring = msg.as_string()
         inbytes = len(msg.get_payload())
-        smtpclient.sendmail( u'sänder@fuglu.org', ['röcipient@fuglu.org', 'récipiènt2@fuglu.org'], msgstring, mail_options=["SMTPUTF8"])
-        #smtpclient.sendmail( u'sänder@fuglu.org', ['recipient@fuglu.org', 'recipient2@fuglu.org'], msgstring, mail_options=["SMTPUTF8"])
+        smtpclient.sendmail( u'sänder@fuglu.org', ['röcipient@fuglu.org', 'récipiènt2@fuglu.org'], msgstring,
+                             mail_options=["SMTPUTF8"])
         smtpclient.quit()
 
         # get answer

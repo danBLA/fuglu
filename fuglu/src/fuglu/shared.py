@@ -217,7 +217,7 @@ class Suspect(object):
     with a suspect and may modify the tags or even the message content itself.
     """
 
-    def __init__(self, from_address, recipients, tempfile, att_cachelimit=None):
+    def __init__(self, from_address, recipients, tempfile, att_cachelimit=None, smtp_options=set()):
         self.source = None
         """holds the message source if set directly"""
 
@@ -287,6 +287,11 @@ class Suspect(object):
         # keep track of original sender/receivers
         self.original_from_address = self.from_address
         self.original_recipients   = self.recipients
+
+        # ------------ #
+        # smtp_otpions #
+        # ------------ #
+        self.smtp_options = smtp_options
 
     def orig_from_address_changed(self):
         return self.original_from_address != self.from_address
