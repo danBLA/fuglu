@@ -156,28 +156,28 @@ class EndtoEndBaseTestCase(unittest.TestCase):
     """Full check if mail runs through but no plugins applied"""
 
     FUGLU_HOST = "127.0.0.1"
-    FUGLU_PORT = 7711
-    DUMMY_PORT = 7712
-    FUGLUCONTROL_PORT = 7713
+    FUGLU_PORT = 7741
+    DUMMY_PORT = 7742
+    FUGLUCONTROL_PORT = 7743
 
     def setUp(self):
         self.config = RawConfigParser()
         self.config.read([TESTDATADIR + '/endtoendbasetest.conf'])
         self.config.set(
-            'main', 'incomingport', str(EndtoEndTestTestCase.FUGLU_PORT))
+            'main', 'incomingport', str(EndtoEndBaseTestCase.FUGLU_PORT))
         self.config.set(
-            'main', 'outgoinghost', str(EndtoEndTestTestCase.FUGLU_HOST))
+            'main', 'outgoinghost', str(EndtoEndBaseTestCase.FUGLU_HOST))
         self.config.set(
-            'main', 'outgoingport', str(EndtoEndTestTestCase.DUMMY_PORT))
+            'main', 'outgoingport', str(EndtoEndBaseTestCase.DUMMY_PORT))
         self.config.set(
-            'main', 'controlport', str(EndtoEndTestTestCase.FUGLUCONTROL_PORT))
+            'main', 'controlport', str(EndtoEndBaseTestCase.FUGLUCONTROL_PORT))
         guess_clamav_socket(self.config)
         # init core
         self.mc = MainController(self.config)
 
         # start listening smtp dummy server to get fuglus answer
         self.smtp = DummySMTPServer(
-            self.config, EndtoEndTestTestCase.DUMMY_PORT, EndtoEndTestTestCase.FUGLU_HOST)
+            self.config, EndtoEndBaseTestCase.DUMMY_PORT, EndtoEndBaseTestCase.FUGLU_HOST)
         e2edss = threading.Thread(target = self.smtp.serve, args = ())
         e2edss.daemon = True
         e2edss.start()
@@ -209,7 +209,7 @@ class EndtoEndBaseTestCase(unittest.TestCase):
         root.addHandler(ch)
 
         # send test message
-        smtpclient = smtplib.SMTP('127.0.0.1', EndtoEndTestTestCase.FUGLU_PORT)
+        smtpclient = smtplib.SMTP('127.0.0.1', EndtoEndBaseTestCase.FUGLU_PORT)
         # smtpServer.set_debuglevel(1)
         smtpclient.ehlo('test.e2e')
         testunicodemessage = u"""Hello Wörld!\r
