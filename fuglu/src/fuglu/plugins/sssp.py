@@ -307,7 +307,7 @@ Prerequisites: Requires a running sophos daemon with dynamic interface (SAVDI)
         unixsocket = False
 
         try:
-            int(self.config.get(self.section, 'port'))
+            self.config.getint(self.section, 'port')
         except ValueError:
             unixsocket = True
 
@@ -316,7 +316,7 @@ Prerequisites: Requires a running sophos daemon with dynamic interface (SAVDI)
             if not os.path.exists(sock):
                 raise Exception("unix socket %s not found" % sock)
             s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            s.settimeout(self.config.getint(self.section, 'timeout'))
+            s.settimeout(self.config.getfloat(self.section, 'timeout'))
             try:
                 s.connect(sock)
             except socket.error:
@@ -324,8 +324,8 @@ Prerequisites: Requires a running sophos daemon with dynamic interface (SAVDI)
                     'Could not reach SSSP server using unix socket %s' % sock)
         else:
             host = self.config.get(self.section, 'host')
-            port = int(self.config.get(self.section, 'port'))
-            timeout = self.config.getint(self.section, 'timeout')
+            port = self.config.getint(self.section, 'port')
+            timeout = self.config.getfloat(self.section, 'timeout')
             try:
                 s = socket.create_connection((host, port), timeout)
             except socket.error:

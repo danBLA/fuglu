@@ -330,7 +330,7 @@ Tags:
         unixsocket = False
 
         try:
-            int(self.config.get(self.section, 'port'))
+            self.config.getint(self.section, 'port')
         except ValueError:
             unixsocket = True
 
@@ -345,7 +345,7 @@ Tags:
             except socket.error:
                 raise Exception('Could not reach clamd using unix socket %s' % sock)
         else:
-            clamd_PORT = int(self.config.get(self.section, 'port'))
+            clamd_PORT = self.config.getint(self.section, 'port')
             proto = socket.AF_INET
             if ':' in clamd_HOST:
                 proto = socket.AF_INET6

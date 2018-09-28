@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from fuglu.shared import AVScannerPlugin, DUNNO, DEFER, string_to_actioncode, apply_template
+from fuglu.shared import AVScannerPlugin, DUNNO
 from fuglu.stringencode import force_bString, force_uString
 import socket
 import re
@@ -54,7 +54,7 @@ Tags:
             },
             'networkmode': {
                 'default': '0',
-                'description': "if fpscand runs on a different host than fuglu, set this to 1 to send the message over the network instead of just the filename",
+                'description': "set to 1 to always send data over network instead of just passing the file name when possible. if fpscand runs on a different host than fuglu, you must set this to 1",
             },
             'scanoptions': {
                 'default': '',
@@ -76,7 +76,6 @@ Tags:
                 'default': 'DEFER',
                 'description': "plugin action if scan fails",
             },
-
             'rejectmessage': {
                 'default': 'threat detected: ${virusname}',
                 'description': "reject message template if running in pre-queue mode and virusaction=REJECT",
@@ -90,15 +89,27 @@ Tags:
     def examine(self, suspect):
         if self._check_too_big(suspect):
             return DUNNO
-
+        
+        msgrep = suspect.get_message_rep()
+        networkmode = self.config.getboolean(self.section, 'networkmode')
+        
+        # this seems to be a bug in f-prot.
+        # If no Content-Type header is set, then no scan is performed.
+        # However, content of the header does not seem to matter.
+        # Therefore we set a temporary dummy Content-Type header.
+        if not msgrep.has_key('Content-Type'):
+            networkmode = True
+            msgrep['Content-Type'] = 'dummy'
+            self.logger.debug('%s missing Content-Type header... falling back to network mode' % suspect.id)
+            
         try:
-           content = suspect.get_message_rep().as_bytes()
+           content = msgrep.as_bytes()
         except AttributeError:
-           content = force_bString(suspect.get_message_rep().as_string())
+           content = msgrep.as_string()
 
         for i in range(0, self.config.getint(self.section, 'retries')):
             try:
-                if self.config.getboolean(self.section, 'networkmode'):
+                if networkmode:
                     viruses = self.scan_stream(content, suspect.id)
                 else:
                     viruses = self.scan_file(suspect.tempfile)
@@ -107,8 +118,7 @@ Tags:
             except Exception as e:
                 self.logger.warning("%s Error encountered while contacting fpscand (try %s of %s): %s" %
                                        (suspect.id, i + 1, self.config.getint(self.section, 'retries'), str(e)))
-        self.logger.error("fpscand failed after %s retries" %
-                             self.config.getint(self.section, 'retries'))
+        self.logger.error("fpscand failed after %s retries" % self.config.getint(self.section, 'retries'))
         
         return self._problemcode()
     
@@ -119,8 +129,7 @@ Tags:
         for line in result.strip().split('\n'):
             m = self.pattern.match(force_bString(line))
             if m is None:
-                self.logger.error(
-                    'Could not parse line from f-prot: %s' % line)
+                self.logger.error('Could not parse line from f-prot: %s' % line)
                 raise Exception('f-prot: Unparseable answer: %s' % result)
             status = force_uString(m.group(1))
             text = force_uString(m.group(2))
@@ -133,8 +142,7 @@ Tags:
                 continue
 
             if status > 3:
-                self.logger.warning(
-                    "f-prot: got unusual status %s" % status)
+                self.logger.warning("f-prot: got unusual status %s" % status)
 
             # http://www.f-prot.com/support/helpfiles/unix/appendix_c.html
             if status & 1 == 1 or status & 2 == 2:
@@ -144,8 +152,7 @@ Tags:
                 elif text[0:27] == "contains infected objects: ":
                     text = text[27:]
                 else:
-                    self.logger.warn(
-                        "Unexpected reply from f-prot: %s" % text)
+                    self.logger.warn("Unexpected reply from f-prot: %s" % text)
                     continue
                 dr[details] = text
 
@@ -158,8 +165,7 @@ Tags:
     def scan_file(self, filename):
         filename = os.path.abspath(filename)
         s = self.__init_socket__()
-        s.sendall(force_bString('SCAN %s FILE %s' %
-                  (self.config.get(self.section, 'scanoptions'), filename)))
+        s.sendall(force_bString('SCAN %s FILE %s' % (self.config.get(self.section, 'scanoptions'), filename)))
         s.sendall(b'\n')
 
         result = s.recv(20000)
@@ -184,14 +190,11 @@ Tags:
         s = self.__init_socket__()
         content = force_bString(content)
         buflen = len(content)
-        s.sendall(force_bString('SCAN %s STREAM fu_stream SIZE %s' %
-                  (self.config.get(self.section, 'scanoptions'), buflen)))
+        s.sendall(force_bString('SCAN %s STREAM fu_stream SIZE %s' % (self.config.get(self.section, 'scanoptions'), buflen)))
         s.sendall(b'\n')
-        self.logger.debug(
-            '%s Sending buffer (length=%s) to fpscand...' % (suspectid, buflen))
+        self.logger.debug('%s Sending buffer (length=%s) to fpscand...' % (suspectid, buflen))
         s.sendall(content)
-        self.logger.debug(
-            '%s Sent %s bytes to fpscand, waiting for scan result' % (suspectid, buflen))
+        self.logger.debug('%s Sent %s bytes to fpscand, waiting for scan result' % (suspectid, buflen))
 
         result = force_uString(s.recv(20000))
         if len(result) < 1:

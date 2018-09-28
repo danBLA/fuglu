@@ -853,8 +853,14 @@ class MainController(object):
                   " Optional dependency, required if you want to enable any database lookups")
 
         if HAVE_BEAUTIFULSOUP:
-            print(
-                fc.strcolor('BeautifulSoup: V%s installed' % BS_VERSION, 'green'))
+            print(fc.strcolor('BeautifulSoup: V%s installed' % BS_VERSION, 'green'))
+            if BS_VERSION == 4:
+                try:
+                    from lxml import etree
+                    if etree.LXML_VERSION <= (2,2):
+                        print(fc.strcolor('WARNING: your lxml version is prone to segfaults. An update is recommended.', 'red'))
+                except ImportError:
+                    print(fc.strcolor('ERROR: missing lxml as required dependency for BeautifulSoup', 'yellow'))
         else:
             print(fc.strcolor('BeautifulSoup: not installed', 'yellow') +
                   " Optional dependency, this improves accuracy for stripped body searches in filters - not required with a default config")
