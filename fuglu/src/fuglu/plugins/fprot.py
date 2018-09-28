@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from fuglu.shared import AVScannerPlugin, DUNNO, DEFER, string_to_actioncode, apply_template
+from fuglu.shared import AVScannerPlugin, DUNNO
 from fuglu.stringencode import force_bString, force_uString
 import socket
 import re
@@ -54,7 +54,7 @@ Tags:
             },
             'networkmode': {
                 'default': '0',
-                'description': "if fpscand runs on a different host than fuglu, set this to 1 to send the message over the network instead of just the filename",
+                'description': "set to 1 to always send data over network instead of just passing the file name when possible. if fpscand runs on a different host than fuglu, you must set this to 1",
             },
             'scanoptions': {
                 'default': '',
