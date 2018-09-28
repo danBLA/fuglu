@@ -28,7 +28,7 @@ import fuglu
 from fuglu.lib.patcheddkimlib import verify, sign
 from fuglu.core import MainController
 from fuglu.scansession import SessionHandler
-from fuglu.stringencode import force_uString
+from fuglu.stringencode import force_uString, force_bString
 
 
 class AllpluginTestCase(unittest.TestCase):
@@ -212,33 +212,36 @@ class EndtoEndBaseTestCase(unittest.TestCase):
         smtpclient = smtplib.SMTP('127.0.0.1', EndtoEndTestTestCase.FUGLU_PORT)
         # smtpServer.set_debuglevel(1)
         smtpclient.ehlo('test.e2e')
-        testmessage = """Hello World!\r
-Don't dare you change any of my bytes or even remove one!"""
+        testunicodemessage = u"""Hello Wörld!\r
+Don't där yü tschänsch äny of mai baits or iwen remüv ön!"""
 
         # TODO: this test fails if we don't put in the \r in there... (eg,
         # fuglu adds it) - is this a bug or wrong test?
 
-        msg = MIMEText(testmessage)
+        msg = MIMEText(testunicodemessage, _charset='utf-8')
         msg["Subject"] = "End to End Test"
         msgstring = msg.as_string()
-        inbytes = len(msg.get_payload())
-        smtpclient.sendmail( u'sänder@fuglu.org', ['röcipient@fuglu.org', 'récipiènt2@fuglu.org'], msgstring,
-                             mail_options=["SMTPUTF8"])
+        inbytes = len(msg.get_payload(decode=True))
+        smtpclient.sendmail(force_bString(u'sänder@fuglu.org'),
+                            [force_bString(u'röcipient@fuglu.org'), force_bString(u'récipiènt2@fuglu.org')],
+                            force_bString(msgstring), mail_options=["SMTPUTF8"])
         smtpclient.quit()
 
-        # get answer
+        # get answer (wait to give time to create suspect)
+        time.sleep(0.1)
         gotback = self.smtp.suspect
-        self.assertFalse(
-            gotback == None, "Did not get message from dummy smtp server")
+        self.assertFalse(gotback == None, "Did not get message from dummy smtp server")
 
         # check a few things on the received message
         msgrep = gotback.get_message_rep()
         self.assertTrue('X-Fuglutest-Spamstatus' in msgrep,
                         "Fuglu SPAM Header not found in message")
-        payload = msgrep.get_payload()
+        payload = msgrep.get_payload(decode=True)
         outbytes = len(payload)
-        self.assertEqual(testmessage, payload, "Message body has been altered. In: %s bytes, Out: %s bytes, teststring=->%s<- result=->%s<-" %
-                         (inbytes, outbytes, testmessage, payload))
+        self.assertEqual(inbytes, outbytes,"Message size change: bytes in: %u, bytes out %u" % (inbytes, outbytes))
+        self.assertEqual(testunicodemessage, force_uString(payload),
+                         "Message body has been altered. In: %u bytes, Out: %u bytes, teststring=->%s<- result=->%s<-" %
+                         (inbytes, outbytes, testunicodemessage, force_uString(payload)))
 
 
 class DKIMTestCase(unittest.TestCase):

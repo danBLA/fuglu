@@ -238,20 +238,20 @@ class Suspect(object):
 
         # stuff set from smtp transaction
         self.size = os.path.getsize(tempfile)
-        self.from_address = from_address
+        self.from_address = force_uString(from_address)
 
         # backwards compatibility, recipients can be a single address
         if isinstance(recipients, list):
-            self.recipients = recipients
+            self.recipients = [force_uString(rec) for rec in recipients]
         else:
-            self.recipients = [recipients, ]
+            self.recipients = [force_uString(recipients), ]
 
         # basic email validitiy check - nothing more than necessary for our internal assumptions
         for rec in self.recipients:
             if rec is None:
                 raise ValueError("Recipient address can not be None")
             if not Addrcheck().valid(rec):
-                raise ValueError("Invalid recipient address: %s"%rec)
+                raise ValueError("Invalid recipient address: %s" % rec)
 
         # additional basic information
         self.timestamp = time.time()
@@ -261,10 +261,10 @@ class Suspect(object):
         self.addheaders = {}
 
         if self.from_address is None:
-            self.from_address = ''
+            self.from_address = u''
 
-        if self.from_address != '' and not Addrcheck().valid(self.from_address):
-            raise ValueError("invalid sender address: %s"%self.from_address)
+        if self.from_address != u'' and not Addrcheck().valid(self.from_address):
+            raise ValueError("invalid sender address: %s" % self.from_address)
 
         self.clientinfo = None
         """holds client info tuple: helo, ip, reversedns"""

@@ -11,6 +11,7 @@ CONFDIR = os.path.abspath(CODEDIR + '/../conf')
 sys.path.insert(0, CODEDIR)
 
 from fuglu.connectors.smtpconnector import SMTPSession
+from fuglu.stringencode import force_uString
 
 
 def guess_clamav_socket(config):
@@ -59,10 +60,11 @@ class DummySMTPServer(object):
 
         fromaddr = sess.from_address
 
-        recipients = sess.recipients
+        recipients = [force_uString(rec) for rec in sess.recipients]
         self.tempfilename = sess.tempfilename
         self.logger.debug("Message from %s to %s stored to %s" %
-                          (fromaddr, recipients, self.tempfilename))
+                          (fromaddr, "["+", ".join(recipients)+"]" if len(recipients) > 1 else recipients[0],
+                           self.tempfilename))
 
         self.suspect = Suspect(fromaddr, recipients, self.tempfilename)
 
