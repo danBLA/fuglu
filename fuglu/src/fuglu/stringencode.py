@@ -234,10 +234,14 @@ def sendmail_address(addresses):
     if sys.version_info > (3,):
         return force_uString(addresses)
 
+    # Actually it will only work correctly since python 3.5
+    # due to problems in smtplib.py. However I only tested Python 3.4
+    # The smtpconnector will just not allow SMTPUTF8 for Python < 3.5 and >= 3
+
     # -------- #
     # Python 2 #
     # -------- #
-    if isinstance(addresses,list):
+    if isinstance(addresses, list):
         return [sendmail_address(addr) for addr in addresses]
 
     # at this point it should be a (unicode) string

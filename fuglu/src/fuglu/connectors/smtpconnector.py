@@ -19,6 +19,7 @@ import socket
 import tempfile
 import os
 import re
+import sys
 
 from fuglu.shared import Suspect, apply_template
 from fuglu.protocolbase import ProtocolHandler, BasicTCPServer
@@ -189,6 +190,10 @@ class SMTPSession(object):
         self.tempfilename = None
         self.tempfile = None
         self.smtpoptions = set()
+        if (3,) <= sys.version_info < (3, 5):
+            self.ehlo_options = ["8BITMIME"]
+        else:
+            self.ehlo_options = ["SMTPUTF8", "8BITMIME"]
 
     
     def endsession(self, code, message):
@@ -291,13 +296,18 @@ class SMTPSession(object):
         if cmd == "HELO":
             self.state = SMTPSession.ST_HELO
             self.helo = data
+            self.ehlo_options = []
         elif cmd == 'EHLO':
             self.state = SMTPSession.ST_HELO
             self.helo = data
             helo = self.config.get('main', 'outgoinghelo')
             if helo.strip() == '':
                 helo = socket.gethostname()
-            rv = '250-%s\n250-8BITMIME\n250 SMTPUTF8' % helo
+            if len(self.ehlo_options) > 0:
+                answer = [helo] + self.ehlo_options
+                rv = "250-"+"250-".join(a+"\n" for a in answer[:-1])+"250 %s" % answer[-1]
+            else:
+                rv = '250 %s' % helo
         elif cmd == "RSET":
             self.from_address = None
             self.recipients = []
@@ -400,8 +410,12 @@ class SMTPSession(object):
                               (retaddr, remaining))
             if "SMTPUTF8" in remaining:
                 self.logger.debug("Address requires SMTPUTF8 support")
+                if "SMTPUTF8" not in self.ehlo_options:
+                    raise ValueError("SMTPUTF8 support was not proposed")
                 self.smtpoptions.add("SMTPUTF8")
             if "8BITMIME" in remaining:
+                if "8BITMIME" not in self.ehlo_options:
+                    raise ValueError("8BITMIME support was not proposed")
                 self.logger.debug("mail contains 8bit-MIME")
                 self.smtpoptions.add("8BITMIME")
         return retaddr

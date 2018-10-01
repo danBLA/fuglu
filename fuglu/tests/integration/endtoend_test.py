@@ -113,8 +113,8 @@ class EndtoEndTestTestCase(unittest.TestCase):
         self.mc.shutdown()
         self.smtp.shutdown()
 
-        self.e2edss.join()
-        self.fls.join()
+        self.e2edss.join(timeout=3)
+        self.fls.join(timeout=3)
 
     def testE2E(self):
         """test if a standard message runs through"""
@@ -216,7 +216,30 @@ class EndtoEndBaseTestCase(unittest.TestCase):
         # send test message
         smtpclient = smtplib.SMTP('127.0.0.1', EndtoEndBaseTestCase.FUGLU_PORT)
         # smtpServer.set_debuglevel(1)
-        smtpclient.ehlo('test.e2e')
+        (code, msg) = smtpclient.ehlo('test.e2e')
+        msg = force_uString(msg)
+
+        self.assertEqual(250, code)
+        print("%s"%msg)
+        if (3,) <= sys.version_info < (3, 5):
+            # NO SMTPUTF8 provided in smtpconnector for python >=3 and python < 3.5
+            try:
+                self.assertNotIn("SMTPUTF8", msg)
+            except AttributeError:
+                self.assertTrue("SMTPUTF8" not in msg)
+            print("WARNING: Test \"test_SMTPUTF8_E2E\" skipped!")
+            smtpclient.close()
+            # just connect and close to shutdown also the dummy SMTP server
+            dsmtpclient = smtplib.SMTP(EndtoEndBaseTestCase.FUGLU_HOST, EndtoEndBaseTestCase.DUMMY_PORT)
+            dsmtpclient.close()
+            return
+        else:
+            try:
+                self.assertIn("SMTPUTF8", msg)
+            except AttributeError:
+                self.assertTrue("SMTPUTF8" in msg)
+
+
         testunicodemessage = u"""Hello Wörld!\r
 Don't där yü tschänsch äny of mai baits or iwen remüv ön!"""
 
@@ -227,8 +250,11 @@ Don't där yü tschänsch äny of mai baits or iwen remüv ön!"""
         msg["Subject"] = "End to End Test"
         msgstring = msg.as_string()
         inbytes = len(msg.get_payload(decode=True))
-        smtpclient.sendmail(sendmail_address(u'sänder@fuglu.org'),
-                            sendmail_address([u'röcipient@fuglu.org', u'récipiènt2@fuglu.org']),
+        # envelope sender/recipients
+        env_sender = u'sänder@fuglu.org'
+        env_recipients = [u'röcipient@fuglu.org', u'récipiènt2@fuglu.org']
+        smtpclient.sendmail(sendmail_address(env_sender),
+                            sendmail_address(env_recipients),
                             force_bString(msgstring), mail_options=["SMTPUTF8"])
         smtpclient.quit()
 
@@ -247,6 +273,9 @@ Don't där yü tschänsch äny of mai baits or iwen remüv ön!"""
         self.assertEqual(testunicodemessage, force_uString(payload),
                          "Message body has been altered. In: %u bytes, Out: %u bytes, teststring=->%s<- result=->%s<-" %
                          (inbytes, outbytes, testunicodemessage, force_uString(payload)))
+        # check sender/recipients
+        self.assertEqual(env_sender, gotback.from_address)
+        self.assertEqual(env_recipients, gotback.recipients)
 
 
 class DKIMTestCase(unittest.TestCase):
