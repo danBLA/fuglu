@@ -28,7 +28,7 @@ import fuglu
 from fuglu.lib.patcheddkimlib import verify, sign
 from fuglu.core import MainController
 from fuglu.scansession import SessionHandler
-from fuglu.stringencode import force_uString, force_bString
+from fuglu.stringencode import force_uString,force_bString, sendmail_address
 
 
 class AllpluginTestCase(unittest.TestCase):
@@ -227,8 +227,8 @@ Don't där yü tschänsch äny of mai baits or iwen remüv ön!"""
         msg["Subject"] = "End to End Test"
         msgstring = msg.as_string()
         inbytes = len(msg.get_payload(decode=True))
-        smtpclient.sendmail(u'sänder@fuglu.org',
-                            [u'röcipient@fuglu.org', u'récipiènt2@fuglu.org'],
+        smtpclient.sendmail(sendmail_address(u'sänder@fuglu.org'),
+                            sendmail_address([u'röcipient@fuglu.org', u'récipiènt2@fuglu.org']),
                             force_bString(msgstring), mail_options=["SMTPUTF8"])
         smtpclient.quit()
 

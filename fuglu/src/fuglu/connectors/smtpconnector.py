@@ -23,7 +23,7 @@ import re
 from fuglu.shared import Suspect, apply_template
 from fuglu.protocolbase import ProtocolHandler, BasicTCPServer
 from email.header import Header
-from fuglu.stringencode import force_bString, force_uString
+from fuglu.stringencode import force_bString, force_uString, sendmail_address
 
 
 def buildmsgsource(suspect):
@@ -88,8 +88,8 @@ class SMTPHandler(ProtocolHandler):
             client.helo(helo)
 
         # for sending, make sure the string to sent is byte string
-        client.sendmail(suspect.from_address,
-                        suspect.recipients,
+        client.sendmail(sendmail_address(suspect.from_address),
+                        sendmail_address(suspect.recipients),
                         force_bString(msgcontent),
                         mail_options=mail_options)
         # if we did not get an exception so far, we can grab the server answer using the patched client
