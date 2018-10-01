@@ -45,16 +45,22 @@ class DummySMTPServer(object):
         self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self._socket.bind((address, port))
         self._socket.listen(1)
+        self.logger.debug('listen at: %s, %s' % (address, port))
         self.suspect = None
 
     def serve(self):
         from fuglu.shared import Suspect
+        self.logger.debug('Waiting for accept connection')
         nsd = self._socket.accept()
+        self.logger.debug('Accepted connection')
 
         sess = SMTPSession(nsd[0], self.config)
+        self.logger.debug('Created SMTPSession')
         success = sess.getincomingmail()
+        self.logger.debug('after incomingmail')
         if not success:
             self.logger.error('incoming smtp transfer did not finish')
+            #sess.closeconn()
             return
         sess.endsession(250, "OK - queued as 1337 ")
 
@@ -69,9 +75,16 @@ class DummySMTPServer(object):
         self.suspect = Suspect(fromaddr, recipients, self.tempfilename)
 
     def shutdown(self):
-        try:
-            self._socket.shutdown(1)
-            self._socket.close()
-        except:
-            pass
-        self.logger.info('Dummy smtp server on port %s shut down' % self.port)
+        if self._socket:
+            try:
+                self._socket.shutdown(1)
+            except Exception as e:
+                pass
+            try:
+                self._socket.close()
+            except Exception as e:
+                pass
+            self._socket = None
+            self.logger.info('Dummy smtp server on port %s shut down' % self.port)
+        else:
+            self.logger.info('Dummy smtp server on port %s is ALREADY shut down' % self.port)
