@@ -1,5 +1,7 @@
 .idea
 .sonar
+.pydevproject
+.project
 
 # ignore ctags file
 tags
