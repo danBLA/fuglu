@@ -227,8 +227,8 @@ Don't där yü tschänsch äny of mai baits or iwen remüv ön!"""
         msg["Subject"] = "End to End Test"
         msgstring = msg.as_string()
         inbytes = len(msg.get_payload(decode=True))
-        smtpclient.sendmail(force_bString(u'sänder@fuglu.org'),
-                            [force_bString(u'röcipient@fuglu.org'), force_bString(u'récipiènt2@fuglu.org')],
+        smtpclient.sendmail(u'sänder@fuglu.org',
+                            [u'röcipient@fuglu.org', u'récipiènt2@fuglu.org'],
                             force_bString(msgstring), mail_options=["SMTPUTF8"])
         smtpclient.quit()
 

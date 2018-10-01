@@ -88,8 +88,8 @@ class SMTPHandler(ProtocolHandler):
             client.helo(helo)
 
         # for sending, make sure the string to sent is byte string
-        client.sendmail(force_bString(suspect.from_address),
-                        [force_bString(sus) for sus in suspect.recipients],
+        client.sendmail(suspect.from_address,
+                        suspect.recipients,
                         force_bString(msgcontent),
                         mail_options=mail_options)
         # if we did not get an exception so far, we can grab the server answer using the patched client
