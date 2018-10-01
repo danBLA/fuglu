@@ -293,10 +293,11 @@ class SessionHandler(TrackTimings):
 
                 except KeyboardInterrupt:
                     sys.exit()
-                except Exception:
+                except Exception as e:
                     message_is_deferred = True
                     trb = traceback.format_exc()
                     self.logger.error("Could not commit message. Error: %s" % trb)
+                    self.logger.exception(e)
                     self._defer()
 
             elif result == DELETE:
