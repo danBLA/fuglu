@@ -1,11 +1,28 @@
+# fuglu/
+__pycache__/
+*.py[cod]
+## package
+dist/
+build/
+fuglu-docker-build/
+MANIFEST
+
+# fpm/
+.gems/
+*.deb
+*.rpm
+
+# documentation
+_build/
+
+# Misc
 .idea
 .sonar
-
-# ignore ctags file
-tags
-
-# virtual environments
+.pydevproject
+.project
+*~
 venv
-
-# Apple Desktop Services Store
 .DS_Store
+
+## ignore ctags file
+tags
