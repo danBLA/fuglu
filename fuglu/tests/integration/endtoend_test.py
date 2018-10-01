@@ -100,18 +100,21 @@ class EndtoEndTestTestCase(unittest.TestCase):
         # start listening smtp dummy server to get fuglus answer
         self.smtp = DummySMTPServer(
             self.config, EndtoEndTestTestCase.DUMMY_PORT, EndtoEndTestTestCase.FUGLU_HOST)
-        e2edss = threading.Thread(target = self.smtp.serve, args = ())
-        e2edss.daemon = True
-        e2edss.start()
+        self.e2edss = threading.Thread(target = self.smtp.serve, args = ())
+        self.e2edss.daemon = True
+        self.e2edss.start()
 
         # start fuglu's listening server
-        fls = threading.Thread(target = self.mc.startup, args = ())
-        fls.daemon = True
-        fls.start()
+        self.fls = threading.Thread(target = self.mc.startup, args = ())
+        self.fls.daemon = True
+        self.fls.start()
 
     def tearDown(self):
         self.mc.shutdown()
         self.smtp.shutdown()
+
+        self.e2edss.join()
+        self.fls.join()
 
     def testE2E(self):
         """test if a standard message runs through"""
@@ -178,18 +181,20 @@ class EndtoEndBaseTestCase(unittest.TestCase):
         # start listening smtp dummy server to get fuglus answer
         self.smtp = DummySMTPServer(
             self.config, EndtoEndBaseTestCase.DUMMY_PORT, EndtoEndBaseTestCase.FUGLU_HOST)
-        e2edss = threading.Thread(target = self.smtp.serve, args = ())
-        e2edss.daemon = True
-        e2edss.start()
+        self.e2edss = threading.Thread(target = self.smtp.serve, args = ())
+        self.e2edss.daemon = True
+        self.e2edss.start()
 
         # start fuglu's listening server
-        fls = threading.Thread(target = self.mc.startup, args = ())
-        fls.daemon = True
-        fls.start()
+        self.fls = threading.Thread(target = self.mc.startup, args = ())
+        self.fls.daemon = True
+        self.fls.start()
 
     def tearDown(self):
         self.mc.shutdown()
         self.smtp.shutdown()
+        self.e2edss.join()
+        self.fls.join()
 
     def test_SMTPUTF8_E2E(self):
         """test if a UTF-8 message runs through"""
