@@ -7,6 +7,11 @@ build/
 fuglu-docker-build/
 MANIFEST
 
+# fpm/
+.gems/
+*.deb
+*.rpm
+
 # Misc
 .idea
 .sonar
