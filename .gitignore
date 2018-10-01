@@ -12,6 +12,9 @@ MANIFEST
 *.deb
 *.rpm
 
+# documentation
+_build/
+
 # Misc
 .idea
 .sonar
