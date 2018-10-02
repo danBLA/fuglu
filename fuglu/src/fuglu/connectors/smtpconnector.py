@@ -19,11 +19,12 @@ import socket
 import tempfile
 import os
 import re
+import sys
 
 from fuglu.shared import Suspect, apply_template
 from fuglu.protocolbase import ProtocolHandler, BasicTCPServer
 from email.header import Header
-from fuglu.stringencode import force_bString, force_uString
+from fuglu.stringencode import force_bString, force_uString, sendmail_address
 
 
 def buildmsgsource(suspect):
@@ -60,6 +61,7 @@ class SMTPHandler(ProtocolHandler):
         except Exception:
             self._att_mgr_cachesize = None
 
+
     def re_inject(self, suspect):
         """Send message back to postfix"""
         if suspect.get_tag('noreinject'):
@@ -78,10 +80,19 @@ class SMTPHandler(ProtocolHandler):
         helo = self.config.get('main', 'outgoinghelo')
         if helo.strip() == '':
             helo = socket.gethostname()
-        client.helo(helo)
+
+        # if there are SMTP options (SMTPUTF8, ...) then use ehlo
+        mail_options = list(suspect.smtp_options)
+        if mail_options:
+            client.ehlo(helo)
+        else:
+            client.helo(helo)
 
         # for sending, make sure the string to sent is byte string
-        client.sendmail(suspect.from_address, suspect.recipients, force_bString(msgcontent))
+        client.sendmail(sendmail_address(suspect.from_address),
+                        sendmail_address(suspect.recipients),
+                        force_bString(msgcontent),
+                        mail_options=mail_options)
         # if we did not get an exception so far, we can grab the server answer using the patched client
         # servercode=client.lastservercode
         serveranswer = client.lastserveranswer
@@ -106,7 +117,8 @@ class SMTPHandler(ProtocolHandler):
         tempfilename = sess.tempfilename
 
         try:
-            suspect = Suspect(fromaddr, sess.recipients, tempfilename, att_cachelimit=self._att_mgr_cachesize)
+            suspect = Suspect(fromaddr, sess.recipients, tempfilename,
+                              att_cachelimit=self._att_mgr_cachesize, smtp_options=sess.smtpoptions)
         except ValueError as e:
             if len(sess.recipients) > 0:
                 toaddr = sess.recipients[0]
@@ -163,7 +175,8 @@ class SMTPSession(object):
     ST_RCPT = 3
     ST_DATA = 4
     ST_QUIT = 5
-
+    
+    
     def __init__(self, socket, config):
         self.config = config
         self.from_address = None
@@ -176,7 +189,13 @@ class SMTPSession(object):
         self.logger = logging.getLogger("fuglu.smtpsession")
         self.tempfilename = None
         self.tempfile = None
+        self.smtpoptions = set()
+        if (3,) <= sys.version_info < (3, 5):
+            self.ehlo_options = ["8BITMIME"]
+        else:
+            self.ehlo_options = ["SMTPUTF8", "8BITMIME"]
 
+    
     def endsession(self, code, message):
         self.socket.send(force_bString("%s %s\r\n" % (code, message)))
 
@@ -201,7 +220,8 @@ class SMTPSession(object):
             else:
                 self.closeconn()
                 return
-
+    
+    
     def closeconn(self):
         try:
             self.socket.shutdown(socket.SHUT_RDWR)
@@ -209,11 +229,13 @@ class SMTPSession(object):
             pass
         finally:
             self.socket.close()
-
+    
+    
     def _close_tempfile(self):
         if self.tempfile and not self.tempfile.closed:
             self.tempfile.close()
-
+    
+    
     def getincomingmail(self):
         """return true if mail got in, false on error Session will be kept open"""
         self.socket.send(force_bString("220 fuglu scanner ready \r\n"))
@@ -263,16 +285,29 @@ class SMTPSession(object):
                 else:
                     # EOF
                     return False
-
+    
+    
     def doCommand(self, data):
         """Process a single SMTP Command"""
         cmd = data[0:4]
         cmd = cmd.upper()
         keep = 1
-        rv = None
+        rv = "250 OK"
         if cmd == "HELO":
             self.state = SMTPSession.ST_HELO
             self.helo = data
+            self.ehlo_options = []
+        elif cmd == 'EHLO':
+            self.state = SMTPSession.ST_HELO
+            self.helo = data
+            helo = self.config.get('main', 'outgoinghelo')
+            if helo.strip() == '':
+                helo = socket.gethostname()
+            if len(self.ehlo_options) > 0:
+                answer = [helo] + self.ehlo_options
+                rv = "250-"+"250-".join(a+"\n" for a in answer[:-1])+"250 %s" % answer[-1]
+            else:
+                rv = '250 %s' % helo
         elif cmd == "RSET":
             self.from_address = None
             self.recipients = []
@@ -307,16 +342,13 @@ class SMTPSession(object):
             except Exception as e:
                 self.endsession(421, "could not create file: %s" % str(e))
                 self._close_tempfile()
-
             return "354 OK, Enter data, terminated with a \\r\\n.\\r\\n", 1
         else:
-            return "505 Eh? WTF was that?", 1
+            return "505 Bad SMTP command", 1
 
-        if rv:
-            return rv, keep
-        else:
-            return "250 OK", keep
-
+        return rv, keep
+    
+    
     def doData(self, data):
         """Store data in temporary file
 
@@ -344,16 +376,19 @@ class SMTPSession(object):
         else:
             self.tempfile.write(data)
             return None
-
+    
+    
     def unquoteData(self, data):
         """two leading dots at the beginning of a line must be unquoted to a single dot"""
         return re.sub(b'(?m)^\.\.', b'.', force_bString(data))
-
+    
+    
     def stripAddress(self, address):
         """
         Strip the leading & trailing <> from an address.  Handy for
         getting FROM: addresses.
         """
+        address = force_uString(address)
         start = address.find('<') + 1
         if start < 1:
             start = address.find(':') + 1
@@ -364,4 +399,23 @@ class SMTPSession(object):
             end = len(address)
         retaddr = address[start:end]
         retaddr = retaddr.strip()
+
+        remaining = u""
+        if end+1 < len(address):
+            remaining = address[end+1:]
+            remaining = remaining.strip()
+        if remaining:
+            remaining = remaining.upper()
+            self.logger.debug("stripAddress has remaining part, addr: %s, remaining: %s" %
+                              (retaddr, remaining))
+            if "SMTPUTF8" in remaining:
+                self.logger.debug("Address requires SMTPUTF8 support")
+                if "SMTPUTF8" not in self.ehlo_options:
+                    raise ValueError("SMTPUTF8 support was not proposed")
+                self.smtpoptions.add("SMTPUTF8")
+            if "8BITMIME" in remaining:
+                if "8BITMIME" not in self.ehlo_options:
+                    raise ValueError("8BITMIME support was not proposed")
+                self.logger.debug("mail contains 8bit-MIME")
+                self.smtpoptions.add("8BITMIME")
         return retaddr

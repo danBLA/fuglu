@@ -11,6 +11,7 @@ CONFDIR = os.path.abspath(CODEDIR + '/../conf')
 sys.path.insert(0, CODEDIR)
 
 from fuglu.connectors.smtpconnector import SMTPSession
+from fuglu.stringencode import force_uString
 
 
 def guess_clamav_socket(config):
@@ -44,32 +45,46 @@ class DummySMTPServer(object):
         self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self._socket.bind((address, port))
         self._socket.listen(1)
+        self.logger.debug('listen at: %s, %s' % (address, port))
         self.suspect = None
 
     def serve(self):
         from fuglu.shared import Suspect
+        self.logger.debug('Waiting for accept connection')
         nsd = self._socket.accept()
+        self.logger.debug('Accepted connection')
 
         sess = SMTPSession(nsd[0], self.config)
+        self.logger.debug('Created SMTPSession')
         success = sess.getincomingmail()
+        self.logger.debug('after incomingmail')
         if not success:
             self.logger.error('incoming smtp transfer did not finish')
+            #sess.closeconn()
             return
         sess.endsession(250, "OK - queued as 1337 ")
 
         fromaddr = sess.from_address
 
-        recipients = sess.recipients
+        recipients = [force_uString(rec) for rec in sess.recipients]
         self.tempfilename = sess.tempfilename
         self.logger.debug("Message from %s to %s stored to %s" %
-                          (fromaddr, recipients, self.tempfilename))
+                          (fromaddr, "["+", ".join(recipients)+"]" if len(recipients) > 1 else recipients[0],
+                           self.tempfilename))
 
         self.suspect = Suspect(fromaddr, recipients, self.tempfilename)
 
     def shutdown(self):
-        try:
-            self._socket.shutdown(1)
-            self._socket.close()
-        except:
-            pass
-        self.logger.info('Dummy smtp server on port %s shut down' % self.port)
+        if self._socket:
+            try:
+                self._socket.shutdown(1)
+            except Exception as e:
+                pass
+            try:
+                self._socket.close()
+            except Exception as e:
+                pass
+            self._socket = None
+            self.logger.info('Dummy smtp server on port %s shut down' % self.port)
+        else:
+            self.logger.info('Dummy smtp server on port %s is ALREADY shut down' % self.port)
