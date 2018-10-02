@@ -23,6 +23,7 @@ import email
 import sys
 import logging
 import weakref
+import hashlib
 from fuglu.extensions.filearchives import Archivehandle
 from fuglu.extensions.filetype import filetype_handler
 from fuglu.caching import smart_cached_property, smart_cached_memberfunc, Cachelimits
@@ -45,6 +46,10 @@ class Mailattachment(Cachelimits):
     """
     objectCounter = 0
 
+    checksummethods = {"md5": lambda x: hashlib.md5(x).hexdigest(),
+                       "sha1": lambda x: hashlib.sha1(x).hexdigest()
+                       }
+
     def __init__(self, buffer, filename, mgr, filesize=None, in_obj=None, contenttype_mime=None, maintype_mime=None,
                  subtype_mime=None, ismultipart_mime=None, content_charset_mime=None):
         """
@@ -66,6 +71,10 @@ class Mailattachment(Cachelimits):
         self.filesize = filesize
         self.buffer = buffer
         self._buffer_archobj = {}
+
+        myclass = self.__class__.__name__
+        loggername = "fuglu.%s" % myclass
+        self.logger = logging.getLogger(loggername)
 
         # use weak reference to avoid cyclic dependency
         self.in_obj = weakref.ref(in_obj) if in_obj is not None else None
@@ -184,6 +193,42 @@ class Mailattachment(Cachelimits):
                 pass
 
         return force_uString("")
+
+    @smart_cached_memberfunc(inputs=['buffer'])
+    def get_checksum(self, method):
+        """
+        Calculate attachment checksum.
+
+        Args:
+            method (string): Checksum method.
+
+        Returns:
+            str: checksum
+
+        """
+        csum = ""
+        try:
+            csum = Mailattachment.checksummethods[method](self.buffer)
+        except KeyError:
+            self.logger.error("checksum method %s not valid! Options are [%s]"
+                              % (method, ",".join(list(Mailattachment.checksummethods.keys()))))
+        return csum
+
+    @smart_cached_memberfunc(inputs=['buffer'])
+    def get_checksumdict(self, methods=()):
+        """Create a dict for all checksum methods given (or all possible if none)"""
+
+        # select methods, all if none is given
+        if not methods:
+            mlist = list(Mailattachment.checksummethods.keys())
+        else:
+            mlist = list(methods)
+
+        # create checksums
+        checksumdict = {}
+        for m in mlist:
+            checksumdict[m] = self.get_checksum(m)
+        return checksumdict
 
     @smart_cached_property(inputs=['buffer'])
     def contenttype(self):
@@ -556,7 +601,7 @@ class Mailattachment_mgr(object):
 
         myclass = self.__class__.__name__
         loggername = "fuglu.%s" % myclass
-        self._logger = logging.getLogger(loggername)
+        self.logger = logging.getLogger(loggername)
 
         try:
             # Python 2

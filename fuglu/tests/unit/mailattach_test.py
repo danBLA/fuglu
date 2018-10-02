@@ -6,6 +6,7 @@ from os.path import join
 from fuglu.mailattach import Mailattachment_mgr, Mailattachment
 from fuglu.shared import Suspect
 from unittestsetup import TESTDATADIR
+import hashlib
 
 class Mailattachment_mgr_test(unittest.TestCase):
     def test_manager(self):
@@ -70,7 +71,7 @@ class Mailattachment_mgr_test(unittest.TestCase):
 
 class MailAttachmentTest(unittest.TestCase):
     def setUp(self):
-        buffer                 = None
+        buffer                 = b""
         filename               = None
         mgr                    = None
         filesize               = None
@@ -161,6 +162,23 @@ class MailAttachmentTest(unittest.TestCase):
         self.assertTrue(mAtt.content_fname_check(contenttype_contains=["multi-part","multipart"]))
         self.assertTrue(mAtt.content_fname_check(contenttype_contains=("multi-part","multipart")))
         self.assertFalse(mAtt.content_fname_check(contenttype_contains=("multi-part","multipart-alternative")))
+
+    def test_checksum(self):
+        """Base test for attachment checksums"""
+
+        md5 = hashlib.md5(self.mAtt.buffer).hexdigest()
+        sha1 = hashlib.sha1(self.mAtt.buffer).hexdigest()
+
+        expected = {'sha1': sha1, 'md5': md5}
+
+        # get sha1 - checksum
+        self.assertEqual(expected["sha1"], self.mAtt.get_checksum("sha1"))
+        # get md5 - checksum
+        self.assertEqual(expected["md5"], self.mAtt.get_checksum("md5"))
+        # get full dict
+        self.assertEqual(expected, self.mAtt.get_checksumdict())
+        # get dict with subset
+        self.assertEqual({"md5": expected["md5"]}, self.mAtt.get_checksumdict(methods=("md5",)))
 
 
 class SuspectTest(unittest.TestCase):
