@@ -4,7 +4,7 @@ import sys
 import email
 from os.path import join
 from fuglu.mailattach import Mailattachment_mgr, Mailattachment
-from fuglu.shared import Suspect
+from fuglu.shared import Suspect, create_filehash_md5, create_filehash_sha1
 from unittestsetup import TESTDATADIR
 import hashlib
 
@@ -72,11 +72,10 @@ class MailattachmentMgrTest(unittest.TestCase):
 class MailAttachmentTest(unittest.TestCase):
     def setUp(self):
         buffer = b""
-        filename = ""
+        filename = "test.txt"
         mgr = None
-        filesize = 0
 
-        self.mailattach = Mailattachment(buffer, filename, mgr, filesize=filesize)
+        self.mailattach = Mailattachment(buffer, filename, mgr)
 
     def test_fname_contains_check(self):
         """Test all the options to check filename"""
@@ -157,19 +156,19 @@ class MailAttachmentTest(unittest.TestCase):
     def test_checksum(self):
         """Base test for attachment checksums"""
 
-        md5 = hashlib.md5(self.mAtt.buffer).hexdigest()
-        sha1 = hashlib.sha1(self.mAtt.buffer).hexdigest()
+        md5 = hashlib.md5(self.mailattach.buffer).hexdigest()
+        sha1 = hashlib.sha1(self.mailattach.buffer).hexdigest()
 
         expected = {'sha1': sha1, 'md5': md5}
 
         # get sha1 - checksum
-        self.assertEqual(expected["sha1"], self.mAtt.get_checksum("sha1"))
+        self.assertEqual(expected["sha1"], self.mailattach.get_checksum("sha1"))
         # get md5 - checksum
-        self.assertEqual(expected["md5"], self.mAtt.get_checksum("md5"))
+        self.assertEqual(expected["md5"], self.mailattach.get_checksum("md5"))
         # get full dict
-        self.assertEqual(expected, self.mAtt.get_checksumdict())
+        self.assertEqual(expected, self.mailattach.get_checksumdict())
         # get dict with subset
-        self.assertEqual({"md5": expected["md5"]}, self.mAtt.get_checksumdict(methods=("md5",)))
+        self.assertEqual({"md5": expected["md5"]}, self.mailattach.get_checksumdict(methods=("md5",)))
 
 
 class SuspectTest(unittest.TestCase):
@@ -203,7 +202,7 @@ class SuspectTest(unittest.TestCase):
             print(att)
             self.assertEqual(afname, att.filename)
 
-    def testSuspectintegration_gz(self):
+    def test_suspectintegration_gz(self):
         """Test the integration of the manager with Suspect"""
 
         tempfile = join(TESTDATADIR, "attachment_exclamation_marks_points.eml")
@@ -232,7 +231,7 @@ class SuspectTest(unittest.TestCase):
             print(att)
             self.assertEqual(afname, att.filename)
 
-    def test_cachingLimitBelow(self):
+    def test_cachinglimitbelow(self):
         """Caching limit below attachment size"""
         cachinglimit = 100
         print("\n==============================")
@@ -336,7 +335,7 @@ class SuspectTest(unittest.TestCase):
         self.assertEqual(4, suspect.att_mgr._mailatt_obj_counter,
                          "Object was not cached, it should be created again")
 
-    def test_cachingLimit_none(self):
+    def test_cachinglimit_none(self):
         """No caching limit"""
         print("\n====================")
         print("= No caching limit =")
@@ -382,3 +381,63 @@ class SuspectTest(unittest.TestCase):
         print(",".join(obj.filename for obj in suspect.att_mgr.get_objectlist(level=None)))
         self.assertEqual(3, suspect.att_mgr._mailatt_obj_counter,
                          "Object was cached, it should not be created again")
+
+    def test_suspectintegration_checksum(self):
+        """Test the integration of the manager with Suspect for attachment checksums"""
+
+        tempfile = join(TESTDATADIR, "nestedarchive.eml")
+
+        suspect = Suspect('sender@unittests.fuglu.org',
+                          'recipient@unittests.fuglu.org', tempfile)
+
+        m_attach_mgr = suspect.att_mgr
+
+        # ------------------ #
+        # Direkt attachments #
+        # ------------------ #
+
+        # check nestedarchive.tar.gz -> so first make sure it has been found
+        try:
+            self.assertIn("nestedarchive.tar.gz", m_attach_mgr.get_fileslist())
+        except AttributeError:
+            # Python 2.6
+            self.assertTrue("nestedarchive.tar.gz" in m_attach_mgr.get_fileslist())
+
+
+        # manually create md5/sha1 checksums
+        filearchive = join(TESTDATADIR, "nestedarchive.tar.gz")
+        md5 = create_filehash_md5([filearchive], ashexstr=True)[0][1]
+        sha1 = create_filehash_sha1([filearchive], ashexstr=True)[0][1]
+
+        print("md5: %s" % md5)
+        print("sha1: %s" % sha1)
+
+        checksums = m_attach_mgr.get_fileslist_checksum()
+        for file, cdict in checksums:
+            print("Filename: %s, checksums: %s" % (file, cdict))
+            if file == "nestedarchive.tar.gz":
+                self.assertEqual(md5, cdict["md5"])
+                self.assertEqual(sha1, cdict["sha1"])
+
+        # ----------------- #
+        # extract all files #
+        # ----------------- #
+
+        filearchive = join(TESTDATADIR, "level6.txt")
+        # check level6.txt -> so first make sure it has been found
+        try:
+            self.assertIn("level6.txt", m_attach_mgr.get_fileslist(level=None))
+        except AttributeError:
+            # Python 2.6
+            self.assertTrue("level6.txt" in m_attach_mgr.get_fileslist())
+
+        md5 = create_filehash_md5([filearchive], ashexstr=True)[0][1]
+        sha1 = create_filehash_sha1([filearchive], ashexstr=True)[0][1]
+
+        # now get all checksums for all extracted files
+        checksums = m_attach_mgr.get_fileslist_checksum(level=None)
+        for file, cdict in checksums:
+            print("Filename: %s, checksums: %s" % (file, cdict))
+            if file == "level6.txt":
+                self.assertEqual(md5, cdict["md5"])
+                self.assertEqual(sha1, cdict["sha1"])
