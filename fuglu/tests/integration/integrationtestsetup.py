@@ -34,7 +34,7 @@ class DummySMTPServer(object):
 
     """one-time smtp server to test re-injects"""
 
-    def __init__(self, config, port=11026, address="127.0.0.1"):
+    def __init__(self, config, port=11026, address="127.0.0.1", stayalive=False):
         self.logger = logging.getLogger("dummy.smtpserver")
         self.logger.debug('Starting dummy SMTP Server on Port %s' % port)
         self.port = port
@@ -47,32 +47,39 @@ class DummySMTPServer(object):
         self._socket.listen(1)
         self.logger.debug('listen at: %s, %s' % (address, port))
         self.suspect = None
+        self.stayalive = stayalive
 
     def serve(self):
         from fuglu.shared import Suspect
-        self.logger.debug('Waiting for accept connection')
-        nsd = self._socket.accept()
-        self.logger.debug('Accepted connection')
 
-        sess = SMTPSession(nsd[0], self.config)
-        self.logger.debug('Created SMTPSession')
-        success = sess.getincomingmail()
-        self.logger.debug('after incomingmail')
-        if not success:
-            self.logger.error('incoming smtp transfer did not finish')
-            #sess.closeconn()
-            return
-        sess.endsession(250, "OK - queued as 1337 ")
+        while (self.suspect is None) or self.stayalive:
+            self.logger.debug('Waiting for accept connection')
+            nsd = self._socket.accept()
+            self.logger.debug('Accepted connection (Suspect is None: %s, stayalive: %s)' %
+                              ((self.suspect is None), self.stayalive))
 
-        fromaddr = sess.from_address
+            sess = SMTPSession(nsd[0], self.config)
+            self.logger.debug('Created SMTPSession')
+            success = sess.getincomingmail()
+            self.logger.debug('after incomingmail')
+            if not success:
+                self.logger.error('incoming smtp transfer did not finish')
+                #sess.closeconn()
+                return
+            sess.endsession(250, "OK - queued as 1337 ")
 
-        recipients = [force_uString(rec) for rec in sess.recipients]
-        self.tempfilename = sess.tempfilename
-        self.logger.debug("Message from %s to %s stored to %s" %
-                          (fromaddr, "["+", ".join(recipients)+"]" if len(recipients) > 1 else recipients[0],
-                           self.tempfilename))
+            fromaddr = sess.from_address
 
-        self.suspect = Suspect(fromaddr, recipients, self.tempfilename)
+            recipients = [force_uString(rec) for rec in sess.recipients]
+            self.tempfilename = sess.tempfilename
+            self.logger.debug("Message from %s to %s stored to %s" %
+                              (fromaddr, "["+", ".join(recipients)+"]" if len(recipients) > 1 else recipients[0],
+                               self.tempfilename))
+
+            if self.stayalive or (self.suspect is None):
+                self.suspect = Suspect(fromaddr, recipients, self.tempfilename)
+        self.logger.debug('Exit server loop (Suspect is None: %s, stayalive: %s)' %
+                          ((self.suspect is None), self.stayalive))
 
     def shutdown(self):
         if self._socket:

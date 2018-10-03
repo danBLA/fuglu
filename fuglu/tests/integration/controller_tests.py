@@ -12,7 +12,10 @@ except ImportError:
 import logging
 import sys
 import time
+import smtplib
+import threading
 from fuglu.core import MainController
+from email.mime.text import MIMEText
 
 def setup_module():
     root = logging.getLogger()
@@ -144,3 +147,147 @@ class MultipleMCsTest(unittest.TestCase):
 
         for mc in mclist:
             mc.shutdown()
+
+class ReloadUnderLoadTest(unittest.TestCase):
+    """Reload backend under load"""
+
+    """Full check if mail runs through but no plugins applied"""
+
+    FUGLU_HOST = "127.0.0.1"
+    FUGLU_PORT = 7841
+    DUMMY_PORT = 7842
+    FUGLUCONTROL_PORT = 7843
+
+    def setUp(self):
+        self.config = RawConfigParser()
+        self.config.read([TESTDATADIR + '/endtoendbasetest.conf'])
+        # ------------ #
+        # config: main #
+        # ------------ #
+        self.config.set(
+            'main', 'incomingport', str(ReloadUnderLoadTest.FUGLU_PORT))
+        self.config.set(
+            'main', 'outgoinghost', str(ReloadUnderLoadTest.FUGLU_HOST))
+        self.config.set(
+            'main', 'outgoingport', str(ReloadUnderLoadTest.DUMMY_PORT))
+        self.config.set(
+            'main', 'controlport', str(ReloadUnderLoadTest.FUGLUCONTROL_PORT))
+
+        # ------------------- #
+        # config: performance #
+        # ------------------- #
+        # minimum scanner threads
+        self.config.set('performance', 'minthreads', 1)
+        # maximum scanner threads
+        self.config.set('performance', 'maxthreads', 1)
+        # Method for parallelism, either 'thread' or 'process'
+        self.config.set('performance', 'backend', 'process')
+        # Initial number of processes when backend='process'.
+        # If 0 (the default), automatically selects twice the number of available virtual cores.
+        # Despite its 'initial'-name, this number currently is not adapted automatically.
+        self.config.set('performance', 'initialprocs', 1)
+
+        self.config.set('main', 'plugins', 'fuglu.plugins.attachment.FiletypePlugin,fuglu.plugins.delay.DelayPlugin')
+
+        # -------------------- #
+        # config: delay plugin #
+        # -------------------- #
+        self.config.add_section("DelayPlugin")
+        # the delay created by this plugn
+        self.config.set("DelayPlugin", 'delay', 5)
+        self.config.set("DelayPlugin", 'logfrequency', 0.5)
+
+        # -------------- #
+        # MainController #
+        # -------------- #
+        # init core
+        self.mc = MainController(self.config)
+
+        # ----------------- #
+        # Dummy SMTP Server #
+        # ----------------- #
+        # start listening smtp dummy server to get fuglus answer
+        self.dsmtp = DummySMTPServer(
+            self.config, ReloadUnderLoadTest.DUMMY_PORT, ReloadUnderLoadTest.FUGLU_HOST, stayalive=True)
+        self.thread_dsmtp = threading.Thread(target=self.dsmtp.serve, args=())
+        self.thread_dsmtp.daemon = True
+        self.thread_dsmtp.start()
+
+        # --
+        # start fuglu's listening server (MainController.startup)
+        # --
+        self.thread_fls = threading.Thread(target=self.mc.startup, args=())
+        self.thread_fls.daemon = True
+        self.thread_fls.start()
+
+        # ----------------- #
+        # Mailbomber thread #
+        # ----------------- #
+        self.thread_bomber = None
+
+    def tearDown(self):
+        logger = logging.getLogger("tearDown")
+
+
+
+        logger.debug("Join Dummy SMTP Thread (dsmtp)")
+        self.thread_dsmtp.join()
+        logger.debug("dsmtp joined")
+
+        logger.debug("Shutdown Dummy SMTP Server")
+        self.dsmtp.shutdown()
+
+        logger.debug("Shutdown Fuglu MainController")
+        self.mc.shutdown()
+
+        logger.debug("Join Fuglu MainController Thread (fls)")
+        self.thread_fls.join()
+        logger.debug("fls joined")
+
+    def create_and_send_message(self):
+        logger = logging.getLogger("create_and_send_message")
+
+        logger.debug("create client, connect to: %s:%u" %
+                     (ReloadUnderLoadTest.FUGLU_HOST, ReloadUnderLoadTest.FUGLU_PORT))
+        smtpclient = smtplib.SMTP(ReloadUnderLoadTest.FUGLU_HOST, ReloadUnderLoadTest.FUGLU_PORT)
+
+        logger.debug("say helo...")
+        smtpclient.helo('test.e2e')
+
+        testmessage = """Hello World!"""
+
+        msg = MIMEText(testmessage)
+        msg["Subject"] = "End to End Test"
+        msgstring = msg.as_string()
+        logger.debug("send mail")
+        smtpclient.sendmail(
+            'sender@fuglu.org', 'recipient@fuglu.org', msgstring)
+        smtpclient.quit()
+
+    def test_reloadwhilebusy(self):
+        # give fuglu time to start listener
+        logger = logging.getLogger("test_reloadwhilebusy")
+        logger.debug("wait")
+        time.sleep(1)
+
+        # send test message
+        messages = []
+        for imessage in range(1):
+            t = threading.Thread(target=self.create_and_send_message, args=())
+            t.daemon = True
+            t.start()
+            messages.append(t)
+        time.sleep(2)
+        logger.debug("\n--------------------------\nRELOAD - RELOAD - RELOAD\n--------------------------\n")
+        self.mc.reload()
+        for t in messages:
+            t.join()
+
+        logger.debug("set DummySMTPServer.stayalive = False")
+        self.dsmtp.stayalive = False
+        # just connect and close to shutdown also the dummy SMTP server
+        logger.debug("Make dummy connection")
+        dsmtpclient = smtplib.SMTP(ReloadUnderLoadTest.FUGLU_HOST, ReloadUnderLoadTest.DUMMY_PORT)
+        logger.debug("Close")
+        dsmtpclient.close()
+        logger.debug("End")
