@@ -15,6 +15,7 @@
 #
 #
 #
+import hashlib
 import logging
 import os
 import sys
@@ -1704,3 +1705,67 @@ def get_default_cache():
     Function to get processor unique Cache Singleton
     """
     return CacheSingleton()
+
+
+def hash_bytestr_iter(bytesiter, hasher, ashexstr=False):
+    """
+    Create hash using a iterator.
+    Args:
+        bytesiter (iterator): iterator for blocks of bytes, for example created by "file_as_blockiter"
+        hasher (): a hasher, for example hashlib.md5
+        ashexstr (bool): Creates hex hash if true
+
+    Returns:
+
+    """
+    for block in bytesiter:
+        hasher.update(block)
+    return hasher.hexdigest() if ashexstr else hasher.digest()
+
+
+def file_as_blockiter(afile, blocksize=65536):
+    """
+    Helper for hasher functions, to be able to iterate over a file
+    in blocks of given size
+
+    Args:
+        afile (BytesIO): file buffer
+        blocksize (int): block size in bytes
+
+    Returns:
+        iterator
+
+    """
+    with afile:
+        block = afile.read(blocksize)
+        while len(block) > 0:
+            yield block
+            block = afile.read(blocksize)
+
+
+def create_filehash_md5(fnamelst, ashexstr=False):
+    """
+    Create list of md5 hashes for all files in list
+    Args:
+        fnamelst (list): list containing filenames
+        ashexstr (bool): create hex string if true
+
+    Returns:
+        list[(str,hash)]: List of tuples with filename and hashes
+    """
+    return [(fname, hash_bytestr_iter(file_as_blockiter(open(fname, 'rb')), hashlib.md5(), ashexstr=ashexstr))
+            for fname in fnamelst]
+
+
+def create_filehash_sha1(fnamelst, ashexstr=False):
+    """
+    Create list of sha1 hashes for all files in list
+    Args:
+        fnamelst (list): list containing filenames
+        ashexstr (bool): create hex string if true
+
+    Returns:
+        list[(str,hash)]: List of tuples with filename and hashes
+    """
+    return [(fname, hash_bytestr_iter(file_as_blockiter(open(fname, 'rb')), hashlib.sha1(), ashexstr=ashexstr))
+            for fname in fnamelst]
