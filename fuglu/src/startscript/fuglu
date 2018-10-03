@@ -34,7 +34,7 @@ from fuglu import loghandlers
 import sys
 from fuglu.core import MainController, EXIT_NOTSET, EXIT_EXCEPTION, EXIT_LOGTERMERROR
 from fuglu.addrcheck import Addrcheck
-from fuglu.shared import create_filehash_md5
+from fuglu.shared import create_filehash
 import signal
 import os
 import optparse
@@ -151,13 +151,13 @@ def getConfigFileUpdatesDict(configfilename,dconfigFileDir):
         filelist = os.listdir(dconfigFileDir)
         configfiles.extend([dconfigFileDir + '/' + c for c in filelist if c.endswith('.conf')])
 
-    hashlist = create_filehash_md5(configfiles)
+    hashlist = create_filehash(configfiles, "md5")
     configFileUpdates = dict(zip(configfiles, hashlist))
     return configFileUpdates
 
 def getLogConfigFileUpdatesDict(logConfFile):
     logConfigFileUpdates = {}
-    logConfigFileUpdates[logConfFile] = create_filehash_md5([logConfFile])[0]
+    logConfigFileUpdates[logConfFile] = create_filehash([logConfFile], "md5")[0]
     return logConfigFileUpdates
 
 

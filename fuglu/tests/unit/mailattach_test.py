@@ -4,7 +4,7 @@ import sys
 import email
 from os.path import join
 from fuglu.mailattach import Mailattachment_mgr, Mailattachment
-from fuglu.shared import Suspect, create_filehash_md5, create_filehash_sha1
+from fuglu.shared import Suspect, create_filehash
 from unittestsetup import TESTDATADIR
 import hashlib
 
@@ -406,8 +406,8 @@ class SuspectTest(unittest.TestCase):
 
         # manually create md5/sha1 checksums
         filearchive = join(TESTDATADIR, "nestedarchive.tar.gz")
-        md5 = create_filehash_md5([filearchive], ashexstr=True)[0][1]
-        sha1 = create_filehash_sha1([filearchive], ashexstr=True)[0][1]
+        md5 = create_filehash([filearchive], "md5", ashexstr=True)[0][1]
+        sha1 = create_filehash([filearchive], "sha1", ashexstr=True)[0][1]
 
         print("md5: %s" % md5)
         print("sha1: %s" % sha1)
@@ -431,8 +431,8 @@ class SuspectTest(unittest.TestCase):
             # Python 2.6
             self.assertTrue("level6.txt" in m_attach_mgr.get_fileslist())
 
-        md5 = create_filehash_md5([filearchive], ashexstr=True)[0][1]
-        sha1 = create_filehash_sha1([filearchive], ashexstr=True)[0][1]
+        md5 = create_filehash([filearchive], "md5", ashexstr=True)[0][1]
+        sha1 = create_filehash([filearchive], "sha1", ashexstr=True)[0][1]
 
         # now get all checksums for all extracted files
         checksums = m_attach_mgr.get_fileslist_checksum(level=None)

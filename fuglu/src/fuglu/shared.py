@@ -1743,29 +1743,24 @@ def file_as_blockiter(afile, blocksize=65536):
             block = afile.read(blocksize)
 
 
-def create_filehash_md5(fnamelst, ashexstr=False):
+def create_filehash(fnamelst, hashtype, ashexstr=False):
     """
-    Create list of md5 hashes for all files in list
+    Create list of hashes for all files in list
     Args:
         fnamelst (list): list containing filenames
+        fnamelst (hashtype): hashtype
         ashexstr (bool): create hex string if true
+
+    Raises:
+        KeyError if hashtype is not implemented
 
     Returns:
         list[(str,hash)]: List of tuples with filename and hashes
     """
-    return [(fname, hash_bytestr_iter(file_as_blockiter(open(fname, 'rb')), hashlib.md5(), ashexstr=ashexstr))
+    available_hashers = {"md5": hashlib.md5,
+                         "sha1": hashlib.sha1}
+
+    return [(fname, hash_bytestr_iter(file_as_blockiter(open(fname, 'rb')),
+                                      available_hashers[hashtype](), ashexstr=ashexstr))
             for fname in fnamelst]
 
-
-def create_filehash_sha1(fnamelst, ashexstr=False):
-    """
-    Create list of sha1 hashes for all files in list
-    Args:
-        fnamelst (list): list containing filenames
-        ashexstr (bool): create hex string if true
-
-    Returns:
-        list[(str,hash)]: List of tuples with filename and hashes
-    """
-    return [(fname, hash_bytestr_iter(file_as_blockiter(open(fname, 'rb')), hashlib.sha1(), ashexstr=ashexstr))
-            for fname in fnamelst]
