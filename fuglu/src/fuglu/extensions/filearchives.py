@@ -779,10 +779,7 @@ class Archivehandle(object):
         for regex, atype in iter(ctypes2check.items()):
             if re.match(regex, content_type, re.I):
                 archive_type = atype
-                print("MATCH for regex: %s and ctype: %s which belongs to %s" % (regex,content_type,atype))
                 break
-            else:
-                print("no match for regex: %s and ctype: %s which belongs to %s" % (regex,content_type,atype))
 
         return archive_type
 
@@ -835,6 +832,5 @@ class Archivehandle(object):
 
         assert Archivehandle.impl(archive_type), "Archive type %s not in list of supported types: %s" % (archive_type, ",".join(Archivehandle.archive_impl.keys()))
         assert Archivehandle.avail(archive_type), "Archive type %s not in list of available types: %s" % (archive_type, ",".join(Archivehandle.avail_archives_list))
-        print("Return Archivehandle for archive type: %s"%archive_type)
         return Archivehandle.archive_impl[archive_type](filedescriptor,archivename)
 

@@ -54,11 +54,12 @@ class Mailattachment(Cachelimits):
                  subtype_mime=None, ismultipart_mime=None, content_charset_mime=None):
         """
         Constructor
+
         Args:
             buffer (bytes): buffer containing attachment source
             filename (str): filename of current attachment object
-            filesize (size): file size in bytes
-            mgr (Mailattachment_mgr): Mail attachment manager
+            filesize (int): file size in bytes
+            mgr (Mailattachment_mgr/None): Mail attachment manager
             in_obj (Mailattachment): "Father" Mailattachment object (if existing), the archive containing the current object
             contenttype_mime (str): The contenttype as defined in the mail attachment, only available for direct mail attachments
             maintype_mime (str): The main contenttype as defined in the mail attachment, only available for direct mail attachments
@@ -266,7 +267,6 @@ class Mailattachment(Cachelimits):
 
         # try guessing the archive type based on magic content type first
         archive_type = Archivehandle.archive_type_from_content_type(self.contenttype)
-        print("archive_type after checking content: %s"%str(archive_type))
 
         # if it didn't work, try to guess by the filename extension, if it is enabled
         if archive_type is None:
@@ -278,7 +278,6 @@ class Mailattachment(Cachelimits):
                     # store archive extension for internal use
                     self._arext = arext
                     break
-        print("archive_type after checking extension: %s"%str(archive_type))
         return archive_type
 
     @smart_cached_memberfunc(inputs=['archive_type'])
@@ -867,3 +866,22 @@ class Mailattachment_mgr(object):
             obj_list.extend(att_obj.get_objectlist(0,level,maxsize_extract))
         return obj_list
 
+    def get_fileslist_checksum(self, level=0, maxsize_extract=None, methods=()):
+        """
+        Get a list containg tuples (filanem, checksumdict) for all the extracted files up to a given extraction level
+
+        Keyword Args:
+            level (in): Level up to which archives are opened to get file list (default: 0 -> direct mail attachments)
+            methods (set): set containing the checksum methods requested
+
+        Returns:
+            list[(string, dict)]: list containing tuples (filename, checksumdict)
+        """
+        obj_list = []
+        for att_obj in self.get_mailatt_generator():
+            obj_list.extend(att_obj.get_objectlist(0,level,maxsize_extract))
+
+        checksumlist = []
+        for obj in obj_list:
+            checksumlist.append((obj.filename, obj.get_checksumdict(methods=methods)))
+        return checksumlist

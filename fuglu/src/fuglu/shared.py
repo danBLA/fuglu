@@ -15,6 +15,7 @@
 #
 #
 #
+import hashlib
 import logging
 import os
 import sys
@@ -1704,3 +1705,62 @@ def get_default_cache():
     Function to get processor unique Cache Singleton
     """
     return CacheSingleton()
+
+
+def hash_bytestr_iter(bytesiter, hasher, ashexstr=False):
+    """
+    Create hash using a iterator.
+    Args:
+        bytesiter (iterator): iterator for blocks of bytes, for example created by "file_as_blockiter"
+        hasher (): a hasher, for example hashlib.md5
+        ashexstr (bool): Creates hex hash if true
+
+    Returns:
+
+    """
+    for block in bytesiter:
+        hasher.update(block)
+    return hasher.hexdigest() if ashexstr else hasher.digest()
+
+
+def file_as_blockiter(afile, blocksize=65536):
+    """
+    Helper for hasher functions, to be able to iterate over a file
+    in blocks of given size
+
+    Args:
+        afile (BytesIO): file buffer
+        blocksize (int): block size in bytes
+
+    Returns:
+        iterator
+
+    """
+    with afile:
+        block = afile.read(blocksize)
+        while len(block) > 0:
+            yield block
+            block = afile.read(blocksize)
+
+
+def create_filehash(fnamelst, hashtype, ashexstr=False):
+    """
+    Create list of hashes for all files in list
+    Args:
+        fnamelst (list): list containing filenames
+        fnamelst (hashtype): hashtype
+        ashexstr (bool): create hex string if true
+
+    Raises:
+        KeyError if hashtype is not implemented
+
+    Returns:
+        list[(str,hash)]: List of tuples with filename and hashes
+    """
+    available_hashers = {"md5": hashlib.md5,
+                         "sha1": hashlib.sha1}
+
+    return [(fname, hash_bytestr_iter(file_as_blockiter(open(fname, 'rb')),
+                                      available_hashers[hashtype](), ashexstr=ashexstr))
+            for fname in fnamelst]
+

@@ -19,6 +19,7 @@
 
 from __future__ import print_function
 
+
 try:
     import configparser
 except ImportError:
@@ -33,13 +34,12 @@ from fuglu import loghandlers
 import sys
 from fuglu.core import MainController, EXIT_NOTSET, EXIT_EXCEPTION, EXIT_LOGTERMERROR
 from fuglu.addrcheck import Addrcheck
+from fuglu.shared import create_filehash
 import signal
 import os
 import optparse
 import fuglu.logtools
 import multiprocessing
-import hashlib
-
 
 controller = None
 
@@ -151,32 +151,15 @@ def getConfigFileUpdatesDict(configfilename,dconfigFileDir):
         filelist = os.listdir(dconfigFileDir)
         configfiles.extend([dconfigFileDir + '/' + c for c in filelist if c.endswith('.conf')])
 
-    hashlist = createMD5(configfiles)
+    hashlist = create_filehash(configfiles, "md5")
     configFileUpdates = dict(zip(configfiles, hashlist))
     return configFileUpdates
 
 def getLogConfigFileUpdatesDict(logConfFile):
     logConfigFileUpdates = {}
-    logConfigFileUpdates[logConfFile] = createMD5([logConfFile])[0]
+    logConfigFileUpdates[logConfFile] = create_filehash([logConfFile], "md5")[0]
     return logConfigFileUpdates
 
-
-def hash_bytestr_iter(bytesiter, hasher, ashexstr=False):
-    for block in bytesiter:
-        hasher.update(block)
-    return (hasher.hexdigest() if ashexstr else hasher.digest())
-
-def file_as_blockiter(afile, blocksize=65536):
-    with afile:
-        block = afile.read(blocksize)
-        while len(block) > 0:
-            yield block
-            block = afile.read(blocksize)
-
-
-def createMD5(fnamelst):
-    return [(fname, hash_bytestr_iter(file_as_blockiter(open(fname, 'rb')), hashlib.md5()))
-        for fname in fnamelst]
 
 lint = False
 debugmsg = False
