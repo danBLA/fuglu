@@ -187,7 +187,7 @@ class ReloadUnderLoadTest(unittest.TestCase):
         # Despite its 'initial'-name, this number currently is not adapted automatically.
         self.config.set('performance', 'initialprocs', 1)
 
-        self.config.set('main', 'plugins', 'fuglu.plugins.attachment.FiletypePlugin,fuglu.plugins.delay.DelayPlugin')
+        self.config.set('main', 'plugins', 'fuglu.plugins.delay.DelayPlugin')
 
         # -------------------- #
         # config: delay plugin #
@@ -272,12 +272,12 @@ class ReloadUnderLoadTest(unittest.TestCase):
 
         # send test message
         messages = []
-        for imessage in range(1):
+        for imessage in range(3):
             t = threading.Thread(target=self.create_and_send_message, args=())
             t.daemon = True
             t.start()
             messages.append(t)
-        time.sleep(2)
+        time.sleep(3)
         logger.debug("\n--------------------------\nRELOAD - RELOAD - RELOAD\n--------------------------\n")
         self.mc.reload()
         for t in messages:
