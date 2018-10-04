@@ -250,7 +250,7 @@ def sendmail_address(addresses):
     try:
         # If there's a problem to encode with ascii charset, don't change anything
         # It will be handled by sendmail correctly
-        ascii_converted = addresses.encode(encoding="ascii",errors="strict")
+        ascii_converted = addresses.encode("ascii","strict")
         return addresses
     except UnicodeEncodeError:
         # Encode
