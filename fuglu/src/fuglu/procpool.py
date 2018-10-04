@@ -156,12 +156,15 @@ class ProcManager(object):
 
         # join the workers
         try:
-            join_timout = self.config.getint('performance','join_timeout')
+            join_timout = self.config.getfloat('performance', 'join_timeout')
         except:
             join_timout = 120.0
         self.logger.debug("Join workers")
         for worker in self.workers:
             worker.join(join_timout)
+            if worker.is_alive():
+                self.logger.error("Could not stop worker %s with given timeout of %f" % (worker, join_timout))
+                worker.terminate()
 
         self.logger.debug("Join message listener")
         self.message_listener.stayalive = False

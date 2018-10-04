@@ -63,7 +63,10 @@ class DummySMTPServer(object):
             success = sess.getincomingmail()
             self.logger.debug('after incomingmail')
             if not success:
-                self.logger.error('incoming smtp transfer did not finish')
+                if self.stayalive:
+                    self.logger.error('incoming smtp transfer did not finish')
+                else:
+                    self.logger.info('incoming smtp transfer did not finish, stayalive is False')
                 #sess.closeconn()
                 return
             sess.endsession(250, "OK - queued as 1337 ")

@@ -194,8 +194,10 @@ class ReloadUnderLoadTest(unittest.TestCase):
         # If 0 (the default), automatically selects twice the number of available virtual cores.
         # Despite its 'initial'-name, this number currently is not adapted automatically.
         self.config.set('performance', 'initialprocs', ReloadUnderLoadTest.num_procs)
-        # set timeout to 5 secs for testing
-        self.config.set('performance', 'join_timeout', 5.0)
+        # set timeout for joining the workers. Since the DummySMTPServer receives sequentially,
+        # we need at least number_of_procs*delayPlugin
+        self.config.set('performance', 'join_timeout',
+                        2.0*float(ReloadUnderLoadTest.num_procs)*ReloadUnderLoadTest.delay_by)
 
         self.config.set('main', 'plugins', 'fuglu.plugins.delay.DelayPlugin')
 
@@ -263,8 +265,7 @@ class ReloadUnderLoadTest(unittest.TestCase):
         msg["Subject"] = "End to End Test"
         msgstring = msg.as_string()
         logger.debug("send mail")
-        smtpclient.sendmail(
-            'sender@fuglu.org', 'recipient@fuglu.org', msgstring)
+        smtpclient.sendmail('sender@fuglu.org', 'recipient@fuglu.org', msgstring)
         smtpclient.quit()
 
     def test_reloadwhilebusy(self):

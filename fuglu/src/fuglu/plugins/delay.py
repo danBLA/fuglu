@@ -48,7 +48,7 @@ class DelayPlugin(ScannerPlugin):
         self.logfrequency = min(self.logfrequency,self.delay)
 
         if self.delay > 0:
-            self.logger.warning("%s: delay = %f, logfrequency = %f" % (os.getpid(),self.delay,self.logfrequency))
+            self.logger.info("%s: delay = %f, logfrequency = %f" % (os.getpid(),self.delay,self.logfrequency))
         else:
             self.logger.info("%s: delay = %f, logfrequ= %f" % (os.getpid(),self.delay,self.logfrequency))
 
@@ -63,10 +63,10 @@ class DelayPlugin(ScannerPlugin):
         while sumtime < delay:
             remaining = max(delay - sumtime,0.0)
             waitfor = min(outfreq, remaining)
-            self.logger.info("%s: Still waiting (passed: %f, remaining: %f)" % (os.getpid(),sumtime,remaining))
+            self.logger.debug("%s: Still waiting (passed: %f, remaining: %f)" % (os.getpid(), sumtime, remaining))
             time.sleep(waitfor)
             sumtime += waitfor
-        self.logger.info("%s: Stop waiting for %f"%(os.getpid(),self.delay))
+        self.logger.debug("%s: Stop waiting for %f" % (os.getpid(), self.delay))
 
         return DUNNO
 
