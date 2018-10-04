@@ -32,6 +32,12 @@ from threading import Lock
 from io import BytesIO
 import traceback
 
+try:
+    FileNotFoundError
+except NameError:
+    # no FileNotFoundError in Py2, use IOError instead
+    FileNotFoundError = IOError
+
 FUATT_NAMESCONFENDING = "-filenames.conf"
 FUATT_CTYPESCONFENDING = "-filetypes.conf"
 FUATT_ARCHIVENAMESCONFENDING = "-archivenames.conf"
