@@ -97,7 +97,7 @@ Tags:
         # If no Content-Type header is set, then no scan is performed.
         # However, content of the header does not seem to matter.
         # Therefore we set a temporary dummy Content-Type header.
-        if not msgrep.has_key('Content-Type'):
+        if not'Content-Type' in msgrep.keys():
             networkmode = True
             msgrep['Content-Type'] = 'dummy'
             self.logger.debug('%s missing Content-Type header... falling back to network mode' % suspect.id)
