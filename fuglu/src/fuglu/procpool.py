@@ -155,16 +155,20 @@ class ProcManager(object):
             self.logger.info("Marked %s messages as '%s' to close queue" % (mark_defer_counter, return_message))
 
         # join the workers
+        try:
+            join_timout = self.config.getint('performance','join_timeout')
+        except:
+            join_timout = 120.0
         self.logger.debug("Join workers")
         for worker in self.workers:
-            worker.join(120)
+            worker.join(join_timout)
 
         self.logger.debug("Join message listener")
         self.message_listener.stayalive = False
         # put poison pill into queue otherwise the process will not stop
         # since "stayalive" is only checked after receiving a message from the queue
         self.child_to_server_messages.put_nowait(None)
-        self.message_listener.join(120)
+        self.message_listener.join(join_timout)
         self.logger.debug("Close tasks queue")
         self.tasks.close()
 

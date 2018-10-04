@@ -18,13 +18,15 @@ from fuglu.core import MainController
 from email.mime.text import MIMEText
 
 def setup_module():
+    loglevel = logging.INFO
     root = logging.getLogger()
-    root.setLevel(logging.DEBUG)
+    root.setLevel(loglevel)
     handler = logging.StreamHandler(sys.stdout)
-    handler.setLevel(logging.DEBUG)
+    handler.setLevel(loglevel)
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     handler.setFormatter(formatter)
     root.addHandler(handler)
+
 
 class ReloadTest(unittest.TestCase):
 
@@ -40,7 +42,8 @@ class ReloadTest(unittest.TestCase):
         # Initial number of processes when backend='process'.
         # If 0 (the default), automatically selects twice the number of available virtual cores.
         # Despite its 'initial'-name, this number currently is not adapted automatically.
-        config.set('performance', 'initialprocs', 0)
+        config.set('performance', 'initialprocs', 10)
+        config.set('performance', 'join_timeout', 2.0)
 
         mc = MainController(config)
         mc.propagate_core_defaults()
@@ -81,6 +84,7 @@ class ReloadTest(unittest.TestCase):
             self.assertTrue(mc.procpool is None)
             self.assertTrue(mc.threadpool is not None)
         mc.shutdown()
+
 
 class MultipleMCsTest(unittest.TestCase):
     """
@@ -148,6 +152,7 @@ class MultipleMCsTest(unittest.TestCase):
         for mc in mclist:
             mc.shutdown()
 
+
 class ReloadUnderLoadTest(unittest.TestCase):
     """Reload backend under load"""
 
@@ -157,6 +162,9 @@ class ReloadUnderLoadTest(unittest.TestCase):
     FUGLU_PORT = 7841
     DUMMY_PORT = 7842
     FUGLUCONTROL_PORT = 7843
+
+    delay_by = 0.25  # seconds
+    num_procs = 5
 
     def setUp(self):
         self.config = RawConfigParser()
@@ -185,7 +193,9 @@ class ReloadUnderLoadTest(unittest.TestCase):
         # Initial number of processes when backend='process'.
         # If 0 (the default), automatically selects twice the number of available virtual cores.
         # Despite its 'initial'-name, this number currently is not adapted automatically.
-        self.config.set('performance', 'initialprocs', 1)
+        self.config.set('performance', 'initialprocs', ReloadUnderLoadTest.num_procs)
+        # set timeout to 5 secs for testing
+        self.config.set('performance', 'join_timeout', 5.0)
 
         self.config.set('main', 'plugins', 'fuglu.plugins.delay.DelayPlugin')
 
@@ -194,8 +204,8 @@ class ReloadUnderLoadTest(unittest.TestCase):
         # -------------------- #
         self.config.add_section("DelayPlugin")
         # the delay created by this plugn
-        self.config.set("DelayPlugin", 'delay', 5)
-        self.config.set("DelayPlugin", 'logfrequency', 0.5)
+        self.config.set("DelayPlugin", 'delay', ReloadUnderLoadTest.delay_by)
+        self.config.set("DelayPlugin", 'logfrequency', ReloadUnderLoadTest.delay_by)
 
         # -------------- #
         # MainController #
@@ -220,15 +230,8 @@ class ReloadUnderLoadTest(unittest.TestCase):
         self.thread_fls.daemon = True
         self.thread_fls.start()
 
-        # ----------------- #
-        # Mailbomber thread #
-        # ----------------- #
-        self.thread_bomber = None
-
     def tearDown(self):
         logger = logging.getLogger("tearDown")
-
-
 
         logger.debug("Join Dummy SMTP Thread (dsmtp)")
         self.thread_dsmtp.join()
@@ -270,18 +273,45 @@ class ReloadUnderLoadTest(unittest.TestCase):
         logger.debug("wait")
         time.sleep(1)
 
-        # send test message
-        messages = []
-        for imessage in range(3):
-            t = threading.Thread(target=self.create_and_send_message, args=())
-            t.daemon = True
-            t.start()
-            messages.append(t)
-        time.sleep(3)
-        logger.debug("\n--------------------------\nRELOAD - RELOAD - RELOAD\n--------------------------\n")
-        self.mc.reload()
-        for t in messages:
-            t.join()
+        # number of reloads
+        num_reloads = 1
+
+        # number of messages to send
+        num_messages_before = 2*ReloadUnderLoadTest.num_procs  # before reload
+        num_messages_after = ReloadUnderLoadTest.num_procs     # after reload
+
+        for ireload in range(num_reloads):
+            logger.info("\n==========================\nRun %u\n==========================\n" % ireload)
+            # backup original procpool
+            orig_procpool = self.mc.procpool
+            orig_workers = orig_procpool.workers
+            for worker in orig_workers:
+                self.assertTrue(worker.is_alive())
+
+            # send test message
+            messages = []
+            logger.info("\n--------------------------\nDump 10 messages into queue\n--------------------------\n")
+            for imessage in range(num_messages_before):
+                t = threading.Thread(target=self.create_and_send_message, args=())
+                t.daemon = True
+                t.start()
+                messages.append(t)
+            time.sleep(min(float(ReloadUnderLoadTest.num_procs), num_messages_before/2.) * ReloadUnderLoadTest.delay_by)
+            logger.info("\n--------------------------\nRELOAD - RELOAD - RELOAD\n--------------------------\n")
+            self.mc.reload()
+
+            # at this point all original workers should be closed
+            for worker in orig_workers:
+                self.assertFalse(worker.is_alive(), "%s" % worker)
+
+            logger.info("\n--------------------------\nDump 2 messages into queue\n--------------------------\n")
+            for imessage in range(num_messages_after):
+                t = threading.Thread(target=self.create_and_send_message, args=())
+                t.daemon = True
+                t.start()
+                messages.append(t)
+            for t in messages:
+                t.join()
 
         logger.debug("set DummySMTPServer.stayalive = False")
         self.dsmtp.stayalive = False
