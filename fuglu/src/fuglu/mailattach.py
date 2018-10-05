@@ -23,6 +23,7 @@ import email
 import sys
 import logging
 import weakref
+import hashlib
 from fuglu.extensions.filearchives import Archivehandle
 from fuglu.extensions.filetype import filetype_handler
 from fuglu.caching import smart_cached_property, smart_cached_memberfunc, Cachelimits
@@ -45,15 +46,20 @@ class Mailattachment(Cachelimits):
     """
     objectCounter = 0
 
+    checksummethods = {"md5": lambda x: hashlib.md5(x).hexdigest(),
+                       "sha1": lambda x: hashlib.sha1(x).hexdigest()
+                       }
+
     def __init__(self, buffer, filename, mgr, filesize=None, in_obj=None, contenttype_mime=None, maintype_mime=None,
                  subtype_mime=None, ismultipart_mime=None, content_charset_mime=None):
         """
         Constructor
+
         Args:
             buffer (bytes): buffer containing attachment source
             filename (str): filename of current attachment object
-            filesize (size): file size in bytes
-            mgr (Mailattachment_mgr): Mail attachment manager
+            filesize (int): file size in bytes
+            mgr (Mailattachment_mgr/None): Mail attachment manager
             in_obj (Mailattachment): "Father" Mailattachment object (if existing), the archive containing the current object
             contenttype_mime (str): The contenttype as defined in the mail attachment, only available for direct mail attachments
             maintype_mime (str): The main contenttype as defined in the mail attachment, only available for direct mail attachments
@@ -66,6 +72,10 @@ class Mailattachment(Cachelimits):
         self.filesize = filesize
         self.buffer = buffer
         self._buffer_archobj = {}
+
+        myclass = self.__class__.__name__
+        loggername = "fuglu.%s" % myclass
+        self.logger = logging.getLogger(loggername)
 
         # use weak reference to avoid cyclic dependency
         self.in_obj = weakref.ref(in_obj) if in_obj is not None else None
@@ -185,6 +195,42 @@ class Mailattachment(Cachelimits):
 
         return force_uString("")
 
+    @smart_cached_memberfunc(inputs=['buffer'])
+    def get_checksum(self, method):
+        """
+        Calculate attachment checksum.
+
+        Args:
+            method (string): Checksum method.
+
+        Returns:
+            str: checksum
+
+        """
+        csum = ""
+        try:
+            csum = Mailattachment.checksummethods[method](self.buffer)
+        except KeyError:
+            self.logger.error("checksum method %s not valid! Options are [%s]"
+                              % (method, ",".join(list(Mailattachment.checksummethods.keys()))))
+        return csum
+
+    @smart_cached_memberfunc(inputs=['buffer'])
+    def get_checksumdict(self, methods=()):
+        """Create a dict for all checksum methods given (or all possible if none)"""
+
+        # select methods, all if none is given
+        if not methods:
+            mlist = list(Mailattachment.checksummethods.keys())
+        else:
+            mlist = list(methods)
+
+        # create checksums
+        checksumdict = {}
+        for m in mlist:
+            checksumdict[m] = self.get_checksum(m)
+        return checksumdict
+
     @smart_cached_property(inputs=['buffer'])
     def contenttype(self):
         """
@@ -221,7 +267,6 @@ class Mailattachment(Cachelimits):
 
         # try guessing the archive type based on magic content type first
         archive_type = Archivehandle.archive_type_from_content_type(self.contenttype)
-        print("archive_type after checking content: %s"%str(archive_type))
 
         # if it didn't work, try to guess by the filename extension, if it is enabled
         if archive_type is None:
@@ -233,7 +278,6 @@ class Mailattachment(Cachelimits):
                     # store archive extension for internal use
                     self._arext = arext
                     break
-        print("archive_type after checking extension: %s"%str(archive_type))
         return archive_type
 
     @smart_cached_memberfunc(inputs=['archive_type'])
@@ -556,7 +600,7 @@ class Mailattachment_mgr(object):
 
         myclass = self.__class__.__name__
         loggername = "fuglu.%s" % myclass
-        self._logger = logging.getLogger(loggername)
+        self.logger = logging.getLogger(loggername)
 
         try:
             # Python 2
@@ -822,3 +866,22 @@ class Mailattachment_mgr(object):
             obj_list.extend(att_obj.get_objectlist(0,level,maxsize_extract))
         return obj_list
 
+    def get_fileslist_checksum(self, level=0, maxsize_extract=None, methods=()):
+        """
+        Get a list containg tuples (filanem, checksumdict) for all the extracted files up to a given extraction level
+
+        Keyword Args:
+            level (in): Level up to which archives are opened to get file list (default: 0 -> direct mail attachments)
+            methods (set): set containing the checksum methods requested
+
+        Returns:
+            list[(string, dict)]: list containing tuples (filename, checksumdict)
+        """
+        obj_list = []
+        for att_obj in self.get_mailatt_generator():
+            obj_list.extend(att_obj.get_objectlist(0,level,maxsize_extract))
+
+        checksumlist = []
+        for obj in obj_list:
+            checksumlist.append((obj.filename, obj.get_checksumdict(methods=methods)))
+        return checksumlist

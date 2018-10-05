@@ -207,7 +207,51 @@ def force_cfromb(bytes_iteratable):
     """
     if isinstance(bytes_iteratable,str):
         return bytes_iteratable
+    elif isinstance(bytes_iteratable,int):
+        return chr(bytes_iteratable)
     elif isinstance(bytes_iteratable,bytes):
         return "".join([chr(x) for x in bytes_iteratable])
+    elif isinstance(bytes_iteratable,list):
+        return [force_cfromb(b) for b in bytes_iteratable]
     else:
-        raise AttributeError
+        raise AttributeError("Type: %s is not str and not bytes"%(type(bytes_iteratable)))
+
+
+def sendmail_address(addresses):
+    """
+    Prepare mail address for sendmail. This needs special attention
+    since if there are non-ascii characters, Py2 needs the address to be
+    encoded.
+
+    Args:
+        addresses (str,unicode,list): address or list of addresses
+
+    Returns:
+        (unicode,bytes,list): (list of) formatted address
+
+    """
+    # for python 3, just force unicode
+    if sys.version_info > (3,):
+        return force_uString(addresses)
+
+    # Actually it will only work correctly since python 3.5
+    # due to problems in smtplib.py. However I only tested Python 3.4
+    # The smtpconnector will just not allow SMTPUTF8 for Python < 3.5 and >= 3
+
+    # -------- #
+    # Python 2 #
+    # -------- #
+    if isinstance(addresses, list):
+        return [sendmail_address(addr) for addr in addresses]
+
+    # at this point it should be a (unicode) string
+    assert isinstance(addresses, (str, unicode))
+
+    try:
+        # If there's a problem to encode with ascii charset, don't change anything
+        # It will be handled by sendmail correctly
+        ascii_converted = addresses.encode("ascii","strict")
+        return addresses
+    except UnicodeEncodeError:
+        # Encode
+        return force_bString(addresses, encoding="utf-8")

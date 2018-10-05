@@ -293,10 +293,11 @@ class SessionHandler(TrackTimings):
 
                 except KeyboardInterrupt:
                     sys.exit()
-                except Exception:
+                except Exception as e:
                     message_is_deferred = True
                     trb = traceback.format_exc()
                     self.logger.error("Could not commit message. Error: %s" % trb)
+                    self.logger.exception(e)
                     self._defer()
 
             elif result == DELETE:
@@ -366,13 +367,18 @@ class SessionHandler(TrackTimings):
         finally:
             # finally is also executed if there's a return statement somewhere in try-except
 
+            try:
+                remove_tmpfiles_on_error = self.config.getboolean('main', 'remove_tmpfiles_on_error')
+            except Exception:
+                remove_tmpfiles_on_error = True
+
             if suspect is None:
                 # if there was an error creating the suspect, check if the filename can be
                 # extracted from the protohandler
                 tmpfilename = self.protohandler.get_tmpfile()
                 if tmpfilename is None:
                     tmpfilename = ""
-                if self.config.getboolean('main', 'remove_tmpfiles_on_error'):
+                if remove_tmpfiles_on_error:
                     self.logger.debug('Remove tmpfile: %s for failed message' % tmpfilename)
                     self.protohandler.remove_tmpfile()
                 else:
@@ -380,7 +386,7 @@ class SessionHandler(TrackTimings):
 
             elif suspect.tempfile is not None:
                 # suspect was created but not stopped cleanly
-                if self.config.getboolean('main', 'remove_tmpfiles_on_error'):
+                if remove_tmpfiles_on_error:
                     try:
                         os.remove(suspect.tempfile)
                         self.logger.debug('Removed tempfile %s' % suspect.tempfile)

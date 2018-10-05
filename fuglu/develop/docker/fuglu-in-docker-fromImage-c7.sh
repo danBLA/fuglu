@@ -124,7 +124,7 @@ elif [ "$1" == "none" ]; then
    alljobs=() 
 else
    echo "Usage: fuglu-in-docker-build-fromImage-c7.sh OPTION"
-   echo "       where OPTION is (py2/p3/all/none)"
+   echo "       where OPTION is (py2/py3/all/none)"
    exit 0
 fi
 

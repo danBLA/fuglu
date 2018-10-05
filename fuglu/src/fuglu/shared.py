@@ -15,6 +15,7 @@
 #
 #
 #
+import hashlib
 import logging
 import os
 import sys
@@ -217,7 +218,7 @@ class Suspect(object):
     with a suspect and may modify the tags or even the message content itself.
     """
 
-    def __init__(self, from_address, recipients, tempfile, att_cachelimit=None):
+    def __init__(self, from_address, recipients, tempfile, att_cachelimit=None, smtp_options=set()):
         self.source = None
         """holds the message source if set directly"""
 
@@ -238,21 +239,20 @@ class Suspect(object):
 
         # stuff set from smtp transaction
         self.size = os.path.getsize(tempfile)
-        self.from_address = from_address
+        self.from_address = force_uString(from_address)
 
         # backwards compatibility, recipients can be a single address
         if isinstance(recipients, list):
-            self.recipients = recipients
+            self.recipients = [force_uString(rec) for rec in recipients]
         else:
-            self.recipients = [recipients, ]
+            self.recipients = [force_uString(recipients), ]
 
         # basic email validitiy check - nothing more than necessary for our internal assumptions
         for rec in self.recipients:
             if rec is None:
                 raise ValueError("Recipient address can not be None")
             if not Addrcheck().valid(rec):
-                raise ValueError("Invalid recipient address: %s"%rec)
-
+                raise ValueError("Invalid recipient address: %s" % rec)
 
         # additional basic information
         self.timestamp = time.time()
@@ -262,10 +262,10 @@ class Suspect(object):
         self.addheaders = {}
 
         if self.from_address is None:
-            self.from_address = ''
+            self.from_address = u''
 
-        if self.from_address != '' and not Addrcheck().valid(self.from_address):
-            raise ValueError("invalid sender address: %s"%self.from_address)
+        if self.from_address != u'' and not Addrcheck().valid(self.from_address):
+            raise ValueError("invalid sender address: %s" % self.from_address)
 
         self.clientinfo = None
         """holds client info tuple: helo, ip, reversedns"""
@@ -275,6 +275,30 @@ class Suspect(object):
 
         self._att_mgr = None
         """Attachment manager"""
+
+        # ------------- #
+        # modifications #
+        # ------------- #
+        self.modified_headers = {}
+        """To keep track of modified headers"""
+
+        self.added_headers = {}
+        """To keep track of already added headers (not in self.addheaders)"""
+
+        # keep track of original sender/receivers
+        self.original_from_address = self.from_address
+        self.original_recipients   = self.recipients
+
+        # ------------ #
+        # smtp_otpions #
+        # ------------ #
+        self.smtp_options = smtp_options
+
+    def orig_from_address_changed(self):
+        return self.original_from_address != self.from_address
+
+    def orig_recipients_changed(self):
+        return self.original_recipients != self.recipients
 
     @property
     def att_mgr(self):
@@ -414,17 +438,59 @@ class Suspect(object):
         :return: True if subject was altered, False otherwise
         """
         msgrep = self.get_message_rep()
-        oldsubj = msgrep.get("subject","")
+        oldsubj = msgrep.get("subject",None)
+
+        oldsubj_exists = True
+
+        if oldsubj is None:
+            oldsubj = ""
+            oldsubj_exists = False
+
         newsubj = subject_cb(oldsubj, **cb_params)
         if oldsubj != newsubj:
             del msgrep["subject"]
             msgrep["subject"] = newsubj
+
+            # store as modified header
+            if oldsubj_exists:
+                self.modified_headers["subject"] = newsubj
+            else:
+                self.added_headers["subject"] = newsubj
+
             # no need to reset attachment manager because of a header change
             self.set_message_rep(msgrep,att_mgr_reset=False)
             if self.get_tag('origsubj') is None:
                 self.set_tag('origsubj', oldsubj)
             return True
         return False
+
+
+    def set_header(self, key, value):
+        """
+        Replace existing header or create a new one
+
+        Args:
+            key (string): header key
+            value (string): header value
+
+        """
+        msg = self.get_message_rep()
+
+        # convert inputs if needed
+        key = force_uString(key)
+        value = force_uString(value)
+
+        oldvalue = msg.get(key,None)
+        if oldvalue is not None:
+            if force_uString(oldvalue) == value:
+                return
+            del msg[key]
+            self.modified_headers[key] = value
+        else:
+            self.added_headers[key] = value
+
+        msg[key] = value
+        self.set_message_rep(msg,att_mgr_reset=False)
 
 
     def add_header(self, key, value, immediate=False):
@@ -446,6 +512,8 @@ class Suspect(object):
 
             # no need to reset the attachment manager when just adding a header
             self.set_source(src,att_mgr_reset=False)
+            # keep track of headers already added
+            self.added_headers[key] = value
         else:
             self.addheaders[key] = value
 
@@ -1633,3 +1701,62 @@ def get_default_cache():
     Function to get processor unique Cache Singleton
     """
     return CacheSingleton()
+
+
+def hash_bytestr_iter(bytesiter, hasher, ashexstr=False):
+    """
+    Create hash using a iterator.
+    Args:
+        bytesiter (iterator): iterator for blocks of bytes, for example created by "file_as_blockiter"
+        hasher (): a hasher, for example hashlib.md5
+        ashexstr (bool): Creates hex hash if true
+
+    Returns:
+
+    """
+    for block in bytesiter:
+        hasher.update(block)
+    return hasher.hexdigest() if ashexstr else hasher.digest()
+
+
+def file_as_blockiter(afile, blocksize=65536):
+    """
+    Helper for hasher functions, to be able to iterate over a file
+    in blocks of given size
+
+    Args:
+        afile (BytesIO): file buffer
+        blocksize (int): block size in bytes
+
+    Returns:
+        iterator
+
+    """
+    with afile:
+        block = afile.read(blocksize)
+        while len(block) > 0:
+            yield block
+            block = afile.read(blocksize)
+
+
+def create_filehash(fnamelst, hashtype, ashexstr=False):
+    """
+    Create list of hashes for all files in list
+    Args:
+        fnamelst (list): list containing filenames
+        fnamelst (hashtype): hashtype
+        ashexstr (bool): create hex string if true
+
+    Raises:
+        KeyError if hashtype is not implemented
+
+    Returns:
+        list[(str,hash)]: List of tuples with filename and hashes
+    """
+    available_hashers = {"md5": hashlib.md5,
+                         "sha1": hashlib.sha1}
+
+    return [(fname, hash_bytestr_iter(file_as_blockiter(open(fname, 'rb')),
+                                      available_hashers[hashtype](), ashexstr=ashexstr))
+            for fname in fnamelst]
+

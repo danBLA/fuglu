@@ -118,11 +118,16 @@ class RulesCache(object):
             self.lock.release()
 
     def rulesdirchanged(self):
-        statinfo = os.stat(self.rulesdir)
-        ctime = statinfo.st_ctime
-        if ctime > self.lastreload:
-            return True
-        return False
+        dirchanged = False
+        try:
+            statinfo = os.stat(self.rulesdir)
+        except FileNotFoundError:
+            pass
+        else:
+            ctime = statinfo.st_ctime
+            if ctime > self.lastreload:
+                dirchanged = True
+        return dirchanged
 
     def _loadrules(self):
         """effectively loads the rules, do not call directly, only through reloadifnecessary"""

@@ -1,3 +1,4 @@
+# -*- coding: UTF-8 -*-
 from integrationtestsetup import guess_clamav_socket, TESTDATADIR, CONFDIR, DummySMTPServer
 import unittest
 import tempfile
@@ -27,7 +28,7 @@ import fuglu
 from fuglu.lib.patcheddkimlib import verify, sign
 from fuglu.core import MainController
 from fuglu.scansession import SessionHandler
-from fuglu.stringencode import force_uString
+from fuglu.stringencode import force_uString,force_bString, sendmail_address
 
 
 class AllpluginTestCase(unittest.TestCase):
@@ -99,18 +100,21 @@ class EndtoEndTestTestCase(unittest.TestCase):
         # start listening smtp dummy server to get fuglus answer
         self.smtp = DummySMTPServer(
             self.config, EndtoEndTestTestCase.DUMMY_PORT, EndtoEndTestTestCase.FUGLU_HOST)
-        e2edss = threading.Thread(target = self.smtp.serve, args = ())
-        e2edss.daemon = True
-        e2edss.start()
+        self.e2edss = threading.Thread(target = self.smtp.serve, args = ())
+        self.e2edss.daemon = True
+        self.e2edss.start()
 
         # start fuglu's listening server
-        fls = threading.Thread(target = self.mc.startup, args = ())
-        fls.daemon = True
-        fls.start()
+        self.fls = threading.Thread(target = self.mc.startup, args = ())
+        self.fls.daemon = True
+        self.fls.start()
 
     def tearDown(self):
         self.mc.shutdown()
         self.smtp.shutdown()
+
+        self.e2edss.join(timeout=3)
+        self.fls.join(timeout=3)
 
     def testE2E(self):
         """test if a standard message runs through"""
@@ -149,6 +153,129 @@ Don't dare you change any of my bytes or even remove one!"""
         outbytes = len(payload)
         self.assertEqual(testmessage, payload, "Message body has been altered. In: %s bytes, Out: %s bytes, teststring=->%s<- result=->%s<-" %
                          (inbytes, outbytes, testmessage, payload))
+
+class EndtoEndBaseTestCase(unittest.TestCase):
+
+    """Full check if mail runs through but no plugins applied"""
+
+    FUGLU_HOST = "127.0.0.1"
+    FUGLU_PORT = 7741
+    DUMMY_PORT = 7742
+    FUGLUCONTROL_PORT = 7743
+
+    def setUp(self):
+        self.config = RawConfigParser()
+        self.config.read([TESTDATADIR + '/endtoendbasetest.conf'])
+        self.config.set(
+            'main', 'incomingport', str(EndtoEndBaseTestCase.FUGLU_PORT))
+        self.config.set(
+            'main', 'outgoinghost', str(EndtoEndBaseTestCase.FUGLU_HOST))
+        self.config.set(
+            'main', 'outgoingport', str(EndtoEndBaseTestCase.DUMMY_PORT))
+        self.config.set(
+            'main', 'controlport', str(EndtoEndBaseTestCase.FUGLUCONTROL_PORT))
+        guess_clamav_socket(self.config)
+        # init core
+        self.mc = MainController(self.config)
+
+        # start listening smtp dummy server to get fuglus answer
+        self.smtp = DummySMTPServer(
+            self.config, EndtoEndBaseTestCase.DUMMY_PORT, EndtoEndBaseTestCase.FUGLU_HOST)
+        self.e2edss = threading.Thread(target = self.smtp.serve, args = ())
+        self.e2edss.daemon = True
+        self.e2edss.start()
+
+        # start fuglu's listening server
+        self.fls = threading.Thread(target = self.mc.startup, args = ())
+        self.fls.daemon = True
+        self.fls.start()
+
+    def tearDown(self):
+        self.mc.shutdown()
+        self.smtp.shutdown()
+        self.e2edss.join()
+        self.fls.join()
+
+    def test_SMTPUTF8_E2E(self):
+        """test if a UTF-8 message runs through"""
+
+        # give fuglu time to start listener
+        time.sleep(1)
+
+        import logging
+        import sys
+
+        root = logging.getLogger()
+        root.setLevel(logging.DEBUG)
+        ch = logging.StreamHandler(sys.stdout)
+        ch.setLevel(logging.DEBUG)
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        ch.setFormatter(formatter)
+        root.addHandler(ch)
+
+        # send test message
+        smtpclient = smtplib.SMTP('127.0.0.1', EndtoEndBaseTestCase.FUGLU_PORT)
+        # smtpServer.set_debuglevel(1)
+        (code, msg) = smtpclient.ehlo('test.e2e')
+        msg = force_uString(msg)
+
+        self.assertEqual(250, code)
+        print("%s"%msg)
+        if (3,) <= sys.version_info < (3, 5):
+            # NO SMTPUTF8 provided in smtpconnector for python >=3 and python < 3.5
+            try:
+                self.assertNotIn("SMTPUTF8", msg)
+            except AttributeError:
+                self.assertTrue("SMTPUTF8" not in msg)
+            print("WARNING: Test \"test_SMTPUTF8_E2E\" skipped!")
+            smtpclient.close()
+            # just connect and close to shutdown also the dummy SMTP server
+            dsmtpclient = smtplib.SMTP(EndtoEndBaseTestCase.FUGLU_HOST, EndtoEndBaseTestCase.DUMMY_PORT)
+            dsmtpclient.close()
+            return
+        else:
+            try:
+                self.assertIn("SMTPUTF8", msg)
+            except AttributeError:
+                self.assertTrue("SMTPUTF8" in msg)
+
+
+        testunicodemessage = u"""Hello Wörld!\r
+Don't där yü tschänsch äny of mai baits or iwen remüv ön!"""
+
+        # TODO: this test fails if we don't put in the \r in there... (eg,
+        # fuglu adds it) - is this a bug or wrong test?
+
+        msg = MIMEText(testunicodemessage, _charset='utf-8')
+        msg["Subject"] = "End to End Test"
+        msgstring = msg.as_string()
+        inbytes = len(msg.get_payload(decode=True))
+        # envelope sender/recipients
+        env_sender = u'sänder@fuglu.org'
+        env_recipients = [u'röcipient@fuglu.org', u'récipiènt2@fuglu.org']
+        smtpclient.sendmail(sendmail_address(env_sender),
+                            sendmail_address(env_recipients),
+                            force_bString(msgstring), mail_options=["SMTPUTF8"])
+        smtpclient.quit()
+
+        # get answer (wait to give time to create suspect)
+        time.sleep(0.1)
+        gotback = self.smtp.suspect
+        self.assertFalse(gotback == None, "Did not get message from dummy smtp server")
+
+        # check a few things on the received message
+        msgrep = gotback.get_message_rep()
+        self.assertTrue('X-Fuglutest-Spamstatus' in msgrep,
+                        "Fuglu SPAM Header not found in message")
+        payload = msgrep.get_payload(decode=True)
+        outbytes = len(payload)
+        self.assertEqual(inbytes, outbytes,"Message size change: bytes in: %u, bytes out %u" % (inbytes, outbytes))
+        self.assertEqual(testunicodemessage, force_uString(payload),
+                         "Message body has been altered. In: %u bytes, Out: %u bytes, teststring=->%s<- result=->%s<-" %
+                         (inbytes, outbytes, testunicodemessage, force_uString(payload)))
+        # check sender/recipients
+        self.assertEqual(env_sender, gotback.from_address)
+        self.assertEqual(env_recipients, gotback.recipients)
 
 
 class DKIMTestCase(unittest.TestCase):
