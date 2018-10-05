@@ -1552,17 +1552,15 @@ class Cache(object):
         except Exception as e:
             self.logger.exception(e)
         finally:
-            if gotlock:
-                self.lock.release()
+            self.lock.release()
 
 
     def get_cache(self,key):
+        ret=None
         try:
             gotlock=self.lock.acquire(True)
             if not gotlock:
                 return None
-
-            ret=None
 
             if key in self.cache:
                 obj,instime=self.cache[key]
@@ -1583,12 +1581,11 @@ class Cache(object):
         while True:
             time.sleep(self.cleanupinterval)
             now=time.time()
+            cleancount=0
             try:
                 gotlock=self.lock.acquire(True)
                 if not gotlock:
                     continue
-
-                cleancount=0
 
                 for key in set(self.cache.keys()):
                     obj,instime=self.cache[key]
@@ -1598,9 +1595,8 @@ class Cache(object):
             except Exception as e:
                 self.logger.exception(e)
             finally:
-                if gotlock:
-                    self.lock.release()
-            self.logger.debug("Cleaned %s expired entries."%cleancount)
+                self.lock.release()
+            self.logger.debug("Cleaned %s expired entries." % cleancount)
 
 
 
