@@ -1534,7 +1534,11 @@ class FileList(object):
     def filename(self, value):
         if self._filename != value:
             self._filename = value
-            self._reload_if_necessary()
+            if value is not None:
+                self._reload_if_necessary()
+            else:
+                self.content = []
+                self._lastreload = 0
     
     
     def _reload_if_necessary(self):
@@ -1589,7 +1593,8 @@ class FileList(object):
     
     def get_list(self):
         """Returns the current list. If the file has been changed since the last call, it will rebuild the list automatically."""
-        self._reload_if_necessary()
+        if self.filename is not None:
+            self._reload_if_necessary()
         return self.content
 
 
