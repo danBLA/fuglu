@@ -154,6 +154,191 @@ Don't dare you change any of my bytes or even remove one!"""
         self.assertEqual(testmessage, payload, "Message body has been altered. In: %s bytes, Out: %s bytes, teststring=->%s<- result=->%s<-" %
                          (inbytes, outbytes, testmessage, payload))
 
+
+class ReinjectErrorTestCase(unittest.TestCase):
+
+    """Full check if mail runs through but no plugins applied"""
+
+    FUGLU_HOST = "127.0.0.1"
+    FUGLU_PORT = 7751
+    DUMMY_PORT = 7752
+    FUGLUCONTROL_PORT = 7753
+
+    def setUp(self):
+        self.config = RawConfigParser()
+        self.config.read([TESTDATADIR + '/endtoendbasetest.conf'])
+        self.config.set(
+            'main', 'incomingport', str(ReinjectErrorTestCase.FUGLU_PORT))
+        self.config.set(
+            'main', 'outgoinghost', str(ReinjectErrorTestCase.FUGLU_HOST))
+        self.config.set(
+            'main', 'outgoingport', str(ReinjectErrorTestCase.DUMMY_PORT))
+        self.config.set(
+            'main', 'controlport', str(ReinjectErrorTestCase.FUGLUCONTROL_PORT))
+        guess_clamav_socket(self.config)
+        # init core
+        self.mc = MainController(self.config)
+
+        # start listening smtp dummy server to get fuglus answer
+        self.smtp = DummySMTPServer(
+            self.config, ReinjectErrorTestCase.DUMMY_PORT, ReinjectErrorTestCase.FUGLU_HOST)
+        self.e2edss = threading.Thread(target=self.smtp.serve, args=())
+        self.e2edss.daemon = True
+        self.e2edss.start()
+
+        # start fuglu's listening server
+        self.fls = threading.Thread(target=self.mc.startup, args=())
+        self.fls.daemon = True
+        self.fls.start()
+
+    def tearDown(self):
+        self.mc.shutdown()
+        self.smtp.shutdown()
+        self.e2edss.join()
+        self.fls.join()
+
+    def test_reinject_error(self):
+        """test if a reinject error is passed"""
+
+        # give fuglu time to start listener
+        time.sleep(1)
+
+        import logging
+        import sys
+
+        root = logging.getLogger()
+        root.setLevel(logging.DEBUG)
+        ch = logging.StreamHandler(sys.stdout)
+        ch.setLevel(logging.DEBUG)
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        ch.setFormatter(formatter)
+        root.addHandler(ch)
+
+
+        # send test message
+        smtpclient = smtplib.SMTP('127.0.0.1', ReinjectErrorTestCase.FUGLU_PORT)
+        # smtpServer.set_debuglevel(1)
+        (code, msg) = smtpclient.helo('test.e2e')
+
+        self.assertEqual(250, code)
+
+
+        testmessage = u"""Hello World!"""
+
+        # TODO: this test fails if we don't put in the \r in there... (eg,
+        # fuglu adds it) - is this a bug or wrong test?
+
+        msg = MIMEText(testmessage)
+        msg["Subject"] = "End to End Test"
+        msgstring = msg.as_string()
+        inbytes = len(msg.get_payload(decode=True))
+        # envelope sender/recipients
+        env_sender = u'sender@fuglu.org'
+        env_recipients = [u'recipient@fuglu.org']
+
+        self.smtp.response_code = 554
+        self.smtp.response_message = '5.4.0 Error: too many hops'
+
+        try:
+            smtpclient.sendmail(sendmail_address(env_sender),
+                                sendmail_address(env_recipients),
+                                force_bString(msgstring))
+        except smtplib.SMTPDataError as e:
+            self.assertEqual(self.smtp.response_code, e.smtp_code)
+
+
+class ReinjectTmpErrorTestCase(unittest.TestCase):
+
+    """Full check if mail runs through but no plugins applied"""
+
+    FUGLU_HOST = "127.0.0.1"
+    FUGLU_PORT = 7761
+    DUMMY_PORT = 7762
+    FUGLUCONTROL_PORT = 7763
+
+    def setUp(self):
+        self.config = RawConfigParser()
+        self.config.read([TESTDATADIR + '/endtoendbasetest.conf'])
+        self.config.set(
+            'main', 'incomingport', str(ReinjectTmpErrorTestCase.FUGLU_PORT))
+        self.config.set(
+            'main', 'outgoinghost', str(ReinjectTmpErrorTestCase.FUGLU_HOST))
+        self.config.set(
+            'main', 'outgoingport', str(ReinjectTmpErrorTestCase.DUMMY_PORT))
+        self.config.set(
+            'main', 'controlport', str(ReinjectTmpErrorTestCase.FUGLUCONTROL_PORT))
+        guess_clamav_socket(self.config)
+        # init core
+        self.mc = MainController(self.config)
+
+        # start listening smtp dummy server to get fuglus answer
+        self.smtp = DummySMTPServer(
+            self.config, ReinjectTmpErrorTestCase.DUMMY_PORT, ReinjectTmpErrorTestCase.FUGLU_HOST)
+        self.e2edss = threading.Thread(target=self.smtp.serve, args=())
+        self.e2edss.daemon = True
+        self.e2edss.start()
+
+        # start fuglu's listening server
+        self.fls = threading.Thread(target=self.mc.startup, args=())
+        self.fls.daemon = True
+        self.fls.start()
+
+    def tearDown(self):
+        self.mc.shutdown()
+        self.smtp.shutdown()
+        self.e2edss.join()
+        self.fls.join()
+
+    def test_reinject_tmp_error(self):
+        """test if a reinject tmp error is passed"""
+
+        # give fuglu time to start listener
+        time.sleep(1)
+
+        import logging
+        import sys
+
+        root = logging.getLogger()
+        root.setLevel(logging.DEBUG)
+        ch = logging.StreamHandler(sys.stdout)
+        ch.setLevel(logging.DEBUG)
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        ch.setFormatter(formatter)
+        root.addHandler(ch)
+
+
+        # send test message
+        smtpclient = smtplib.SMTP('127.0.0.1', ReinjectTmpErrorTestCase.FUGLU_PORT)
+        # smtpServer.set_debuglevel(1)
+        (code, msg) = smtpclient.helo('test.e2e')
+
+        self.assertEqual(250, code)
+
+
+        testmessage = u"""Hello World!"""
+
+        # TODO: this test fails if we don't put in the \r in there... (eg,
+        # fuglu adds it) - is this a bug or wrong test?
+
+        msg = MIMEText(testmessage)
+        msg["Subject"] = "End to End Test"
+        msgstring = msg.as_string()
+        inbytes = len(msg.get_payload(decode=True))
+        # envelope sender/recipients
+        env_sender = u'sender@fuglu.org'
+        env_recipients = [u'recipient@fuglu.org']
+
+        self.smtp.response_code = 451
+        self.smtp.response_message = '4.5.1 Internal error'
+
+        try:
+            smtpclient.sendmail(sendmail_address(env_sender),
+                                sendmail_address(env_recipients),
+                                force_bString(msgstring))
+        except smtplib.SMTPDataError as e:
+            self.assertEqual(self.smtp.response_code, e.smtp_code)
+
+
 class EndtoEndBaseTestCase(unittest.TestCase):
 
     """Full check if mail runs through but no plugins applied"""
