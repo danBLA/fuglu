@@ -417,5 +417,5 @@ class SMTPSession(object):
                 if "8BITMIME" not in self.ehlo_options:
                     raise ValueError("8BITMIME support was not proposed")
                 self.logger.debug("mail contains 8bit-MIME")
-                self.smtpoptions.add("8BITMIME")
+                self.smtpoptions.add("BODY=8BITMIME")
         return retaddr
