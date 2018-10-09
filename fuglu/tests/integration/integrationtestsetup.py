@@ -47,6 +47,8 @@ class DummySMTPServer(object):
         self._socket.listen(1)
         self.logger.debug('listen at: %s, %s' % (address, port))
         self.suspect = None
+        self.response_code = 250
+        self.response_message = "OK - queued as 1337"
 
     def serve(self):
         from fuglu.shared import Suspect
@@ -62,7 +64,8 @@ class DummySMTPServer(object):
             self.logger.error('incoming smtp transfer did not finish')
             #sess.closeconn()
             return
-        sess.endsession(250, "OK - queued as 1337 ")
+
+        sess.endsession(self.response_code, self.response_message)
 
         fromaddr = sess.from_address
 

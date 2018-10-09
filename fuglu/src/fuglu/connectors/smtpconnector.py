@@ -65,7 +65,7 @@ class SMTPHandler(ProtocolHandler):
     def re_inject(self, suspect):
         """Send message back to postfix"""
         if suspect.get_tag('noreinject'):
-            return 'message not re-injected by plugin request'
+            return 250, 'message not re-injected by plugin request'
 
         if suspect.get_tag('reinjectoriginal'):
             self.logger.info('%s: Injecting original message source without modifications' % suspect.id)
@@ -83,28 +83,44 @@ class SMTPHandler(ProtocolHandler):
 
         # if there are SMTP options (SMTPUTF8, ...) then use ehlo
         mail_options = list(suspect.smtp_options)
-        if mail_options:
-            client.ehlo(helo)
-        else:
-            client.helo(helo)
-
-        # for sending, make sure the string to sent is byte string
-        client.sendmail(sendmail_address(suspect.from_address),
-                        sendmail_address(suspect.recipients),
-                        force_bString(msgcontent),
-                        mail_options=mail_options)
-        # if we did not get an exception so far, we can grab the server answer using the patched client
-        # servercode=client.lastservercode
-        serveranswer = client.lastserveranswer
+        serveranswer = None
+        responsecode = None
         try:
-            client.quit()
-        except Exception as e:
-            self.logger.warning('Exception while quitting re-inject session: %s' % str(e))
+            if mail_options:
+                client.ehlo(helo)
+            else:
+                client.helo(helo)
 
+            # for sending, make sure the string to sent is byte string
+            client.sendmail(sendmail_address(suspect.from_address),
+                            sendmail_address(suspect.recipients),
+                            force_bString(msgcontent),
+                            mail_options=mail_options)
+            # if we did not get an exception so far, we can grab the server answer using the patched client
+            # servercode=client.lastservercode
+            responsecode = 250
+            serveranswer = client.lastserveranswer
+        except (smtplib.SMTPHeloError, smtplib.SMTPRecipientsRefused,
+                smtplib.SMTPSenderRefused, smtplib.SMTPDataError) as e:
+            if isinstance(e, smtplib.SMTPResponseException):
+                responsecode = e.smtp_code
+                serveranswer = e.smtp_error
+            else:
+                responsecode = 451
+                serveranswer = str(e)
+        finally:
+            try:
+                client.quit()
+            except Exception as e:
+                self.logger.warning('Exception while quitting re-inject session: %s' % str(e))
+
+        if responsecode is None:
+            self.logger.warning('Re-inject: could not get server response code.')
+            responsecode = 451
         if serveranswer is None:
             self.logger.warning('Re-inject: could not get server answer.')
             serveranswer = ''
-        return serveranswer
+        return responsecode, serveranswer
 
     def get_suspect(self):
         success = self.sess.getincomingmail()
@@ -129,13 +145,17 @@ class SMTPHandler(ProtocolHandler):
         return suspect
 
     def commitback(self, suspect):
-        injectanswer = self.re_inject(suspect)
+        injectcode, injectanswer = self.re_inject(suspect)
         suspect.set_tag("injectanswer", injectanswer)
-        values = dict(injectanswer=injectanswer)
-        message = apply_template(
-            self.config.get('smtpconnector', 'requeuetemplate'), suspect, values)
 
-        self.sess.endsession(250, message)
+        if injectcode == 250:
+            values = dict(injectanswer=injectanswer)
+            message = apply_template(
+                self.config.get('smtpconnector', 'requeuetemplate'), suspect, values)
+        else:
+            message = injectanswer
+
+        self.sess.endsession(injectcode, message)
         self.sess = None
 
     def defer(self, reason):
@@ -417,5 +437,5 @@ class SMTPSession(object):
                 if "8BITMIME" not in self.ehlo_options:
                     raise ValueError("8BITMIME support was not proposed")
                 self.logger.debug("mail contains 8bit-MIME")
-                self.smtpoptions.add("8BITMIME")
+                self.smtpoptions.add("BODY=8BITMIME")
         return retaddr
