@@ -796,6 +796,40 @@ class Suspect(object):
         return match.groups()
 
 
+
+def strip_address(address):
+    """
+    Strip the leading & trailing <> from an address.  Handy for
+    getting FROM: addresses.
+    """
+    start = address.find('<') + 1
+    if start < 1:
+        start = address.find(':') + 1
+    if start < 1:
+        return address
+    end = address.find('>')
+    if end < 0:
+        end = len(address)
+    retaddr = address[start:end]
+    retaddr = retaddr.strip()
+    return retaddr
+
+
+
+def extract_domain(address, lowercase=True):
+    if address is None or address == '':
+        return None
+    else:
+        try:
+            user, domain = address.rsplit('@', 1)
+            if lowercase:
+                domain = domain.lower()
+            return domain
+        except Exception as e:
+            raise ValueError("invalid email address: '%s'" % address)
+
+
+
 # it is important that this class explicitly extends from object, or
 # __subclasses__() will not work!
 
@@ -1534,7 +1568,11 @@ class FileList(object):
     def filename(self, value):
         if self._filename != value:
             self._filename = value
-            self._reload_if_necessary()
+            if value is not None:
+                self._reload_if_necessary()
+            else:
+                self.content = []
+                self._lastreload = 0
     
     
     def _reload_if_necessary(self):
@@ -1589,7 +1627,8 @@ class FileList(object):
     
     def get_list(self):
         """Returns the current list. If the file has been changed since the last call, it will rebuild the list automatically."""
-        self._reload_if_necessary()
+        if self.filename is not None:
+            self._reload_if_necessary()
         return self.content
 
 
