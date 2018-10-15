@@ -3,10 +3,11 @@ import unittest
 import string
 from fuglu.shared import Suspect, SuspectFilter, string_to_actioncode, actioncode_to_string, apply_template, REJECT, FileList
 from fuglu.addrcheck import Addrcheck
+import email
 import os
+import sys
 import datetime
 from fuglu.stringencode import force_uString, force_bString
-from fuglu.mailattach import Mailattachment
 
 try:
     from configparser import ConfigParser
@@ -26,6 +27,7 @@ except ImportError:
 # in the test for stringencode, see "stringencode_test"
 stringtype = type(force_uString("test"))
 bytestype = type(force_bString("test"))
+
 
 class SuspectTestCase(unittest.TestCase):
 
@@ -160,6 +162,31 @@ class SuspectTestCase(unittest.TestCase):
         self.assertEqual(force_uString( newheader[1]),msg["x-new-0"])
         self.assertEqual(force_uString(newheaderb[1]),msg["x-new-1"])
         self.assertEqual(force_uString(newheaderu[1]),msg["x-new-2"])
+
+    def test_message_flatten(self):
+        """Python-3.x seems to have a problem to flatten some messages"""
+
+        # Until https://bugs.python.org/issue27321 is merged we need
+        # a patched version already implementing this fix
+        suspect = Suspect('sender@unittests.fuglu.org',
+                          'recipient@unittests.fuglu.org', TESTDATADIR + '/contentproblem.eml')
+        mailobj = suspect.get_message_rep()
+        mailstr = mailobj.as_string()
+
+    def test_message_flatten_patchneeded(self):
+        """Development: check if fix is still needed!"""
+
+        # see "test_message_flatten" test
+        if sys.version_info > (3,):
+            with patch('fuglu.shared.PatchedMessage', wraps=email.message.Message):
+                suspect = Suspect('sender@unittests.fuglu.org',
+                              'recipient@unittests.fuglu.org', TESTDATADIR + '/contentproblem.eml')
+                mailobj = suspect.get_message_rep()
+                with self.assertRaises(KeyError, msg="If there's no KeyError anymore change the import shared.py "
+                                                     "-> PatchedMessage is not needed for versions > (%u,%u,%u)"
+                                                     % (sys.version_info.major, sys.version_info.minor,
+                                                        sys.version_info.micro)):
+                    mailstr = mailobj.as_string()
 
 class SuspectFilterTestCase(unittest.TestCase):
 

@@ -32,6 +32,12 @@ except ImportError:
 from fuglu.addrcheck import Addrcheck
 from fuglu.stringencode import force_uString, force_bString
 from fuglu.mailattach import Mailattachment_mgr
+
+if sys.version_info > (3,):
+    from fuglu.lib.patchedemail import PatchedMessage
+else:
+    from email.message import Message as PatchedMessage
+
 try:
     from html.parser import HTMLParser
 except ImportError:
@@ -587,9 +593,9 @@ class Suspect(object):
                 # Python 3 and larger
                 # the basic "str" type is unicode
                 if isinstance(self.source, str):
-                    msgrep = email.message_from_string(self.source)
+                    msgrep = email.message_from_string(self.source, _class=PatchedMessage)
                 else:
-                    msgrep = email.message_from_bytes(self.source)
+                    msgrep = email.message_from_bytes(self.source, _class=PatchedMessage)
             else:
                 # Python 2.x
                 msgrep = email.message_from_string(self.source)
@@ -601,10 +607,10 @@ class Suspect(object):
                 # Python 3 and larger
                 # file should be binary...
 
-                # IMPORTANT: It is possible to use email.message_from_bytes BUT this will automatically replace
+                # IMPORTANT: It is possible to use email.message_from_file BUT this will automatically replace
                 #            '\r\n' in the message (_payload) by '\n' and the endtoend_test.py will fail!
                 tmpSource = self.get_original_source()
-                msgrep = email.message_from_bytes(tmpSource)
+                msgrep = email.message_from_bytes(tmpSource, _class=PatchedMessage)
             else:
                 # Python 2.x
                 with open(self.tempfile, 'r') as fh:
