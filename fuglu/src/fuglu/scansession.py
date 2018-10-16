@@ -282,11 +282,14 @@ class SessionHandler(TrackTimings):
             result = self.action
 
             self.set_workerstate("Finishing message %s" % suspect)
+            self.logger.debug("Finishing message %s" % suspect)
 
             message_is_deferred = False
             if result == ACCEPT or result == DUNNO:
                 try:
+                    self.logger.debug("Commitback")
                     self.protohandler.commitback(suspect)
+                    self.logger.debug("After Commitback")
                     self.tracktime("Commitback")
                     self.stats.increase_counter_values(StatDelta(out=1))
                     self.tracktime("Increase-Stats")

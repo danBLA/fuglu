@@ -115,7 +115,7 @@ class MainController(object):
     appenders = []
     config = None
 
-    def __init__(self, config, logQueue=None, logProcessFacQueue=None):
+    def __init__(self, config, logQueue=None, logProcessFacQueue=None, nolog=False):
         """
         Main controller instance
         Note: The logQueue and logProcessFacQueue keyword args are only needed in the fuglu main process when logging
@@ -127,6 +127,7 @@ class MainController(object):
         Keyword Args:
             logQueue (multiprocessing.queue or None): Queue where to put log messages (not directly used, only by loggers as defined in logtools.client_configurer)
             logProcessFacQueue (multiprocessing.queue or None): Queue where to put new logging configurations (logtools.logConfig objects)
+            nolog (bool): if True set logging level to error which will basically prevent logging
         """
         self.requiredvars = {
             # main section
@@ -485,6 +486,8 @@ class MainController(object):
         self.config = config
         self.servers = []
         self.logger = self._logger()
+        if nolog:
+            self.logger.setLevel(logging.ERROR)
         self.stayalive = True
         self.threadpool = None
         self.procpool = None

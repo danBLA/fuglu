@@ -136,6 +136,7 @@ class BasicTCPServer(object):
                     self.controller.threadpool.add_task_from_socket(sock, handler_modulename, handler_classname, self.port)
                 elif self.controller.procpool:
                     self.controller.procpool.add_task_from_socket(sock, handler_modulename, handler_classname, self.port)
+                    self.logger.debug('(%s) Incoming connection  pushed to queue' % createPIDinfo())
                 else:
                     ph = self.protohandlerclass(sock, self.controller.config)
                     engine = SessionHandler(ph, self.controller.config, self.controller.prependers,

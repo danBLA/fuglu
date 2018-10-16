@@ -64,6 +64,7 @@ class SMTPHandler(ProtocolHandler):
 
     def re_inject(self, suspect):
         """Send message back to postfix"""
+        self.logger.debug("build message source")
         if suspect.get_tag('noreinject'):
             return 'message not re-injected by plugin request'
 
@@ -76,6 +77,7 @@ class SMTPHandler(ProtocolHandler):
         targethost = self.config.get('main', 'outgoinghost')
         if targethost == '${injecthost}':
             targethost = self.socket.getpeername()[0]
+        self.logger.debug("connect to client")
         client = FUSMTPClient(targethost, self.config.getint('main', 'outgoingport'))
         helo = self.config.get('main', 'outgoinghelo')
         if helo.strip() == '':
@@ -84,11 +86,14 @@ class SMTPHandler(ProtocolHandler):
         # if there are SMTP options (SMTPUTF8, ...) then use ehlo
         mail_options = list(suspect.smtp_options)
         if mail_options:
+            self.logger.debug("send ehlo")
             client.ehlo(helo)
         else:
+            self.logger.debug("send helo")
             client.helo(helo)
 
         # for sending, make sure the string to sent is byte string
+        self.logger.debug("send message")
         client.sendmail(sendmail_address(suspect.from_address),
                         sendmail_address(suspect.recipients),
                         force_bString(msgcontent),
@@ -96,6 +101,7 @@ class SMTPHandler(ProtocolHandler):
         # if we did not get an exception so far, we can grab the server answer using the patched client
         # servercode=client.lastservercode
         serveranswer = client.lastserveranswer
+        self.logger.debug("got server answer %s" % serveranswer)
         try:
             client.quit()
         except Exception as e:
@@ -186,6 +192,7 @@ class SMTPSession(object):
 
         self.socket = socket
         self.state = SMTPSession.ST_INIT
+        self.noisy = False
         self.logger = logging.getLogger("fuglu.smtpsession")
         self.tempfilename = None
         self.tempfile = None
@@ -235,10 +242,15 @@ class SMTPSession(object):
         if self.tempfile and not self.tempfile.closed:
             self.tempfile.close()
     
-    
+    def noisydebuglog(self,message):
+        if self.noisy:
+            self.logger.debug(message)
+
     def getincomingmail(self):
         """return true if mail got in, false on error Session will be kept open"""
+        self.noisydebuglog("send: 220 fuglu scanner ready")
         self.socket.send(force_bString("220 fuglu scanner ready \r\n"))
+        self.noisydebuglog("-> done, now start receiving")
 
         while True:
             rawdata = b''
@@ -246,21 +258,27 @@ class SMTPSession(object):
             completeLine = 0
             while not completeLine:
 
+                self.noisydebuglog("receive lump of 1024")
                 lump = self.socket.recv(1024)
+                self.noisydebuglog("-> done")
 
                 if len(lump):
+                    self.noisydebuglog("length of lump > 0")
                     rawdata += lump
 
                     if (len(rawdata) >= 2) and rawdata[-2:] == force_bString('\r\n'):
+                        self.noisydebuglog("complete line")
                         completeLine = 1
 
                         if self.state != SMTPSession.ST_DATA:
 
                             # convert data to unicode if needed
+                            self.noisydebuglog("not in DATA mode, doCommand")
                             data = force_uString(rawdata)
                             rsp, keep = self.doCommand(data)
 
                         else:
+                            self.noisydebuglog("In DATA mode...")
                             try:
                                 #directly use raw bytes-string data
                                 rsp = self.doData(rawdata)
@@ -272,18 +290,24 @@ class SMTPSession(object):
                                 return False
 
                             if rsp is None:
+                                self.noisydebuglog("response is None, continue")
                                 continue
                             else:
                                 # data finished.. keep connection open though
+                                self.noisydebuglog("data finished, return")
                                 return True
 
+                        self.noisydebuglog("Send response: %s" % rsp)
                         self.socket.send(force_bString(rsp + "\r\n"))
+                        self.noisydebuglog("sent...")
 
                         if keep == 0:
                             self.closeconn()
                             return False
                 else:
                     # EOF
+                    #self.noisydebuglog("EOF, something went wrong!")
+                    self.logger.error("EOF, something went wrong!")
                     return False
     
     

@@ -124,12 +124,14 @@ class ProcManager(object):
         # setting stayalive equal to False
         # will send poison pills to all processors
         self.logger.debug("Shutdown procpool -> send poison pills")
+        assert self.stayalive
         self.stayalive = False
 
         # add another poison pill for the ProcManager itself removing tasks...
         self.tasks.put_nowait(None)
 
         if newmanager:
+            assert id(newmanager.tasks) != id(self.tasks)
             # new manager available. Transfer tasks
             # to new manager
             countmessages = 0
@@ -204,7 +206,7 @@ class MessageListener(threading.Thread):
                     print(traceback.format_exc())
 
 
-def fuglu_process_worker(queue, config, shared_state,child_to_server_messages, logQueue):
+def fuglu_process_worker(queue, config, shared_state, child_to_server_messages, logQueue):
 
 
     signal.signal(signal.SIGHUP, signal.SIG_IGN)
@@ -212,7 +214,7 @@ def fuglu_process_worker(queue, config, shared_state,child_to_server_messages, l
     logtools.client_configurer(logQueue)
     logging.basicConfig(level=logging.DEBUG)
     workerstate = WorkerStateWrapper(shared_state,'loading configuration')
-    logger = logging.getLogger('fuglu.process')
+    logger = logging.getLogger('fuglu.process.%s(%u)' % (workerstate.process.name, workerstate.process.pid))
     logger.debug("New worker: %s" % logtools.createPIDinfo())
 
 
@@ -228,7 +230,8 @@ def fuglu_process_worker(queue, config, shared_state,child_to_server_messages, l
 
 
     # load config and plugins
-    controller = fuglu.core.MainController(config,logQueue)
+    logger.debug("Create MainController")
+    controller = fuglu.core.MainController(config, logQueue=logQueue, nolog=True)
     controller.load_extensions()
     controller.load_plugins()
 
@@ -237,9 +240,11 @@ def fuglu_process_worker(queue, config, shared_state,child_to_server_messages, l
     appenders = controller.appenders
 
     # forward statistics counters to parent process
+    logger.debug("Create Statskeeper")
     stats = Statskeeper()
     stats.stat_listener_callback.append(lambda event: child_to_server_messages.put(event.as_message()))
 
+    logger.debug("Enter service loop")
     logger.debug("%s: Enter service loop..." % logtools.createPIDinfo())
 
     try:
@@ -252,10 +257,13 @@ def fuglu_process_worker(queue, config, shared_state,child_to_server_messages, l
                 try:
                     # it might be possible it does not work to properly set the workerstate
                     # since this is a shared variable -> prevent exceptions
-                    workerstate.workerstate = 'ended'
-                except Exception:
+                    workerstate.workerstate = 'ended (poison pill)'
+                except Exception as e:
+                    logger.debug("Exception setting workstate while getting poison pill")
+                    logger.exception(e)
                     pass
                 finally:
+                    logger.debug("Return due to poison pill")
                     return
             workerstate.workerstate = 'starting scan session'
             logger.debug("%s: Child process starting scan session" % logtools.createPIDinfo())
@@ -279,14 +287,20 @@ def fuglu_process_worker(queue, config, shared_state,child_to_server_messages, l
                 debug_procpoolworkermemory(logger, config)
 
     except KeyboardInterrupt:
-        workerstate.workerstate = 'ended'
-    except Exception:
-        trb = traceback.format_exc()
-        logger.error("Exception in child process: %s"%trb)
-        print(trb)
+        workerstate.workerstate = 'ended (keyboard interrupt)'
+        logger.debug("Keyboard interrupt")
+    except Exception as e:
+        logger.exception(e)
+        logger.error("Exception in worker process: %s" % str(e))
         workerstate.workerstate = 'crashed'
+        logger.debug("Exception in worker process -> after setting workerstate")
     finally:
+        # this process will not put any object in queue
+        queue.close()
+        #
+        logger.debug("Shutdown controller...")
         controller.shutdown()
+        logger.debug("END")
 
 def debug_procpoolworkermemory(logger, config):
     """
@@ -347,6 +361,8 @@ class WorkerStateWrapper(object):
             self.process = multiprocessing.current_process()
 
         self._publish_state()
+        self.logger = logging.getLogger("fuglu.WorkerState.%s(%u)" % (self.process.name, self.process.pid))
+        self.logger.info("init")
 
     def _publish_state(self):
         try:
@@ -360,5 +376,6 @@ class WorkerStateWrapper(object):
 
     @workerstate.setter
     def workerstate(self, value):
+        self.logger.info("set state to: %s" % value)
         self._state = value
         self._publish_state()

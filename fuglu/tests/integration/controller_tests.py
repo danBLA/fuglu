@@ -11,6 +11,7 @@ except ImportError:
 
 import logging
 import sys
+import os
 import time
 import smtplib
 import threading
@@ -18,12 +19,12 @@ from fuglu.core import MainController
 from email.mime.text import MIMEText
 
 def setup_module():
-    loglevel = logging.INFO
+    loglevel = logging.DEBUG
     root = logging.getLogger()
     root.setLevel(loglevel)
     handler = logging.StreamHandler(sys.stdout)
     handler.setLevel(loglevel)
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    formatter = logging.Formatter('%(asctime)s - %(name)s[%(process)d] - %(levelname)s - %(message)s')
     handler.setFormatter(formatter)
     root.addHandler(handler)
 
@@ -166,7 +167,9 @@ class ReloadUnderLoadTest(unittest.TestCase):
     delay_by = 0.25  # seconds
     num_procs = 5
 
-    def setUp(self):
+    def runsetUp(self):
+        logger = logging.getLogger("setUp")
+        logger.info("setup config")
         self.config = RawConfigParser()
         self.config.read([TESTDATADIR + '/endtoendbasetest.conf'])
         # ------------ #
@@ -197,7 +200,7 @@ class ReloadUnderLoadTest(unittest.TestCase):
         # set timeout for joining the workers. Since the DummySMTPServer receives sequentially,
         # we need at least number_of_procs*delayPlugin
         self.config.set('performance', 'join_timeout',
-                        2.0*float(ReloadUnderLoadTest.num_procs)*ReloadUnderLoadTest.delay_by)
+                        10.0*float(ReloadUnderLoadTest.num_procs)*ReloadUnderLoadTest.delay_by)
 
         self.config.set('main', 'plugins', 'fuglu.plugins.delay.DelayPlugin')
 
@@ -213,27 +216,68 @@ class ReloadUnderLoadTest(unittest.TestCase):
         # MainController #
         # -------------- #
         # init core
+        logger.info("setup MainController")
         self.mc = MainController(self.config)
 
         # ----------------- #
         # Dummy SMTP Server #
         # ----------------- #
+        logger.info("setup Dummy SMTP Server and start thread")
         # start listening smtp dummy server to get fuglus answer
         self.dsmtp = DummySMTPServer(
             self.config, ReloadUnderLoadTest.DUMMY_PORT, ReloadUnderLoadTest.FUGLU_HOST, stayalive=True)
-        self.thread_dsmtp = threading.Thread(target=self.dsmtp.serve, args=())
+        self.thread_dsmtp = threading.Thread(name="DummySMTPServer", target=self.dsmtp.serve, args=())
         self.thread_dsmtp.daemon = True
         self.thread_dsmtp.start()
 
         # --
         # start fuglu's listening server (MainController.startup)
         # --
-        self.thread_fls = threading.Thread(target=self.mc.startup, args=())
+        logger.info("setup Fuglu and start thread")
+        self.thread_fls = threading.Thread(name="MainController", target=self.mc.startup, args=())
         self.thread_fls.daemon = True
         self.thread_fls.start()
 
-    def tearDown(self):
+        setup_module()
+        #loglevel = logging.DEBUG
+        #loggers = []
+        #loggers.append(logging.getLogger("dummy.smtpserver"))
+        #loggers.append(logging.getLogger("fuglu.smtpsession"))
+        #for logger in loggers:
+        #    logger.setLevel(loglevel)
+        #    logger.propagate = False
+        #    handler = logging.StreamHandler(sys.stdout)
+        #    handler.setLevel(loglevel)
+        #    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        #    handler.setFormatter(formatter)
+        #    logger.addHandler(handler)
+
+    def runtearDown(self):
         logger = logging.getLogger("tearDown")
+
+        # ---
+        # shutdown fuglu (BEFORE Dummy SMTPServer)
+        # ---
+        logger.debug("\n------------------\n Shutdown Fuglu MainController\n -------------------")
+        self.mc.shutdown()
+
+        logger.debug("Join Fuglu MainController Thread (fls)")
+        self.thread_fls.join()
+        logger.debug("fls joined")
+
+        # ---
+        # shutdown dummy smtp server
+        # ---
+
+        logger.debug("\n------------------\n Shutdown Dummy SMTP\n -------------------")
+        logger.debug("set DummySMTPServer.stayalive = False")
+        self.dsmtp.stayalive = False
+        # just connect and close to shutdown also the dummy SMTP server
+        logger.debug("Make dummy connection")
+        dsmtpclient = smtplib.SMTP(ReloadUnderLoadTest.FUGLU_HOST, ReloadUnderLoadTest.DUMMY_PORT)
+        logger.debug("Close")
+        dsmtpclient.close()
+        logger.debug("End")
 
         logger.debug("Join Dummy SMTP Thread (dsmtp)")
         self.thread_dsmtp.join()
@@ -242,19 +286,25 @@ class ReloadUnderLoadTest(unittest.TestCase):
         logger.debug("Shutdown Dummy SMTP Server")
         self.dsmtp.shutdown()
 
-        logger.debug("Shutdown Fuglu MainController")
-        self.mc.shutdown()
-
-        logger.debug("Join Fuglu MainController Thread (fls)")
-        self.thread_fls.join()
-        logger.debug("fls joined")
 
     def create_and_send_message(self):
-        logger = logging.getLogger("create_and_send_message")
+        threadname = threading.current_thread().name
+        logger = logging.getLogger("create_and_send_message.%s" % threadname)
 
         logger.debug("create client, connect to: %s:%u" %
                      (ReloadUnderLoadTest.FUGLU_HOST, ReloadUnderLoadTest.FUGLU_PORT))
-        smtpclient = smtplib.SMTP(ReloadUnderLoadTest.FUGLU_HOST, ReloadUnderLoadTest.FUGLU_PORT)
+        try:
+            smtpclient = smtplib.SMTP(ReloadUnderLoadTest.FUGLU_HOST, ReloadUnderLoadTest.FUGLU_PORT)
+        except smtplib.SMTPServerDisconnected as e:
+            logger.error("SMTP Connection Error")
+            print("%s: %s" % (threadname, e))
+            import traceback
+            traceback.print_exc()
+            return
+
+
+        # build identifier
+        sender = threadname.replace("(", "").replace(")", "").replace(",", ".").replace("-", ".")+"@fuglu.org"
 
         logger.debug("say helo...")
         smtpclient.helo('test.e2e')
@@ -265,10 +315,20 @@ class ReloadUnderLoadTest(unittest.TestCase):
         msg["Subject"] = "End to End Test"
         msgstring = msg.as_string()
         logger.debug("send mail")
-        smtpclient.sendmail('sender@fuglu.org', 'recipient@fuglu.org', msgstring)
-        smtpclient.quit()
+        try:
+            smtpclient.sendmail(sender, 'recipient@fuglu.org', msgstring)
+            logger.info("mail sent... - check reply...")
+            code, response = smtpclient.quit()
+            logger.info("%u: %s" % (code, response))
+            logger.info("mail sent successfully")
+        except smtplib.SMTPServerDisconnected as e:
+            logger.error("sending mail")
+            print("%s: %s" % (threadname, e))
+            import traceback
+            traceback.print_exc()
 
     def test_reloadwhilebusy(self):
+        self.runsetUp()
         # give fuglu time to start listener
         logger = logging.getLogger("test_reloadwhilebusy")
         logger.debug("wait")
@@ -291,13 +351,19 @@ class ReloadUnderLoadTest(unittest.TestCase):
 
             # send test message
             messages = []
-            logger.info("\n--------------------------\nDump 10 messages into queue\n--------------------------\n")
+            logger.info("\n--------------------------\nDump %u messages into queue\n--------------------------\n"
+                        % num_messages_before)
             for imessage in range(num_messages_before):
-                t = threading.Thread(target=self.create_and_send_message, args=())
+                t = threading.Thread(name="(%u,%u)-before-MessageSender" % (ireload, imessage),
+                                     target=self.create_and_send_message, args=())
                 t.daemon = True
                 t.start()
                 messages.append(t)
             time.sleep(min(float(ReloadUnderLoadTest.num_procs), num_messages_before/2.) * ReloadUnderLoadTest.delay_by)
+            #time.sleep(0.1)
+            # -------- #
+            continue
+            # -------- #
             logger.info("\n--------------------------\nRELOAD - RELOAD - RELOAD\n--------------------------\n")
             self.mc.reload()
 
@@ -307,18 +373,12 @@ class ReloadUnderLoadTest(unittest.TestCase):
 
             logger.info("\n--------------------------\nDump 2 messages into queue\n--------------------------\n")
             for imessage in range(num_messages_after):
-                t = threading.Thread(target=self.create_and_send_message, args=())
+                t = threading.Thread(name="(%u,%u)-after-MessageSender" % (ireload, imessage),
+                                     target=self.create_and_send_message, args=())
                 t.daemon = True
                 t.start()
                 messages.append(t)
             for t in messages:
                 t.join()
 
-        logger.debug("set DummySMTPServer.stayalive = False")
-        self.dsmtp.stayalive = False
-        # just connect and close to shutdown also the dummy SMTP server
-        logger.debug("Make dummy connection")
-        dsmtpclient = smtplib.SMTP(ReloadUnderLoadTest.FUGLU_HOST, ReloadUnderLoadTest.DUMMY_PORT)
-        logger.debug("Close")
-        dsmtpclient.close()
-        logger.debug("End")
+        self.runtearDown()

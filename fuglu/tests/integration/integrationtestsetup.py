@@ -44,7 +44,7 @@ class DummySMTPServer(object):
         self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self._socket.bind((address, port))
-        self._socket.listen(1)
+        self._socket.listen(100)
         self.logger.debug('listen at: %s, %s' % (address, port))
         self.suspect = None
         self.stayalive = stayalive
@@ -67,8 +67,8 @@ class DummySMTPServer(object):
                     self.logger.error('incoming smtp transfer did not finish')
                 else:
                     self.logger.info('incoming smtp transfer did not finish, stayalive is False')
-                #sess.closeconn()
-                return
+                sess.closeconn()
+                continue
             sess.endsession(250, "OK - queued as 1337 ")
 
             fromaddr = sess.from_address
