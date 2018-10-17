@@ -191,6 +191,13 @@ class EndtoEndBaseTestCase(unittest.TestCase):
         self.fls.start()
 
     def tearDown(self):
+        # Check if Dummy SMTP Server is alive and still waiting for a connection
+        if self.smtp.is_waiting:
+            # just connect and close to shutdown also the dummy SMTP server
+            self.smtp.stayalive = False
+            dsmtpclient = smtplib.SMTP(EndtoEndBaseTestCase.FUGLU_HOST, EndtoEndBaseTestCase.DUMMY_PORT)
+            dsmtpclient.close()
+
         self.mc.shutdown()
         self.smtp.shutdown()
         self.e2edss.join()
@@ -217,21 +224,18 @@ class EndtoEndBaseTestCase(unittest.TestCase):
         smtpclient = smtplib.SMTP('127.0.0.1', EndtoEndBaseTestCase.FUGLU_PORT)
         # smtpServer.set_debuglevel(1)
         (code, msg) = smtpclient.ehlo('test.e2e')
-        msg = force_uString(msg)
+        msg = force_uString(msg.split())
 
         self.assertEqual(250, code)
         print("%s"%msg)
         if (3,) <= sys.version_info < (3, 5):
+            smtpclient.close()
             # NO SMTPUTF8 provided in smtpconnector for python >=3 and python < 3.5
             try:
-                self.assertNotIn("SMTPUTF8", msg)
+                self.assertNotIn("SMTPUTF8", msg, "SMTPUTF8 should NOT be provided for your Python version")
             except AttributeError:
                 self.assertTrue("SMTPUTF8" not in msg)
             print("WARNING: Test \"test_SMTPUTF8_E2E\" skipped!")
-            smtpclient.close()
-            # just connect and close to shutdown also the dummy SMTP server
-            dsmtpclient = smtplib.SMTP(EndtoEndBaseTestCase.FUGLU_HOST, EndtoEndBaseTestCase.DUMMY_PORT)
-            dsmtpclient.close()
             return
         else:
             try:

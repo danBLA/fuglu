@@ -48,6 +48,7 @@ class DummySMTPServer(object):
         self.logger.debug('listen at: %s, %s' % (address, port))
         self.suspect = None
         self.stayalive = stayalive
+        self.is_waiting = False
 
     def serve(self):
         from fuglu.shared import Suspect
@@ -56,6 +57,7 @@ class DummySMTPServer(object):
         # be able to receive several messages
         # Otherwise, it should run the loop once which will receive a
         # message and create the suspect
+        self.is_waiting = True
         while (self.suspect is None) or self.stayalive:
             self.logger.debug('Waiting for accept connection')
             nsd = self._socket.accept()
@@ -90,6 +92,7 @@ class DummySMTPServer(object):
 
             if self.stayalive or (self.suspect is None):
                 self.suspect = Suspect(fromaddr, recipients, self.tempfilename)
+        self.is_waiting = False
         self.logger.debug('Exit server loop (Suspect is None: %s, stayalive: %s)' %
                           ((self.suspect is None), self.stayalive))
 
