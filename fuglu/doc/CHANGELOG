@@ -10,6 +10,11 @@
  * new input "att_mgr_cachesize" to define attachment manager cache size
  * new input "archiveextractlevel" in FiletypePlugin to define attachment archive extract level
  * allow binding incoming ports to different addresses
+ * gzip archive handler
+ * new milter connector allowing changes to the message
+ * support for unicode addresses (SMTPUTF8) and 8BITMIME in smtpconnctor
+ * checksums for all attachments on request
+ * fuglu with "--foreground" option ignores logging.conf and prints to stdout
 
 Developers:
  * extended signature of scan_stream function in AV plugins / new subclass shared.AVScannerPlugin
@@ -17,6 +22,12 @@ Developers:
  * Mail attachment manager - "Suspect.att_mgr" - storing all message attachments and message parts
  * Attachment objects are created as needed, cached as long as withing the cache limit
  * caching framework for member variables and methods
+ * New implementation for address validity check
+ * Consistent types in SuspectFilter/Suspect getters/setters (bytes/unicode)
+ * nonzero fuglu return values on error
+ * fix encoding problems in bounce messages
+ * fixes and exception handling in string encoding/decoding for Python 3
+ * mail scantime details (to be written to log)
 
 
 -- Fuglu 0.8.0, 2018-04-23
