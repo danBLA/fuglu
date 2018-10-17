@@ -11,12 +11,12 @@ except ImportError:
 
 import logging
 import sys
-import os
 import time
 import smtplib
 import threading
 from fuglu.core import MainController
 from email.mime.text import MIMEText
+from nose.tools import timed
 
 def setup_module():
     loglevel = logging.DEBUG
@@ -30,8 +30,11 @@ def setup_module():
 
 
 class ReloadTest(unittest.TestCase):
+    """Test reload with different backends"""
 
     def test_backend_reload(self):
+        """Test reload with different backends"""
+
         config = RawConfigParser()
         config.add_section('performance')
         # minimum scanner threads
@@ -93,7 +96,7 @@ class MultipleMCsTest(unittest.TestCase):
     don't start control servers...
     """
     def test_multiple_mcs(self):
-        """Just start multiple controllsers """
+        """Just start multiple controllers """
 
         config = RawConfigParser()
         mclist = []
@@ -116,9 +119,6 @@ class MultipleMCsTest(unittest.TestCase):
         """
         Even if there are multiple MainControllers they should not cause crashes as long as they
         don't start control servers...
-
-        Returns:
-
         """
         config = RawConfigParser()
         config.add_section('performance')
@@ -157,8 +157,6 @@ class MultipleMCsTest(unittest.TestCase):
 class ReloadUnderLoadTest(unittest.TestCase):
     """Reload backend under load"""
 
-    """Full check if mail runs through but no plugins applied"""
-
     FUGLU_HOST = "127.0.0.1"
     FUGLU_PORT = 7841
     DUMMY_PORT = 7842
@@ -167,7 +165,7 @@ class ReloadUnderLoadTest(unittest.TestCase):
     delay_by = 0.25  # seconds
     num_procs = 5
 
-    def runsetUp(self):
+    def setUp(self):
         logger = logging.getLogger("setUp")
         logger.info("setup config")
         self.config = RawConfigParser()
@@ -238,21 +236,12 @@ class ReloadUnderLoadTest(unittest.TestCase):
         self.thread_fls.daemon = True
         self.thread_fls.start()
 
-        setup_module()
-        #loglevel = logging.DEBUG
-        #loggers = []
-        #loggers.append(logging.getLogger("dummy.smtpserver"))
-        #loggers.append(logging.getLogger("fuglu.smtpsession"))
-        #for logger in loggers:
-        #    logger.setLevel(loglevel)
-        #    logger.propagate = False
-        #    handler = logging.StreamHandler(sys.stdout)
-        #    handler.setLevel(loglevel)
-        #    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        #    handler.setFormatter(formatter)
-        #    logger.addHandler(handler)
+        # give fuglu time to start listener
+        time.sleep(1)
 
-    def runtearDown(self):
+        setup_module()
+
+    def tearDown(self):
         logger = logging.getLogger("tearDown")
 
         # ---
@@ -288,6 +277,7 @@ class ReloadUnderLoadTest(unittest.TestCase):
 
 
     def create_and_send_message(self):
+        """Helper routine to send messages in a separate thread"""
         threadname = threading.current_thread().name
         logger = logging.getLogger("create_and_send_message.%s" % threadname)
 
@@ -327,12 +317,11 @@ class ReloadUnderLoadTest(unittest.TestCase):
             import traceback
             traceback.print_exc()
 
+    @timed(60)
     def test_reloadwhilebusy(self):
-        self.runsetUp()
-        # give fuglu time to start listener
+        """Test reloading processpool while under load. This test should just NOT hang!"""
+
         logger = logging.getLogger("test_reloadwhilebusy")
-        logger.debug("wait")
-        time.sleep(1)
 
         # number of reloads
         num_reloads = 1
@@ -359,11 +348,9 @@ class ReloadUnderLoadTest(unittest.TestCase):
                 t.daemon = True
                 t.start()
                 messages.append(t)
+
             time.sleep(min(float(ReloadUnderLoadTest.num_procs), num_messages_before/2.) * ReloadUnderLoadTest.delay_by)
-            #time.sleep(0.1)
-            # -------- #
-            continue
-            # -------- #
+
             logger.info("\n--------------------------\nRELOAD - RELOAD - RELOAD\n--------------------------\n")
             self.mc.reload()
 
@@ -381,4 +368,3 @@ class ReloadUnderLoadTest(unittest.TestCase):
             for t in messages:
                 t.join()
 
-        self.runtearDown()
