@@ -25,6 +25,7 @@ from fuglu.addrcheck import Addrcheck
 import multiprocessing
 import multiprocessing.queues
 import signal
+import time
 import logging
 import traceback
 import threading
@@ -124,7 +125,6 @@ class ProcManager(object):
         # setting stayalive equal to False
         # will send poison pills to all processors
         self.logger.debug("Shutdown procpool -> send poison pills")
-        assert self.stayalive
         self.stayalive = False
 
         # add another poison pill for the ProcManager itself removing tasks...
@@ -147,7 +147,7 @@ class ProcManager(object):
             mark_defer_counter = 0
             while True:
                 task = self.tasks.get()
-                if task is None: # poison pill
+                if task is None:  # poison pill
                     break
                 mark_defer_counter += 1
                 sock, handler_modulename, handler_classname = uncompress_task(task)
@@ -158,14 +158,20 @@ class ProcManager(object):
 
         # join the workers
         try:
-            join_timout = self.config.getfloat('performance', 'join_timeout')
+            join_timeout = self.config.getfloat('performance', 'join_timeout')
         except:
-            join_timout = 120.0
+            join_timeout = 120.0
+
         self.logger.debug("Join workers")
+        tstart = time.time()
+        remaining_timeout = join_timeout
         for worker in self.workers:
-            worker.join(join_timout)
+            tpassed = time.time()-tstart
+            remaining_timeout = max(join_timeout - tpassed, 0.05)
+            worker.join(remaining_timeout)
             if worker.is_alive():
-                self.logger.error("Could not stop worker %s with given timeout of %f" % (worker, join_timout))
+                self.logger.error("Could not stop worker %s (pid: %u) with given timeout of %f (%f)"
+                                  % (worker, worker.pid, join_timeout, remaining_timeout))
                 worker.terminate()
 
         self.logger.debug("Join message listener")
@@ -173,7 +179,11 @@ class ProcManager(object):
         # put poison pill into queue otherwise the process will not stop
         # since "stayalive" is only checked after receiving a message from the queue
         self.child_to_server_messages.put_nowait(None)
-        self.message_listener.join(join_timout)
+        self.message_listener.join(join_timeout)
+        if self.message_listener.is_alive():
+            self.logger.error("Could not stop message_listener %s with given timeout of %f, just go ahead..."
+                              % (self.message_listener.name, join_timeout))
+
         self.logger.debug("Close tasks queue")
         self.tasks.close()
 
@@ -240,11 +250,9 @@ def fuglu_process_worker(queue, config, shared_state, child_to_server_messages, 
     appenders = controller.appenders
 
     # forward statistics counters to parent process
-    logger.debug("Create Statskeeper")
     stats = Statskeeper()
     stats.stat_listener_callback.append(lambda event: child_to_server_messages.put(event.as_message()))
 
-    logger.debug("Enter service loop")
     logger.debug("%s: Enter service loop..." % logtools.createPIDinfo())
 
     try:
@@ -263,7 +271,6 @@ def fuglu_process_worker(queue, config, shared_state, child_to_server_messages, 
                     logger.exception(e)
                     pass
                 finally:
-                    logger.debug("Return due to poison pill")
                     return
             workerstate.workerstate = 'starting scan session'
             logger.debug("%s: Child process starting scan session" % logtools.createPIDinfo())
@@ -290,17 +297,12 @@ def fuglu_process_worker(queue, config, shared_state, child_to_server_messages, 
         workerstate.workerstate = 'ended (keyboard interrupt)'
         logger.debug("Keyboard interrupt")
     except Exception as e:
-        logger.exception(e)
         logger.error("Exception in worker process: %s" % str(e))
         workerstate.workerstate = 'crashed'
-        logger.debug("Exception in worker process -> after setting workerstate")
     finally:
         # this process will not put any object in queue
         queue.close()
-        #
-        logger.debug("Shutdown controller...")
         controller.shutdown()
-        logger.debug("END")
 
 def debug_procpoolworkermemory(logger, config):
     """
@@ -361,8 +363,6 @@ class WorkerStateWrapper(object):
             self.process = multiprocessing.current_process()
 
         self._publish_state()
-        self.logger = logging.getLogger("fuglu.WorkerState.%s(%u)" % (self.process.name, self.process.pid))
-        self.logger.info("init")
 
     def _publish_state(self):
         try:
@@ -376,6 +376,5 @@ class WorkerStateWrapper(object):
 
     @workerstate.setter
     def workerstate(self, value):
-        self.logger.info("set state to: %s" % value)
         self._state = value
         self._publish_state()
