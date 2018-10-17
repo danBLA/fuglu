@@ -255,7 +255,7 @@ class SMTPSession(object):
         if self.tempfile and not self.tempfile.closed:
             self.tempfile.close()
     
-    
+
     def getincomingmail(self):
         """return true if mail got in, false on error Session will be kept open"""
         self.socket.send(force_bString("220 fuglu scanner ready \r\n"))
@@ -304,6 +304,7 @@ class SMTPSession(object):
                             return False
                 else:
                     # EOF
+                    self.logger.error("EOF, something went wrong!")
                     return False
     
     

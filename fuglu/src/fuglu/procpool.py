@@ -29,6 +29,7 @@ except ImportError:
 import multiprocessing
 import multiprocessing.queues
 import signal
+import time
 import logging
 import traceback
 import threading
@@ -135,13 +136,6 @@ class ProcManager(object):
         self.tasks.put_nowait(None)
 
         if newmanager:
-            join_timeout = 120
-        else:
-            # if there's no new manager then
-            # we don't wait, just kill
-            join_timeout = 1
-
-        if newmanager:
             # new manager available. Transfer tasks
             # to new manager
             self.logger.debug("Pass queue items to new manager")
@@ -177,10 +171,26 @@ class ProcManager(object):
                 self.logger.info("Marked %s messages as '%s' to close queue" % (mark_defer_counter, return_message))
 
         # join the workers
+        try:
+            join_timeout = self.config.getfloat('performance', 'join_timeout')
+        except:
+            if newmanager:
+                join_timeout = 120.0
+            else:
+                # if there's no new manager then
+                # we don't wait, just kill
+                join_timeout = 1
+
         self.logger.debug("Join workers")
+        tstart = time.time()
+        remaining_timeout = join_timeout
         for worker in self.workers:
-            worker.join(join_timeout)
+            tpassed = time.time()-tstart
+            remaining_timeout = max(join_timeout - tpassed, 0.05)
+            worker.join(remaining_timeout)
             if worker.is_alive():
+                self.logger.error("Could not stop worker %s (pid: %u) with given timeout of %f (%f)"
+                                  % (worker, worker.pid, join_timeout, remaining_timeout))
                 worker.terminate()
 
         self.logger.debug("Join message listener")
@@ -190,7 +200,9 @@ class ProcManager(object):
         self.child_to_server_messages.put_nowait(None)
         self.message_listener.join(join_timeout)
         if self.message_listener.is_alive():
-            self.message_listener.terminate()
+            self.logger.error("Could not stop message_listener %s with given timeout of %f, just go ahead..."
+                              % (self.message_listener.name, join_timeout))
+
         self.logger.debug("Close tasks queue")
         self.tasks.close()
 
@@ -223,7 +235,7 @@ class MessageListener(threading.Thread):
                     print(traceback.format_exc())
 
 
-def fuglu_process_worker(queue, config, shared_state,child_to_server_messages, logQueue):
+def fuglu_process_worker(queue, config, shared_state, child_to_server_messages, logQueue):
 
 
     signal.signal(signal.SIGHUP, signal.SIG_IGN)
@@ -231,7 +243,7 @@ def fuglu_process_worker(queue, config, shared_state,child_to_server_messages, l
     logtools.client_configurer(logQueue)
     logging.basicConfig(level=logging.DEBUG)
     workerstate = WorkerStateWrapper(shared_state,'loading configuration')
-    logger = logging.getLogger('fuglu.process')
+    logger = logging.getLogger('fuglu.process.%s(%u)' % (workerstate.process.name, workerstate.process.pid))
     logger.debug("New worker: %s" % logtools.createPIDinfo())
 
 
@@ -247,7 +259,8 @@ def fuglu_process_worker(queue, config, shared_state,child_to_server_messages, l
 
 
     # load config and plugins
-    controller = fuglu.core.MainController(config,logQueue)
+    logger.debug("Create MainController")
+    controller = fuglu.core.MainController(config, logQueue=logQueue, nolog=True)
     controller.load_extensions()
     controller.load_plugins()
 
@@ -271,8 +284,10 @@ def fuglu_process_worker(queue, config, shared_state,child_to_server_messages, l
                 try:
                     # it might be possible it does not work to properly set the workerstate
                     # since this is a shared variable -> prevent exceptions
-                    workerstate.workerstate = 'ended'
-                except Exception:
+                    workerstate.workerstate = 'ended (poison pill)'
+                except Exception as e:
+                    logger.debug("Exception setting workstate while getting poison pill")
+                    logger.exception(e)
                     pass
                 finally:
                     return
@@ -298,13 +313,14 @@ def fuglu_process_worker(queue, config, shared_state,child_to_server_messages, l
                 debug_procpoolworkermemory(logger, config)
 
     except KeyboardInterrupt:
-        workerstate.workerstate = 'ended'
-    except Exception:
-        trb = traceback.format_exc()
-        logger.error("Exception in child process: %s"%trb)
-        print(trb)
+        workerstate.workerstate = 'ended (keyboard interrupt)'
+        logger.debug("Keyboard interrupt")
+    except Exception as e:
+        logger.error("Exception in worker process: %s" % str(e))
         workerstate.workerstate = 'crashed'
     finally:
+        # this process will not put any object in queue
+        queue.close()
         controller.shutdown()
 
 def debug_procpoolworkermemory(logger, config):
