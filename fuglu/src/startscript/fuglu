@@ -42,6 +42,8 @@ import fuglu.logtools
 import multiprocessing
 
 controller = None
+foreground = False
+base_loglevel = "DEBUG"
 
 theconfigfile = '/etc/fuglu/fuglu.conf'
 dconfdir = '/etc/fuglu/conf.d'
@@ -75,15 +77,23 @@ def reloadconfig():
     assert controller.logConfigFileUpdates is not None
     assert controller.configFileUpdates is not None
 
-    configFileUpdates    = getConfigFileUpdatesDict(theconfigfile,dconfdir)
+    configFileUpdates = getConfigFileUpdatesDict(theconfigfile, dconfdir)
     logConfigFileUpdates = getLogConfigFileUpdatesDict(theloggingfile)
 
-    logger.info("Log config has changes: %s" % str(logConfigFileUpdates != controller.logConfigFileUpdates))
-    logger.info("Main config has changes: %s" % str(configFileUpdates != controller.configFileUpdates))
+    logfilechanged = (logConfigFileUpdates != controller.logConfigFileUpdates)
+    mainconfigchanged = (configFileUpdates != controller.configFileUpdates)
 
-    logger.info('Number of messages in logging queue: %u'%controller.logQueue.qsize())
+    logger.info("Log config has changes: %s" % str(logfilechanged))
+    if logfilechanged and foreground:
+        logger.warning("No log-config changes applied in foreground mode.")
+        controller.logConfigFileUpdates = logConfigFileUpdates
+        logfilechanged = False
 
-    if logConfigFileUpdates != controller.logConfigFileUpdates:
+    logger.info("Main config has changes: %s" % str(mainconfigchanged))
+
+    logger.info('Number of messages in logging queue: %u' % controller.logQueue.qsize())
+
+    if logfilechanged:
         # save back log config file dict for later use
         controller.logConfigFileUpdates = logConfigFileUpdates
 
@@ -93,7 +103,7 @@ def reloadconfig():
         logProcessFacQueue.put(newLogConfigure)
 
 
-    if configFileUpdates != controller.configFileUpdates:
+    if mainconfigchanged:
         logger.info('Reloading configuration')
 
         # save back config file dict for later use
@@ -172,11 +182,13 @@ parser.add_option("--lint", action="store_true", dest="lint",
 parser.add_option("--console", action="store_true", dest="console",
                   default=False, help="start an interactive console after fuglu startup")
 parser.add_option("-f", "--foreground", action="store_true", dest="foreground", default=False,
-                  help="start fuglu in the foreground, even if daemonize is enabled in the config")
+                  help="start fuglu in the foreground and log to stdout, even if daemonize is enabled in the config")
 parser.add_option("--pidfile", action="store", dest="pidfile",
                   help="use a different pidfile than /var/run/fuglu.pid")
 parser.add_option("-c", "--config", action="store", dest="configfile",
                   help="use a different config file and disable reading from /etc/fuglu/conf.d")
+parser.add_option("--baseloglevel", dest="baseloglevel", default="DEBUG", choices=["DEBUG", "INFO", "ERROR"],
+                  help="log-level for foreground mode and base (MIN) for all logging")
 
 (opts, args) = parser.parse_args()
 if len(args) > 0:
@@ -209,11 +221,15 @@ if dconfdir and os.path.isdir(dconfdir):
     configfiles = [dconfdir + '/' + c for c in filelist if c.endswith('.conf')]
     readfiles = config.read(configfiles)
 
+# store if run in foreground mode so it
+# can be used in reload
+foreground = opts.foreground
+base_loglevel = opts.baseloglevel
 
 daemon = DaemonStuff(thepidfile)
 # we could have an empty config file
 # no daemon for lint&console mode
-if not lint and not console and not opts.foreground:
+if not lint and not console and not foreground:
     if config.has_option('main', 'daemonize'):
         if config.getboolean('main', 'daemonize'):
             daemon.createDaemon()
@@ -239,13 +255,13 @@ except Exception:
           (running_user, running_group, str(err)))
 
 
-#--
+# --
 # set up logging
-#--
+# --
 
 # all threads/processes write to the logQueue which
 # will be handled by a separate process
-logQueue   = multiprocessing.Queue(-1)
+logQueue = multiprocessing.Queue(-1)
 logFactoryQueue = multiprocessing.Queue(-1)
 
 # setup a process which handles logging messages
@@ -258,14 +274,16 @@ if lint:
 
     logConfigure = fuglu.logtools.logConfig(lint=True)
 
+elif foreground:
+    logConfigure = fuglu.logtools.logConfig(foreground=True, level=base_loglevel)
 else:
     logConfigure = fuglu.logtools.logConfig(logConfigFile=theloggingfile)
 
-#--
+# --
 # start process handling logging queue
-#--
+# --
 logProcessFactory = multiprocessing.Process(target=fuglu.logtools.logFactoryProcess,
-                                     args=(logFactoryQueue,logQueue))
+                                            args=(logFactoryQueue, logQueue))
 logProcessFactory.start()
 
 # now create a log - listener process
@@ -273,11 +291,11 @@ logFactoryQueue.put(logConfigure)
 
 # setup this main thread to send messages to the log queue 
 # (which is handled by the logger process created by the logProcessFactory)
-fuglu.logtools.client_configurer(logQueue)
+fuglu.logtools.client_configurer(logQueue, level=base_loglevel)
 
-#===                      ===#
-#= Now logging is available =#
-#===                      ===#
+# ===                      === #
+# = Now logging is available = #
+# ===                      === #
 baselogger = logging.getLogger()
 baselogger.info("FuGLU Version %s starting up" % FUGLU_VERSION)
 

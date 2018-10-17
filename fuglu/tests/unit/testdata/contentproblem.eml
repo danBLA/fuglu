@@ -1,0 +1,13 @@
+MIME-Version: 1.0
+Subject: Link
+From: my@email.com
+To: your@email.com
+MyHeader: Whatever
+Content-Type: multipart/alternative;
+ boundary="===============3270456279119952902=="
+
+--===============3270456279119952902==
+Content-Type: text/plain; charset="utf-8"
+
+Hello wörld!
+--===============3270456279119952902==--

@@ -21,6 +21,10 @@ from fuglu.protocolbase import compress_task, uncompress_task
 from fuglu.scansession import SessionHandler
 from fuglu.stats import Statskeeper, StatDelta
 from fuglu.addrcheck import Addrcheck
+try:
+    from queue import Empty as EmptyQueue
+except ImportError:
+    from Queue import Empty as EmptyQueue
 
 import multiprocessing
 import multiprocessing.queues
@@ -128,12 +132,13 @@ class ProcManager(object):
         self.stayalive = False
 
         # add another poison pill for the ProcManager itself removing tasks...
+        self.logger.debug("Another poison pill for the ProcManager itself")
         self.tasks.put_nowait(None)
 
         if newmanager:
-            assert id(newmanager.tasks) != id(self.tasks)
             # new manager available. Transfer tasks
             # to new manager
+            self.logger.debug("Pass queue items to new manager")
             countmessages = 0
             while True:
                 task = self.tasks.get()
@@ -143,24 +148,38 @@ class ProcManager(object):
                 countmessages += 1
             self.logger.info("Moved %u messages to queue of new manager" % countmessages)
         else:
+            self.logger.debug("Get rid of items in queue")
             return_message = "Temporarily unavailable... Please try again later."
             mark_defer_counter = 0
             while True:
-                task = self.tasks.get()
+                # Don't wait
+                try:
+                    task = self.tasks.get(False)
+                except EmptyQueue:
+                    self.logger.error("Queue is empty! Take a poison pill!")
+                    task = None
                 if task is None:  # poison pill
+                    self.logger.debug("Got poison pill")
                     break
+                self.logger.debug("Got task, mark as defer")
                 mark_defer_counter += 1
                 sock, handler_modulename, handler_classname = uncompress_task(task)
                 handler_class = getattr(importlib.import_module(handler_modulename), handler_classname)
                 handler_instance = handler_class(sock, self.config)
                 handler_instance.defer(return_message)
-            self.logger.info("Marked %s messages as '%s' to close queue" % (mark_defer_counter, return_message))
+            if mark_defer_counter > 0:
+                self.logger.info("Marked %s messages as '%s' to close queue" % (mark_defer_counter, return_message))
 
         # join the workers
         try:
             join_timeout = self.config.getfloat('performance', 'join_timeout')
         except:
-            join_timeout = 120.0
+            if newmanager:
+                join_timeout = 120.0
+            else:
+                # if there's no new manager then
+                # we don't wait, just kill
+                join_timeout = 1
 
         self.logger.debug("Join workers")
         tstart = time.time()

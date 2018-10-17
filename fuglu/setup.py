@@ -21,7 +21,7 @@ def git_version():
         ret = x.wait()
         if ret == 0:
             stdout, stderr = x.communicate()
-            vers = stdout.decode('ascii','ignore').strip()
+            vers = stdout.strip().decode('utf-8')
             # replace fuglu version in file
             if os.path.isfile(VERSFILE):
                 OLD_VERSFILE_CONTENT = open(VERSFILE, 'r').read()
@@ -30,7 +30,7 @@ def git_version():
             return vers
         else:
             return FUGLU_VERSION
-    except Exception as e:
+    except Exception:
         return FUGLU_VERSION
 
 

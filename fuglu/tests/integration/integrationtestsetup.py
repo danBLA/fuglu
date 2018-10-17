@@ -49,6 +49,8 @@ class DummySMTPServer(object):
         self.suspect = None
         self.stayalive = stayalive
         self.is_waiting = False
+        self.response_code = 250
+        self.response_message = "OK - queued as 1337"
 
     def serve(self):
         from fuglu.shared import Suspect
@@ -80,8 +82,7 @@ class DummySMTPServer(object):
                     self.logger.error("Exit loop without result")
                     break
                 continue
-            sess.endsession(250, "OK - queued as 1337 ")
-
+            sess.endsession(self.response_code, self.response_message)
             fromaddr = sess.from_address
 
             recipients = [force_uString(rec) for rec in sess.recipients]

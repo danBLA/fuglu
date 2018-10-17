@@ -32,6 +32,12 @@ except ImportError:
 from fuglu.addrcheck import Addrcheck
 from fuglu.stringencode import force_uString, force_bString
 from fuglu.mailattach import Mailattachment_mgr
+
+if sys.version_info > (3,):
+    from fuglu.lib.patchedemail import PatchedMessage
+else:
+    from email.message import Message as PatchedMessage
+
 try:
     from html.parser import HTMLParser
 except ImportError:
@@ -587,9 +593,9 @@ class Suspect(object):
                 # Python 3 and larger
                 # the basic "str" type is unicode
                 if isinstance(self.source, str):
-                    msgrep = email.message_from_string(self.source)
+                    msgrep = email.message_from_string(self.source, _class=PatchedMessage)
                 else:
-                    msgrep = email.message_from_bytes(self.source)
+                    msgrep = email.message_from_bytes(self.source, _class=PatchedMessage)
             else:
                 # Python 2.x
                 msgrep = email.message_from_string(self.source)
@@ -601,10 +607,10 @@ class Suspect(object):
                 # Python 3 and larger
                 # file should be binary...
 
-                # IMPORTANT: It is possible to use email.message_from_bytes BUT this will automatically replace
+                # IMPORTANT: It is possible to use email.message_from_file BUT this will automatically replace
                 #            '\r\n' in the message (_payload) by '\n' and the endtoend_test.py will fail!
                 tmpSource = self.get_original_source()
-                msgrep = email.message_from_bytes(tmpSource)
+                msgrep = email.message_from_bytes(tmpSource, _class=PatchedMessage)
             else:
                 # Python 2.x
                 with open(self.tempfile, 'r') as fh:
@@ -794,6 +800,40 @@ class Suspect(object):
         if match is None:
             return None
         return match.groups()
+
+
+
+def strip_address(address):
+    """
+    Strip the leading & trailing <> from an address.  Handy for
+    getting FROM: addresses.
+    """
+    start = address.find('<') + 1
+    if start < 1:
+        start = address.find(':') + 1
+    if start < 1:
+        return address
+    end = address.find('>')
+    if end < 0:
+        end = len(address)
+    retaddr = address[start:end]
+    retaddr = retaddr.strip()
+    return retaddr
+
+
+
+def extract_domain(address, lowercase=True):
+    if address is None or address == '':
+        return None
+    else:
+        try:
+            user, domain = address.rsplit('@', 1)
+            if lowercase:
+                domain = domain.lower()
+            return domain
+        except Exception as e:
+            raise ValueError("invalid email address: '%s'" % address)
+
 
 
 # it is important that this class explicitly extends from object, or
@@ -1534,7 +1574,11 @@ class FileList(object):
     def filename(self, value):
         if self._filename != value:
             self._filename = value
-            self._reload_if_necessary()
+            if value is not None:
+                self._reload_if_necessary()
+            else:
+                self.content = []
+                self._lastreload = 0
     
     
     def _reload_if_necessary(self):
@@ -1589,7 +1633,8 @@ class FileList(object):
     
     def get_list(self):
         """Returns the current list. If the file has been changed since the last call, it will rebuild the list automatically."""
-        self._reload_if_necessary()
+        if self.filename is not None:
+            self._reload_if_necessary()
         return self.content
 
 
@@ -1620,17 +1665,15 @@ class Cache(object):
         except Exception as e:
             self.logger.exception(e)
         finally:
-            if gotlock:
-                self.lock.release()
+            self.lock.release()
 
 
     def get_cache(self,key):
+        ret=None
         try:
             gotlock=self.lock.acquire(True)
             if not gotlock:
                 return None
-
-            ret=None
 
             if key in self.cache:
                 obj,instime=self.cache[key]
@@ -1651,12 +1694,11 @@ class Cache(object):
         while True:
             time.sleep(self.cleanupinterval)
             now=time.time()
+            cleancount=0
             try:
                 gotlock=self.lock.acquire(True)
                 if not gotlock:
                     continue
-
-                cleancount=0
 
                 for key in set(self.cache.keys()):
                     obj,instime=self.cache[key]
@@ -1666,9 +1708,8 @@ class Cache(object):
             except Exception as e:
                 self.logger.exception(e)
             finally:
-                if gotlock:
-                    self.lock.release()
-            self.logger.debug("Cleaned %s expired entries."%cleancount)
+                self.lock.release()
+            self.logger.debug("Cleaned %s expired entries." % cleancount)
 
 
 

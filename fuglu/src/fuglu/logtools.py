@@ -22,6 +22,12 @@ import logging.config
 import os
 import multiprocessing
 import signal
+import sys
+
+try:
+    FileNotFoundError
+except NameError:
+    FileNotFoundError = IOError
 
 def logFactoryProcess(listenerQueue,logQueue):
     """
@@ -101,29 +107,43 @@ def logFactoryProcess(listenerQueue,logQueue):
 
 class logConfig(object):
     """
-    Conig class to easily distinguish logging configuration for lint and production (from file)
+    Conig class to easily distinguish logging configuration for lint, foreground and production (from file)
     """
-    def __init__(self,lint=False,logConfigFile="none"):
+    def __init__(self, lint=False, logConfigFile="none", foreground=False, level=None):
         """
         Setup in lint mode of using a config file
         Args:
             lint (bool): enable lint mode which will print on the screen
             logConfigFile (): load configuration from config file
+            foreground (bool): enable foreground mode which will print on the screen like lint (but no level)
         """
-        assert (lint or logConfigFile != "none")
-        assert not (lint and logConfigFile != "none")
+        # one option should be true
+        assert ((1 if lint else 0) +
+                (1 if foreground else 0) +
+                (1 if logConfigFile != "none" else 0) == 1)
 
         self._configFile = logConfigFile
-        self._lintOutputLevel = logging.ERROR
+        if lint:
+            self._level = logging.ERROR
+        else:
+            if level == "DEBUG":
+                self._level = logging.DEBUG
+            elif level == "INFO":
+                self._level = logging.INFO
+            elif level == "ERROR":
+                self._level = logging.ERROR
+            else:
+                self._level = logging.NOTSET
 
         self._lint = lint
+        self._foreground = foreground
 
     def configure(self):
         """
         Configure for lint mode or from file. We can not set a "pointer" to the function
         ----
-        if self._lint:
-            self.configure = self._configure4lint
+        if self._lint or self._foreground:
+            self.configure = self._configure4screen
         elif self._configFile != "none":
             self.configure = self._configure
         else:
@@ -132,23 +152,27 @@ class logConfig(object):
         because objects of this type are sent into the logger queue. Python 2.7 can then
         not pickle the instance.
         """
-        if self._lint:
-            logConfig._configure4lint(self._lintOutputLevel)
+        if self._lint or self._foreground:
+            logConfig._configure4screen(self._level)
         elif self._configFile != "none":
+            if not os.path.exists(self._configFile):
+                raise FileNotFoundError("Logging config file %s does not exist!" % self._configFile)
+
             logConfig._configure(self._configFile)
         else:
             raise Exception("Not implemented!")
 
     @staticmethod
-    def _configure4lint(lintOutputLevel):
+    def _configure4screen(outputlevel):
         """
-        Configure for lint mode (output is on the screen, level is debug)
+        Configure for stdout (output is on the screen)
         """
         root = logging.getLogger()
-        console = logging.StreamHandler()
-        console.setLevel(lintOutputLevel)
+        root.setLevel(logging.NOTSET)
+        console = logging.StreamHandler(sys.stdout)
+        console.setLevel(outputlevel)
         # set a format which is simpler for console use
-        formatter = logging.Formatter('%(name)-12s: %(levelname)-8s %(message)s')
+        formatter = logging.Formatter('[%(process)-5d] %(name)-25s: %(levelname)-s, %(message)s')
         # tell the handler to use this format
         console.setFormatter(formatter)
         # add the handler to the root logger
@@ -219,14 +243,19 @@ def listener_process(configurer,queue):
     root.info("Listener process stopped")
 
 
-def client_configurer(queue):
+def client_configurer(queue, level="NOTSET"):
     """
     The client configuration is done at the start of the worker process run.
     Note that on Windows you can't rely on fork semantics, so each process
     will run the logging configuration code when it starts.
+    The log level is the minimum applied on the clients, final decision
+    will be applied on the log-listener. But if the base-level here is INFO
+    then setting the level to "DEBUG" in "logging.conf" will not show DEBUG-level
+    messages.
 
     Args:
         queue (multiprocessing.Queue): queue where to send log messages
+        level (str): log-level (DEBUG, INFO, ERROR) for all the clients
 
     """
     root = logging.getLogger()
@@ -243,7 +272,15 @@ def client_configurer(queue):
             h = QueueHandlerPy3Copy(queue)
         root.addHandler(h)
         # send all messages
-        root.setLevel(logging.DEBUG)
+        if level == "DEBUG":
+            root.setLevel(logging.DEBUG)
+        elif level == "INFO":
+            root.setLevel(logging.INFO)
+        elif level == "ERROR":
+            root.setLevel(logging.ERROR)
+        else:
+            root.setLevel(logging.NOTSET)
+            root.info("Log-Level \"%s\" not vaild, setting NOTSET" % level)
         root.info("(%s) Queue handler added to root logger" % name)
     else:
         # on linux config is taken from father process automatically

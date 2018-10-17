@@ -66,7 +66,7 @@ class SMTPHandler(ProtocolHandler):
         """Send message back to postfix"""
         self.logger.debug("build message source")
         if suspect.get_tag('noreinject'):
-            return 'message not re-injected by plugin request'
+            return 250, 'message not re-injected by plugin request'
 
         if suspect.get_tag('reinjectoriginal'):
             self.logger.info('%s: Injecting original message source without modifications' % suspect.id)
@@ -77,7 +77,6 @@ class SMTPHandler(ProtocolHandler):
         targethost = self.config.get('main', 'outgoinghost')
         if targethost == '${injecthost}':
             targethost = self.socket.getpeername()[0]
-        self.logger.debug("connect to client")
         client = FUSMTPClient(targethost, self.config.getint('main', 'outgoingport'))
         helo = self.config.get('main', 'outgoinghelo')
         if helo.strip() == '':
@@ -85,32 +84,44 @@ class SMTPHandler(ProtocolHandler):
 
         # if there are SMTP options (SMTPUTF8, ...) then use ehlo
         mail_options = list(suspect.smtp_options)
-        if mail_options:
-            self.logger.debug("send ehlo")
-            client.ehlo(helo)
-        else:
-            self.logger.debug("send helo")
-            client.helo(helo)
-
-        # for sending, make sure the string to sent is byte string
-        self.logger.debug("send message")
-        client.sendmail(sendmail_address(suspect.from_address),
-                        sendmail_address(suspect.recipients),
-                        force_bString(msgcontent),
-                        mail_options=mail_options)
-        # if we did not get an exception so far, we can grab the server answer using the patched client
-        # servercode=client.lastservercode
-        serveranswer = client.lastserveranswer
-        self.logger.debug("got server answer %s" % serveranswer)
+        serveranswer = None
+        responsecode = None
         try:
-            client.quit()
-        except Exception as e:
-            self.logger.warning('Exception while quitting re-inject session: %s' % str(e))
+            if mail_options:
+                client.ehlo(helo)
+            else:
+                client.helo(helo)
 
+            # for sending, make sure the string to sent is byte string
+            client.sendmail(sendmail_address(suspect.from_address),
+                            sendmail_address(suspect.recipients),
+                            force_bString(msgcontent),
+                            mail_options=mail_options)
+            # if we did not get an exception so far, we can grab the server answer using the patched client
+            # servercode=client.lastservercode
+            responsecode = 250
+            serveranswer = client.lastserveranswer
+        except (smtplib.SMTPHeloError, smtplib.SMTPRecipientsRefused,
+                smtplib.SMTPSenderRefused, smtplib.SMTPDataError) as e:
+            if isinstance(e, smtplib.SMTPResponseException):
+                responsecode = e.smtp_code
+                serveranswer = e.smtp_error
+            else:
+                responsecode = 451
+                serveranswer = str(e)
+        finally:
+            try:
+                client.quit()
+            except Exception as e:
+                self.logger.warning('Exception while quitting re-inject session: %s' % str(e))
+
+        if responsecode is None:
+            self.logger.warning('Re-inject: could not get server response code.')
+            responsecode = 451
         if serveranswer is None:
             self.logger.warning('Re-inject: could not get server answer.')
             serveranswer = ''
-        return serveranswer
+        return responsecode, serveranswer
 
     def get_suspect(self):
         success = self.sess.getincomingmail()
@@ -135,13 +146,17 @@ class SMTPHandler(ProtocolHandler):
         return suspect
 
     def commitback(self, suspect):
-        injectanswer = self.re_inject(suspect)
+        injectcode, injectanswer = self.re_inject(suspect)
         suspect.set_tag("injectanswer", injectanswer)
-        values = dict(injectanswer=injectanswer)
-        message = apply_template(
-            self.config.get('smtpconnector', 'requeuetemplate'), suspect, values)
 
-        self.sess.endsession(250, message)
+        if injectcode == 250:
+            values = dict(injectanswer=injectanswer)
+            message = apply_template(
+                self.config.get('smtpconnector', 'requeuetemplate'), suspect, values)
+        else:
+            message = injectanswer
+
+        self.sess.endsession(injectcode, message)
         self.sess = None
 
     def defer(self, reason):
@@ -192,7 +207,6 @@ class SMTPSession(object):
 
         self.socket = socket
         self.state = SMTPSession.ST_INIT
-        self.noisy = False
         self.logger = logging.getLogger("fuglu.smtpsession")
         self.tempfilename = None
         self.tempfile = None
@@ -242,15 +256,10 @@ class SMTPSession(object):
         if self.tempfile and not self.tempfile.closed:
             self.tempfile.close()
     
-    def noisydebuglog(self,message):
-        if self.noisy:
-            self.logger.debug(message)
 
     def getincomingmail(self):
         """return true if mail got in, false on error Session will be kept open"""
-        self.noisydebuglog("send: 220 fuglu scanner ready")
         self.socket.send(force_bString("220 fuglu scanner ready \r\n"))
-        self.noisydebuglog("-> done, now start receiving")
 
         while True:
             rawdata = b''
@@ -258,27 +267,21 @@ class SMTPSession(object):
             completeLine = 0
             while not completeLine:
 
-                self.noisydebuglog("receive lump of 1024")
                 lump = self.socket.recv(1024)
-                self.noisydebuglog("-> done")
 
                 if len(lump):
-                    self.noisydebuglog("length of lump > 0")
                     rawdata += lump
 
                     if (len(rawdata) >= 2) and rawdata[-2:] == force_bString('\r\n'):
-                        self.noisydebuglog("complete line")
                         completeLine = 1
 
                         if self.state != SMTPSession.ST_DATA:
 
                             # convert data to unicode if needed
-                            self.noisydebuglog("not in DATA mode, doCommand")
                             data = force_uString(rawdata)
                             rsp, keep = self.doCommand(data)
 
                         else:
-                            self.noisydebuglog("In DATA mode...")
                             try:
                                 #directly use raw bytes-string data
                                 rsp = self.doData(rawdata)
@@ -290,16 +293,12 @@ class SMTPSession(object):
                                 return False
 
                             if rsp is None:
-                                self.noisydebuglog("response is None, continue")
                                 continue
                             else:
                                 # data finished.. keep connection open though
-                                self.noisydebuglog("data finished, return")
                                 return True
 
-                        self.noisydebuglog("Send response: %s" % rsp)
                         self.socket.send(force_bString(rsp + "\r\n"))
-                        self.noisydebuglog("sent...")
 
                         if keep == 0:
                             self.closeconn()
@@ -441,5 +440,5 @@ class SMTPSession(object):
                 if "8BITMIME" not in self.ehlo_options:
                     raise ValueError("8BITMIME support was not proposed")
                 self.logger.debug("mail contains 8bit-MIME")
-                self.smtpoptions.add("8BITMIME")
+                self.smtpoptions.add("BODY=8BITMIME")
         return retaddr
