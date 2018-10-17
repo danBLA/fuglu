@@ -52,6 +52,10 @@ class DummySMTPServer(object):
     def serve(self):
         from fuglu.shared import Suspect
 
+        # if starting with stayalive=True the DummySMTPServer should
+        # be able to receive several messages
+        # Otherwise, it should run the loop once which will receive a
+        # message and create the suspect
         while (self.suspect is None) or self.stayalive:
             self.logger.debug('Waiting for accept connection')
             nsd = self._socket.accept()
@@ -68,6 +72,11 @@ class DummySMTPServer(object):
                 else:
                     self.logger.info('incoming smtp transfer did not finish, stayalive is False')
                 sess.closeconn()
+                if not self.stayalive:
+                    # On error, exit loop if there is an error and SMTPServer should
+                    # not stay alive
+                    self.logger.error("Exit loop without result")
+                    break
                 continue
             sess.endsession(250, "OK - queued as 1337 ")
 
