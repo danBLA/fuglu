@@ -64,7 +64,6 @@ class SMTPHandler(ProtocolHandler):
 
     def re_inject(self, suspect):
         """Send message back to postfix"""
-        self.logger.debug("build message source")
         if suspect.get_tag('noreinject'):
             return 250, 'message not re-injected by plugin request'
 
@@ -305,7 +304,6 @@ class SMTPSession(object):
                             return False
                 else:
                     # EOF
-                    #self.noisydebuglog("EOF, something went wrong!")
                     self.logger.error("EOF, something went wrong!")
                     return False
     

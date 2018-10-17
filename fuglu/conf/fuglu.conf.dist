@@ -160,6 +160,11 @@ initialprocs=0
 # Maximum cache size to keep attachemnts (archives extracted) per suspect during mail analysis (in bytes)
 att_mgr_cachesize = 50000000
 
+# If using the backend "process", the "join_timeout" can be defined to define the time to
+# wait for a process at fuglu shutdown or reload. If undefined, fuglu waits 120 seconds at the
+# reload (which should give enough time to finish processing a mail) and 1 second for shutdown.
+# join_timeout = 30
+
 [spam]
 
 #what to do with messages that plugins think are spam but  not so sure  ("low spam")
