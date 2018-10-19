@@ -24,6 +24,8 @@ try:
 except ImportError:
     chardetAvailable = False
 
+class ForceUStringError(TypeError):
+    pass
 
 def try_encoding(u_inputstring,encoding="utf-8"):
     """Try to encode a unicode string
@@ -93,6 +95,9 @@ def force_uString(inputstring,encodingGuess="utf-8"):
     Keyword Args:
         encodingGuess (str): guess for encoding used, default assume unicode
 
+    Raises:
+        ForceUStringError: if input is not string/unicode/bytes (or list containing such elements)
+
     Returns: unicode string (or list with unicode strings)
 
     """
@@ -117,15 +122,39 @@ def force_uString(inputstring,encodingGuess="utf-8"):
                 return inputstring
             else:
                 return try_decoding(inputstring,encodingGuess)
-    except (AttributeError,TypeError):
+    except (AttributeError, TypeError):
         # Input might not be bytes but a number which is then
         # expected to be converted to unicode
+
+        logger = logging.getLogger("fuglu.force_uString")
+        logger.warning("object is not string/unicode/bytes but %s" % str(type(inputstring)))
+
+        if sys.version_info < (3,):
+            try:
+                return unicode(inputstring)
+            except (NameError, ValueError, TypeError, UnicodeEncodeError, UnicodeDecodeError) as e:
+                logger.warning("Could not convert using 'unicode' -> error %s" % str(e))
+                pass
+
         try:
-            return unicode(inputstring)
-        except NameError:
             return str(inputstring)
+        except (NameError, ValueError, TypeError, UnicodeEncodeError, UnicodeDecodeError) as e:
+            logger.warning("Could not convert using 'str' -> error %s" % str(e))
+            pass
         except Exception as e:
-            raise e
+            logger.warning("Could not convert using 'str' -> error %s" % str(e))
+            pass
+
+        try:
+            representation = str(repr(inputstring))
+        except Exception as e:
+            representation = "(%s)" % str(e)
+
+        errormsg = "Could not transform input object of type %s with repr: %s" %\
+                   (str(type(inputstring)), representation)
+
+        logger.error(errormsg)
+        raise ForceUStringError(errormsg)
 
 def force_bString(inputstring,encoding="utf-8",checkEncoding=False):
     """Try to enforce a string of bytes
