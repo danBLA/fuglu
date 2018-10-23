@@ -69,20 +69,34 @@ def try_decoding(b_inputstring,encodingGuess="utf-8"):
         return None
     
     logger = logging.getLogger("fuglu.stringencode.try_decoding")
+    u_outputstring = None
     try:
         u_outputstring = b_inputstring.decode(encodingGuess,"strict")
     except (UnicodeDecodeError, LookupError):
         logger.warning("found non %s encoding or encoding not found, try to detect encoding" % encodingGuess)
+
+    if u_outputstring is None:
         if CHARDET_AVAILABLE:
             encoding = chardet.detect(b_inputstring)['encoding']
-            logger.warning("encoding estimated as %s" % encoding)
+            logger.warning("chardet -> encoding estimated as %s" % encoding)
             try:
-                u_outputstring = b_inputstring.decode(encoding,"strict")
-            except Exception as e:
-                raise e
+                u_outputstring = b_inputstring.decode(encoding, "strict")
+            except (UnicodeDecodeError, LookupError):
+                logger.warning("encoding found by chardet (%s) does not work" % encoding)
         else:
             logger.warning("module chardet not available -> skip autodetect")
-            raise UnicodeDecodeError
+
+    if u_outputstring is None:
+        trialerrorencoding = EncodingTrialError.test_all(b_inputstring, returnimmediately=True)
+        logger.warning("trial&error -> encoding estimated as %s" % encoding)
+        if trialerrorencoding:
+            try:
+                u_outputstring = b_inputstring.decode(trialerrorencoding, "strict")
+            except (UnicodeDecodeError, LookupError):
+                logger.warning("encoding found by trial & error (%s) does not work" % encoding)
+
+    if u_outputstring is None:
+        raise UnicodeDecodeError
 
     return u_outputstring
 
@@ -313,7 +327,7 @@ class EncodingTrialError(object):
                           'utf_32_le', 'utf_16', 'utf_16_be', 'utf_16_le',
                           'utf_7', 'utf_8_sig']
     @staticmethod
-    def test_all(bytestring):
+    def test_all(bytestring, returnimmediately=False):
         """
         Test all known codecs if they can be used to decode an encoded string.
         A codec can be used if it it possible to decode the string without exception.
@@ -321,6 +335,7 @@ class EncodingTrialError(object):
 
         Args:
             bytestring (str, bytes): the encoded string
+            returnimmediately (bool): if true function returns after the first working encoding found
 
         Returns:
             list(str) : list containing all encodings which passed the test

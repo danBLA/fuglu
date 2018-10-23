@@ -154,7 +154,7 @@ class ConversionTest(unittest.TestCase):
 class TestTrialError(unittest.TestCase):
     """Test Trial & Error for finding encoding"""
 
-    def test_enc(self):
+    def test_trialerror(self):
         payload = b'\x1b$B|O2qD9\x1b(B\r\n'
 
         # This is a string where chardet typically fails.
@@ -185,3 +185,8 @@ class TestTrialError(unittest.TestCase):
             decoded = payload.decode(enc, "strict")
             reencoded = decoded.encode(enc, "strict")
             self.assertEqual(payload, reencoded)
+
+    def test_forceustring(self):
+        payload = b'\x1b$B|O2qD9\x1b(B\r\n'
+
+        force_uString(payload, encodingGuess='ISO-2022-JP')
