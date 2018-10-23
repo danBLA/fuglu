@@ -19,6 +19,7 @@ from fuglu.bounce import Bounce
 from fuglu.extensions.sql import SQL_EXTENSION_ENABLED, DBFile, DBConfig
 from fuglu.extensions.filearchives import Archivehandle
 from fuglu.extensions.filetype import filetype_handler
+from fuglu.mailattach import NoExtractInfo
 import re
 import mimetypes
 import os
@@ -701,38 +702,46 @@ The other common template variables are available as well.
 
                         if filetype_handler.available() and self.checkarchivecontent:
 
-                            nocheckinfo = []
-                            for archObj in attObj.get_objectlist(0, archiveextractlevel, archivecontentmaxsize, noextractinfo=nocheckinfo):
+                            nocheckinfo = NoExtractInfo()
+                            for archObj in attObj.get_objectlist(0, archiveextractlevel, archivecontentmaxsize,
+                                                                 noextractinfo=nocheckinfo):
                                 safename = self.asciionly(archObj.filename)
                                 contenttype_magic = archObj.contenttype
 
                                 # Keeping this check for backward compatibility
                                 # This could easily be removed since memory is used anyway
                                 if archObj.filesize > archivecontentmaxsize:
-                                    nocheckinfo.append((archObj.filename,"toolarge","already extracted but too large for check: %u > %u"%(archObj.filesize,archivecontentmaxsize)))
+                                    nocheckinfo.append(archObj.filename, u"toolarge",
+                                                       u"already extracted but too large for check: %u > %u"
+                                                       % (archObj.filesize, archivecontentmaxsize))
                                     continue
 
                                 res = self.matchMultipleSets(
-                                    [user_archive_ctypes, domain_archive_ctypes, default_archive_ctypes], contenttype_magic, suspect, name)
+                                    [user_archive_ctypes, domain_archive_ctypes, default_archive_ctypes],
+                                    contenttype_magic, suspect, safename)
                                 if res == ATTACHMENT_SILENTDELETE:
                                     self._debuginfo(
-                                        suspect, "Extracted file %s from archive %s content-type=%s SILENT DELETE: blocked by mime content type (magic)" % (safename, att_name, contenttype_magic))
+                                        suspect, "Extracted file %s from archive %s content-type=%s "
+                                                 "SILENT DELETE: blocked by mime content type (magic)"
+                                                 % (safename, att_name, contenttype_magic))
                                     return DELETE
                                 if res == ATTACHMENT_BLOCK:
                                     self._debuginfo(
-                                        suspect, "Extracted file %s from archive %s content-type=%s : blocked by mime content type (magic)" % (safename, att_name, contenttype_magic))
+                                        suspect, "Extracted file %s from archive %s content-type=%s : "
+                                                 "blocked by mime content type (magic)"
+                                                 % (safename, att_name, contenttype_magic))
                                     message = suspect.tags['FiletypePlugin.errormessage']
                                     return blockactioncode, message
 
-                            for item in nocheckinfo:
+                            for item in nocheckinfo.get_filtered():
                                 try:
-                                    self._debuginfo( suspect, 'Archive File not checked: \"%s\" reason: %s -> %s'%(item[0],item[1],item[2]))
-                                except Exception:
-                                    self._debuginfo( suspect, 'Archive File not checked: unknown reason')
+                                    self._debuginfo(suspect, 'Archive File not checked: reason: %s -> %s'
+                                                    % (item[0], item[2]))
+                                except Exception as e:
+                                    self._debuginfo(suspect, 'Archive File not checked: %s' % str(e))
 
-                    except Exception:
-                        self.logger.warning(
-                            "archive scanning failed in attachment {attname}: {error}".format(attname=att_name, error=traceback.format_exc() ))
+                    except Exception as e:
+                        self.logger.error("archive scanning failed in attachment %s: %s" % (att_name, str(e)))
         return DUNNO
     
     def walk_all_parts(self, message):
