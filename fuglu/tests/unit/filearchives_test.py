@@ -69,6 +69,106 @@ class FileArchiveHandle(unittest.TestCase):
         finally:
             f.close()
 
+    def test_rarfileextract_unicode(self):
+        """Test rar file extraction"""
+        from fuglu.extensions.filearchives import Archivehandle, RARFILE_AVAILABLE
+
+        if not RARFILE_AVAILABLE > 0:
+            print("==============================================================")
+            print("== WARNING                                                  ==")
+            print("== Skipping rar extract test since library is not installed ==")
+            print("==============================================================")
+            return
+
+        archive_filename = join(unittestsetup.TESTDATADIR, "One Földer.rar")
+
+        # --
+        # use filename
+        # --
+        handle = Archivehandle('rar', archive_filename)
+
+        archive_flist = handle.namelist()
+        self.assertEqual([u"One Földer/Hélö Wörld.txt", u"One Földer"], archive_flist)
+
+        # file should not be extracted if maximum size to extract a file is 0
+        extracted = handle.extract(archive_flist[0])
+        self.assertEqual(u"bla bla bla\n", force_uString(extracted))
+        handle.close()
+
+    def test_rarfileextract_unicode_password(self):
+        """Test rar file extraction for encrypted (only files and not filelist) rar"""
+        from fuglu.extensions.filearchives import Archivehandle, RARFILE_AVAILABLE
+
+        if not RARFILE_AVAILABLE > 0:
+            print("==============================================================")
+            print("== WARNING                                                  ==")
+            print("== Skipping rar extract test since library is not installed ==")
+            print("==============================================================")
+            return
+
+        import rarfile
+
+        archive_filename = join(unittestsetup.TESTDATADIR, "password.rar")
+
+        # --
+        # use filename
+        # --
+        handle = Archivehandle('rar', archive_filename)
+
+        archive_flist = handle.namelist()
+        self.assertEqual([u"One Földer/Hélö Wörld.txt", u"One Földer"], archive_flist)
+
+        with self.assertRaises(rarfile.PasswordRequired):
+            handle.extract(archive_flist[0])
+        handle.close()
+
+    def test_rarfileextract_unicode_password2(self):
+        """Test rar file extraction for encrypted (files and filelist) rar"""
+        from fuglu.extensions.filearchives import Archivehandle, RARFILE_AVAILABLE
+
+        if not RARFILE_AVAILABLE > 0:
+            print("==============================================================")
+            print("== WARNING                                                  ==")
+            print("== Skipping rar extract test since library is not installed ==")
+            print("==============================================================")
+            return
+
+        archive_filename = join(unittestsetup.TESTDATADIR, "password2.rar")
+
+        # --
+        # use filename
+        # --
+        handle = Archivehandle('rar', archive_filename)
+
+        archive_flist = handle.namelist()
+        self.assertEqual([], archive_flist)
+        handle.close()
+
+    def test_rarfileextract_emptydir(self):
+        """Test rar file extraction for encrypted (only files and not filelist) rar"""
+        from fuglu.extensions.filearchives import Archivehandle, RARFILE_AVAILABLE
+
+        if not RARFILE_AVAILABLE > 0:
+            print("==============================================================")
+            print("== WARNING                                                  ==")
+            print("== Skipping rar extract test since library is not installed ==")
+            print("==============================================================")
+            return
+
+        archive_filename = join(unittestsetup.TESTDATADIR, "EmptyDir.rar")
+
+        # --
+        # use filename
+        # --
+        handle = Archivehandle('rar', archive_filename)
+
+        archive_flist = handle.namelist()
+        self.assertEqual([u"EmptyDir"], archive_flist)
+
+        with self.assertRaises(TypeError):
+            handle.extract(archive_flist[0])
+        handle.close()
+
     def test_tarfileextract_gz(self):
         """Test rar file extraction"""
         from fuglu.extensions.filearchives import Archivehandle
