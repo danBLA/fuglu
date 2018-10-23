@@ -88,7 +88,7 @@ def try_decoding(b_inputstring,encodingGuess="utf-8"):
 
     if u_outputstring is None:
         trialerrorencoding = EncodingTrialError.test_all(b_inputstring, returnimmediately=True)
-        logger.warning("trial&error -> encoding estimated as %s" % encoding)
+        logger.warning("trial&error -> encoding estimated as %s" % trialerrorencoding)
         if trialerrorencoding:
             try:
                 u_outputstring = b_inputstring.decode(trialerrorencoding, "strict")
