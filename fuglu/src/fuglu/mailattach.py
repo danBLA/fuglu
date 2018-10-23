@@ -68,7 +68,7 @@ class Mailattachment(Cachelimits):
             content_charset_mime (str): The characterset as defined in the mail attachment, only available for direct mail attachments
         """
         super(Mailattachment, self).__init__()
-        self.filename = filename
+        self.filename = force_uString(filename)
         self.filesize = filesize
         self.buffer = buffer
         self._buffer_archobj = {}
