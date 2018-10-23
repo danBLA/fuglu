@@ -1,3 +1,4 @@
+# -*- coding: UTF-8 -*- #
 import unittest
 import unittestsetup
 from fuglu.stringencode import force_uString
@@ -20,16 +21,16 @@ class FileArchiveHandle(unittest.TestCase):
 
         archive_filename = join(unittestsetup.TESTDATADIR,"test.zip")
 
-        #--
+        # --
         # use filename
-        #--
+        # --
         handle = Archivehandle('zip',archive_filename)
         self.runArchiveChecks(handle)
         handle.close()
 
-        #--
+        # --
         # use file descriptor
-        #--
+        # --
         f = open(archive_filename,'rb')
         try:
             handle = Archivehandle('zip',f)
@@ -51,16 +52,16 @@ class FileArchiveHandle(unittest.TestCase):
 
         archive_filename = join(unittestsetup.TESTDATADIR,"test.rar")
 
-        #--
+        # --
         # use filename
-        #--
+        # --
         handle = Archivehandle('rar',archive_filename)
         self.runArchiveChecks(handle)
         handle.close()
 
-        #--
+        # --
         # use file descriptor
-        #--
+        # --
         f = open(archive_filename,'rb')
         try:
             handle = Archivehandle('rar',f)
@@ -173,18 +174,18 @@ class FileArchiveHandle(unittest.TestCase):
         """Test rar file extraction"""
         from fuglu.extensions.filearchives import Archivehandle
 
-        #--
+        # --
         # use filename
-        #--
+        # --
         archive_filename = join(unittestsetup.TESTDATADIR,"test.tar.gz")
 
         handle = Archivehandle('tar',archive_filename)
         self.runArchiveChecks(handle)
         handle.close()
 
-        #--
+        # --
         # use file descriptor
-        #--
+        # --
         f = open(archive_filename,'rb')
         try:
             handle = Archivehandle('tar',f)
@@ -197,18 +198,18 @@ class FileArchiveHandle(unittest.TestCase):
         """Test gzip file extraction"""
         from fuglu.extensions.filearchives import Archivehandle
 
-        #--
+        # --
         # use filename
-        #--
+        # --
         archive_filename = join(unittestsetup.TESTDATADIR,"test.txt.gz")
 
         handle = Archivehandle('gz',archive_filename)
         self.runArchiveChecks(handle)
         handle.close()
 
-        #--
+        # --
         # use file descriptor
-        #--
+        # --
         f = open(archive_filename,'rb')
         try:
             handle = Archivehandle('gz',f)
@@ -221,18 +222,18 @@ class FileArchiveHandle(unittest.TestCase):
         """Test rar file extraction"""
         from fuglu.extensions.filearchives import Archivehandle
 
-        #--
+        # --
         # use filename
-        #--
+        # --
         archive_filename = join(unittestsetup.TESTDATADIR,"test.tar.bz2")
 
         handle = Archivehandle('tar',archive_filename)
         self.runArchiveChecks(handle)
         handle.close()
 
-        #--
+        # --
         # use file descriptor
-        #--
+        # --
         f = open(archive_filename,'rb')
         try:
             handle = Archivehandle('tar',f)
@@ -252,18 +253,18 @@ class FileArchiveHandle(unittest.TestCase):
             print("=============================================================")
             return
 
-        #--
+        # --
         # use filename
-        #--
+        # --
         archive_filename = join(unittestsetup.TESTDATADIR,"test.7z")
 
         handle = Archivehandle('7z',archive_filename)
         self.runArchiveChecks(handle)
         handle.close()
 
-        #--
+        # --
         # use file descriptor
-        #--
+        # --
         f = open(archive_filename,'rb')
         try:
             handle = Archivehandle('7z',f)
