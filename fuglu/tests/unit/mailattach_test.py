@@ -6,7 +6,12 @@ from os.path import join
 from fuglu.mailattach import Mailattachment_mgr, Mailattachment
 from fuglu.shared import Suspect, create_filehash
 from unittestsetup import TESTDATADIR
+from fuglu.stringencode import force_uString
 import hashlib
+try:
+    from html.parser import HTMLParser
+except ImportError:
+    from HTMLParser import HTMLParser
 
 
 class MailattachmentMgrTest(unittest.TestCase):
@@ -441,3 +446,110 @@ class SuspectTest(unittest.TestCase):
             if file == "level6.txt":
                 self.assertEqual(md5, cdict["md5"])
                 self.assertEqual(sha1, cdict["sha1"])
+
+
+class ConversionTest(unittest.TestCase):
+    """Test a problematic mail for decoding errors using attachment manager and no attachment manager as they
+    did once not behave exactly the same. The decoding algorithm is from uriextract.py but due to the problem
+    arising from attachment manager the test has been placed here."""
+
+    def test_with_withou_att_mgr(self):
+
+        amgr_result = []
+        amgr_exception = None
+        noamgr_result = []
+        noamgr_exception = None
+
+        try:
+            amgr_result = self.run_using_att_mgr()
+        except Exception as e:
+            print("Exception happended using attachment manager")
+            print(e)
+            amgr_exception = e
+
+        try:
+            noamgr_result = self.run_using_no_att_mgr()
+        except Exception as e:
+            print("Exception happended not using attachment manager")
+            print(e)
+            noamgr_exception = e
+
+        self.assertEqual(amgr_result, noamgr_result)
+        self.assertEqual(type(amgr_exception), type(noamgr_exception))
+
+    def run_using_att_mgr(self):
+        """Test problematic mail using attachment manager"""
+        problemfile = join(TESTDATADIR, "mail_with_encoding_problem.eml")
+        suspect = Suspect("from@fuglu.unittest", "to@fuglu.unittest", problemfile)
+        att_manager = suspect.att_mgr  # the attachment manager
+
+        textparts = []
+
+        for att_obj in att_manager.get_objectlist():
+            if att_obj.content_fname_check(contenttype_start="text/") \
+                    or att_obj.content_fname_check(name_end=(".txt", ".html", ".htm")):
+                decoded_payload = att_obj.decoded_buffer_text
+
+                if att_obj.content_fname_check(contenttype_contains="html") \
+                        or att_obj.content_fname_check(name_contains=".htm"):
+                    decoded_payload=decoded_payload.replace(u'\n', u'').replace(u'\r', u'')
+
+                try:
+                    decoded_payload = HTMLParser().unescape(decoded_payload)
+                except Exception as e:
+                    print(e)
+                    print('%s failed to unescape html entities' % suspect.id)
+
+                textparts.append(decoded_payload)
+
+            if att_obj.content_fname_check(contenttype="multipart/alternative"):
+                textparts.append(att_obj.decoded_buffer_text)
+
+        print(textparts)
+
+    def run_using_no_att_mgr(self):
+        """Test problematic mail NOT using attachment manager"""
+        problemfile = join(TESTDATADIR, "mail_with_encoding_problem.eml")
+        suspect = Suspect("from@fuglu.unittest", "to@fuglu.unittest", problemfile)
+        messagerep = suspect.get_message_rep()
+
+        textparts=[]
+
+        for part in messagerep.walk():
+            if part.is_multipart():
+                continue
+            fname=part.get_filename(None)
+            if fname is None:
+                fname=""
+            fname=fname.lower()
+            contenttype=part.get_content_type()
+
+            if contenttype.startswith('text/') or fname.endswith(".txt") or fname.endswith(".html") or fname.endswith(".htm"):
+                payload=part.get_payload(None,True)
+                if payload is not None:
+                    # Try to decode using the given char set (or utf-8 by default)
+                    charset = part.get_content_charset("utf-8")
+                    payload = force_uString(payload, encodingGuess=charset)
+
+                if 'html' in contenttype or '.htm' in fname: #remove newlines from html so we get uris spanning multiple lines
+                    payload=payload.replace('\n', '').replace('\r', '')
+                try:
+                    payload = HTMLParser().unescape(payload)
+                except Exception:
+                    print('%s failed to unescape html entities' % suspect.id)
+                textparts.append(payload)
+
+            if contenttype == 'multipart/alternative':
+                try:
+                    payload = part.get_payload(None,True)
+
+                    if payload is not None:
+                        # Try to decode using the given char set
+                        charset = part.get_content_charset("utf-8")
+                        text = force_uString(payload, encodingGuess=charset)
+
+                    textparts.append(text)
+                except (UnicodeEncodeError, UnicodeDecodeError):
+                    print('%s failed to convert alternative part to string' % suspect.id)
+        print(textparts)
+
