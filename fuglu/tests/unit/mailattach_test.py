@@ -6,7 +6,12 @@ from os.path import join
 from fuglu.mailattach import Mailattachment_mgr, Mailattachment
 from fuglu.shared import Suspect, create_filehash
 from unittestsetup import TESTDATADIR
+from fuglu.stringencode import force_uString
 import hashlib
+try:
+    from html.parser import HTMLParser
+except ImportError:
+    from HTMLParser import HTMLParser
 
 
 class MailattachmentMgrTest(unittest.TestCase):
@@ -458,13 +463,15 @@ class ConversionTest(unittest.TestCase):
         try:
             amgr_result = self.run_using_att_mgr()
         except Exception as e:
-            print("Exception happended using attamchment manager")
+            print("Exception happended using attachment manager")
+            print(e)
             amgr_exception = e
 
         try:
             noamgr_result = self.run_using_no_att_mgr()
         except Exception as e:
-            print("Exception happended not using attamchment manager")
+            print("Exception happended not using attachment manager")
+            print(e)
             noamgr_exception = e
 
         self.assertEqual(amgr_result, noamgr_result)
@@ -472,8 +479,7 @@ class ConversionTest(unittest.TestCase):
 
     def run_using_att_mgr(self):
         """Test problematic mail using attachment manager"""
-        setup_module()
-        problemfile = os.path.join(TESTDATADIR, "mail_with_encoding_problem.eml")
+        problemfile = join(TESTDATADIR, "mail_with_encoding_problem.eml")
         suspect = Suspect("from@fuglu.unittest", "to@fuglu.unittest", problemfile)
         att_manager = suspect.att_mgr  # the attachment manager
 
@@ -503,8 +509,7 @@ class ConversionTest(unittest.TestCase):
 
     def run_using_no_att_mgr(self):
         """Test problematic mail NOT using attachment manager"""
-        setup_module()
-        problemfile = os.path.join(TESTDATADIR, "mail_with_encoding_problem.eml")
+        problemfile = join(TESTDATADIR, "mail_with_encoding_problem.eml")
         suspect = Suspect("from@fuglu.unittest", "to@fuglu.unittest", problemfile)
         messagerep = suspect.get_message_rep()
 
