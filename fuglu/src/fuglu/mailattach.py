@@ -457,8 +457,19 @@ class Mailattachment(Cachelimits):
             try:
                 obj = self._buffer_archobj[fname]
             except KeyError:
-                filesize = self.archive_handle.filesize(fname)
-                buffer = self.archive_handle.extract(fname,maxsize_extract)
+                try:
+                    filesize = self.archive_handle.filesize(fname)
+                except Exception as e:
+                    if noextractinfo is not None:
+                        noextractinfo.append(fname, u"archivehandle", u"exception: %s" % str(e))
+                    return None
+
+                try:
+                    buffer = self.archive_handle.extract(fname,maxsize_extract)
+                except Exception as e:
+                    if noextractinfo is not None:
+                        noextractinfo.append(fname, u"archivehandle", u"exception: %s" % str(e))
+                    return None
 
                 if buffer is None:
                     if noextractinfo is not None:

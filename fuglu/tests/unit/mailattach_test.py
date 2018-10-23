@@ -3,7 +3,7 @@ import unittest
 import sys
 import email
 from os.path import join
-from fuglu.mailattach import Mailattachment_mgr, Mailattachment
+from fuglu.mailattach import Mailattachment_mgr, Mailattachment, NoExtractInfo
 from fuglu.shared import Suspect, create_filehash
 from unittestsetup import TESTDATADIR
 import hashlib
@@ -67,6 +67,44 @@ class MailattachmentMgrTest(unittest.TestCase):
         for att, afname in zip(full_att_list, fnames_all_levels):
             print(att)
             self.assertEqual(afname, att.filename)
+
+    def test_exception(self):
+        """Full manager test for what files are extracted based on different inputs"""
+
+        tempfile = join(TESTDATADIR, "rarfile_empty_dir.eml")
+
+        if sys.version_info > (3,):
+            # Python 3 and larger
+            # file should be binary...
+
+            # IMPORTANT: It is possible to use email.message_from_bytes BUT this will automatically replace
+            #            '\r\n' in the message (_payload) by '\n' and the endtoend_test.py will fail!
+            with open(tempfile, 'rb') as fh:
+                source = fh.read()
+            msgrep = email.message_from_bytes(source)
+        else:
+            # Python 2.x
+            with open(tempfile, 'r') as fh:
+                msgrep = email.message_from_file(fh)
+
+        m_attach_mgr = Mailattachment_mgr(msgrep)
+
+        # level 1 means the archive will be extracted once
+        # the rarfile extractor will raise an exception because the
+        # rar contains only an empty directory
+        #
+        # The attachment manager has to be able to handle this
+        noextractinfo = NoExtractInfo()
+        m_attach_mgr.get_objectlist(0, noextractinfo=noextractinfo)
+        # get reasons for no extraction except due to level
+        noextractlist = noextractinfo.get_filtered(minus_filters=[u"level"])
+        self.assertEqual(0, len(noextractlist), "%s" % noextractlist)
+
+        noextractinfo = NoExtractInfo()
+        m_attach_mgr.get_objectlist(1, noextractinfo=noextractinfo)
+        # get reasons for no extraction except due to level
+        noextractlist = noextractinfo.get_filtered(minus_filters=[u"level"])
+        self.assertEqual(1, len(noextractlist), "%s" % noextractlist)
 
 
 class MailAttachmentTest(unittest.TestCase):
