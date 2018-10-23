@@ -322,14 +322,18 @@ class Mailattachment(Cachelimits):
             (list[str]): List with filenames contained in this object or this object filename itself
 
         """
+        filelist = []
         if levelmax is None or levelin < levelmax:
             if self.is_archive:
                 if levelmax is None or levelin + 1 < levelmax:
-                    return self.get_fileslist_arch(levelin,levelmax,maxsize_extract)
+                    filelist = self.get_fileslist_arch(levelin,levelmax,maxsize_extract)
                 else:
-                    return self.fileslist_archive
+                    filelist = self.fileslist_archive
 
-        return [self.filename]
+        if not filelist:
+            filelist = [self.filename]
+
+        return filelist
 
     def get_objectlist(self,levelin, levelmax, maxsize_extract, noextractinfo=None):
         """
@@ -355,11 +359,11 @@ class Mailattachment(Cachelimits):
         Returns:
             (list[Mailattachment]): List with Mailattachment objects contained in this object of this object itself
         """
+        newlist = []
         if levelmax is None or levelin < levelmax:
 
             if self.is_archive:
 
-                newlist = []
                 if levelmax is None or levelin + 1 < levelmax:
                     for fname in self.fileslist_archive:
                         attachObj = self.get_archive_obj(fname, maxsize_extract, noextractinfo)
@@ -370,13 +374,14 @@ class Mailattachment(Cachelimits):
                         attachObj = self.get_archive_obj(fname, maxsize_extract, noextractinfo)
                         if attachObj is not None:
                             newlist.append(attachObj)
-                return newlist
-            else:
-                return [self]
         elif self.is_archive and noextractinfo is not None:
             for fname in self.fileslist_archive:
                 noextractinfo.append(fname, u"level", u"level (current/max) %u/%u" % (levelin, levelmax))
-        return [self]
+
+        if not newlist:
+            newlist = [self]
+
+        return newlist
 
     @smart_cached_memberfunc(inputs=['fileslist_archive','archive_handle','is_archive'])
     def get_archive_flist(self, maxsize_extract=None, inverse=False):
@@ -461,14 +466,14 @@ class Mailattachment(Cachelimits):
                     filesize = self.archive_handle.filesize(fname)
                 except Exception as e:
                     if noextractinfo is not None:
-                        noextractinfo.append(fname, u"archivehandle", u"exception: %s" % str(e))
+                        noextractinfo.append(fname, u"archivehandle", u"exception: %s" % force_uString(e))
                     return None
 
                 try:
                     buffer = self.archive_handle.extract(fname,maxsize_extract)
                 except Exception as e:
                     if noextractinfo is not None:
-                        noextractinfo.append(fname, u"archivehandle", u"exception: %s" % str(e))
+                        noextractinfo.append(fname, u"archivehandle", u"exception: %s" % force_uString(e))
                     return None
 
                 if buffer is None:
@@ -883,20 +888,21 @@ class Mailattachment_mgr(object):
             obj_list.extend(att_obj.get_objectlist(0, level, maxsize_extract, noextractinfo=noextractinfo))
         return obj_list
 
-    def get_fileslist_checksum(self, level=0, maxsize_extract=None, methods=()):
+    def get_fileslist_checksum(self, level=0, maxsize_extract=None, methods=(), noextractinfo=None):
         """
         Get a list containg tuples (filanem, checksumdict) for all the extracted files up to a given extraction level
 
         Keyword Args:
             level (in): Level up to which archives are opened to get file list (default: 0 -> direct mail attachments)
             methods (set): set containing the checksum methods requested
+            noextractinfo (NoExtractInfo): stores info why object was not extracted
 
         Returns:
             list[(string, dict)]: list containing tuples (filename, checksumdict)
         """
         obj_list = []
         for att_obj in self.get_mailatt_generator():
-            obj_list.extend(att_obj.get_objectlist(0,level,maxsize_extract))
+            obj_list.extend(att_obj.get_objectlist(0,level,maxsize_extract, noextractinfo=noextractinfo))
 
         checksumlist = []
         for obj in obj_list:

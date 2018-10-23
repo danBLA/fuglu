@@ -1,0 +1,41 @@
+FCC: imap://dc%40cleanmail.eu@imap.cleanmail.eu/INBOX/Sent
+X-Identity-Key: id3
+X-Account-Key: account6
+From: Daniel Caviezel <dc@cleanmail.eu>
+Subject: rarfile - empty dir
+Message-ID: <61200987-1dc0-1b4e-7295-b81b06f96882@cleanmail.eu>
+Date: Tue, 23 Oct 2018 15:46:15 +0200
+X-Mozilla-Draft-Info: internal/draft; vcard=0; receipt=0; DSN=0; uuencode=0;
+ attachmentreminder=0; deliveryformat=4
+User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:60.0) Gecko/20100101
+ Thunderbird/60.2.1
+MIME-Version: 1.0
+Content-Type: multipart/mixed;
+ boundary="------------27B631C44B02B9F5F35BE75E"
+Content-Language: en-US
+
+This is a multi-part message in MIME format.
+--------------27B631C44B02B9F5F35BE75E
+Content-Type: text/html; charset=utf-8
+Content-Transfer-Encoding: 7bit
+
+<html>
+  <head>
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+  </head>
+  <body text="#000000" bgcolor="#FFFFFF">
+    <p>contains a rarfile with an empty directory<br>
+    </p>
+  </body>
+</html>
+
+--------------27B631C44B02B9F5F35BE75E
+Content-Type: application/x-rar;
+ name="EmptyDir.rar"
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment;
+ filename="EmptyDir.rar"
+
+UmFyIRoHAM+QcwAADQAAAAAAAABmenTggCgAAAAAAAAAAAADAAAAAMZwV00UMAgA/UEAAEVt
+cHR5RGlyxD17AEAHAA==
+--------------27B631C44B02B9F5F35BE75E--

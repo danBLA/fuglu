@@ -431,7 +431,7 @@ class SuspectTest(unittest.TestCase):
         m_attach_mgr = suspect.att_mgr
 
         # ------------------ #
-        # Direkt attachments #
+        # Direct attachments #
         # ------------------ #
 
         # check nestedarchive.tar.gz -> so first make sure it has been found
@@ -467,7 +467,7 @@ class SuspectTest(unittest.TestCase):
             self.assertIn("level6.txt", m_attach_mgr.get_fileslist(level=None))
         except AttributeError:
             # Python 2.6
-            self.assertTrue("level6.txt" in m_attach_mgr.get_fileslist())
+            self.assertTrue("level6.txt" in m_attach_mgr.get_fileslist(level=None))
 
         md5 = create_filehash([filearchive], "md5", ashexstr=True)[0][1]
         sha1 = create_filehash([filearchive], "sha1", ashexstr=True)[0][1]
@@ -479,3 +479,174 @@ class SuspectTest(unittest.TestCase):
             if file == "level6.txt":
                 self.assertEqual(md5, cdict["md5"])
                 self.assertEqual(sha1, cdict["sha1"])
+
+    def test_checksum_emptyrar(self):
+        """Test the checksum behavior for an rar containing an empty directory (which can not be extracted)"""
+
+        tempfile = join(TESTDATADIR, "rarfile_empty_dir.eml")
+
+        suspect = Suspect('sender@unittests.fuglu.org',
+                          'recipient@unittests.fuglu.org', tempfile)
+
+        m_attach_mgr = suspect.att_mgr
+
+        # ------------------ #
+        # Direct attachments #
+        # ------------------ #
+
+        # check nestedarchive.tar.gz -> so first make sure it has been found
+        try:
+            self.assertIn("EmptyDir.rar", m_attach_mgr.get_fileslist())
+        except AttributeError:
+            # Python 2.6
+            self.assertTrue("EmptyDir.rar" in m_attach_mgr.get_fileslist())
+
+        # ----------------- #
+        # extract all files #
+        # ----------------- #
+
+        # manually create md5/sha1 checksums
+        filearchive = join(TESTDATADIR, "EmptyDir.rar")
+
+        # EmptyDir.rar can not be uncompressed because it raises an exception
+        # Therefore "EmptyDir.rar" itself has to be in the list
+        try:
+            self.assertIn("EmptyDir.rar", m_attach_mgr.get_fileslist(level=None))
+        except AttributeError:
+            # Python 2.6
+            self.assertTrue("EmptyDir.rar" in m_attach_mgr.get_fileslist(level=None))
+
+        md5 = create_filehash([filearchive], "md5", ashexstr=True)[0][1]
+        sha1 = create_filehash([filearchive], "sha1", ashexstr=True)[0][1]
+
+        # now get all checksums for all extracted files
+        noextractinfo = NoExtractInfo()
+        checksums = m_attach_mgr.get_fileslist_checksum(level=None, noextractinfo=noextractinfo)
+        for file, cdict in checksums:
+            print("Filename: %s, checksums: %s" % (file, cdict))
+            if file == "EmptyDir.rar":
+                self.assertEqual(md5, cdict["md5"])
+                self.assertEqual(sha1, cdict["sha1"])
+
+        # there should be information about the file that could not be extracted
+        noextractlist = noextractinfo.get_filtered(minus_filters=["level"])
+
+        self.assertEqual((u'EmptyDir',
+                          u'exception: Directory does not have any data: EmptyDir'),
+                         noextractlist[0])
+
+    def test_checksum_rar_pwd(self):
+        """Test the checksum behavior password protected rar file"""
+
+        tempfile = join(TESTDATADIR, "rar_password_protected_files.eml")
+
+        suspect = Suspect('sender@unittests.fuglu.org',
+                          'recipient@unittests.fuglu.org', tempfile)
+
+        m_attach_mgr = suspect.att_mgr
+
+        # ------------------ #
+        # Direct attachments #
+        # ------------------ #
+
+        # check nestedarchive.tar.gz -> so first make sure it has been found
+        try:
+            self.assertIn("password.rar", m_attach_mgr.get_fileslist())
+        except AttributeError:
+            # Python 2.6
+            self.assertTrue("password.rar" in m_attach_mgr.get_fileslist())
+
+        # ----------------- #
+        # extract all files #
+        # ----------------- #
+
+        # manually create md5/sha1 checksums
+        filearchive = join(TESTDATADIR, "password.rar")
+
+        # EmptyDir.rar can not be uncompressed because it raises an exception
+        # Therefore "EmptyDir.rar" itself has to be in the list
+        try:
+            self.assertIn("password.rar", m_attach_mgr.get_fileslist(level=None))
+        except AttributeError:
+            # Python 2.6
+            self.assertTrue("password.rar" in m_attach_mgr.get_fileslist(level=None))
+
+        md5 = create_filehash([filearchive], "md5", ashexstr=True)[0][1]
+        sha1 = create_filehash([filearchive], "sha1", ashexstr=True)[0][1]
+
+        # now get all checksums for all extracted files
+        noextractinfo = NoExtractInfo()
+        checksums = m_attach_mgr.get_fileslist_checksum(level=None, noextractinfo=noextractinfo)
+        for file, cdict in checksums:
+            print("Filename: %s, checksums: %s" % (file, cdict))
+            if file == "EmptyDir.rar":
+                self.assertEqual(md5, cdict["md5"])
+                self.assertEqual(sha1, cdict["sha1"])
+
+        #---
+        # there should be information about the file that could not be extracted
+        #---
+        noextractlist = noextractinfo.get_filtered(minus_filters=["level"])
+        expected = [(u'One F\xf6lder/H\xe9l\xf6 W\xf6rld.txt', u'exception: File One F\xf6lder/H\xe9l\xf6 W\xf6rld.txt requires password'),
+                    (u'One F\xf6lder', u'exception: Directory does not have any data: One F\xf6lder')]
+
+        for e in expected:
+            try:
+                self.assertIn(e, noextractlist)
+            except AttributeError:
+                # Python 2.6
+                self.assertTrue(e in noextractlist)
+
+    def test_checksum_rar_fullpwd(self):
+        """Test the checksum behavior password protected rar file and list"""
+
+        tempfile = join(TESTDATADIR, "rar_password_protected_files_and_list.eml")
+
+        suspect = Suspect('sender@unittests.fuglu.org',
+                          'recipient@unittests.fuglu.org', tempfile)
+
+        m_attach_mgr = suspect.att_mgr
+
+        # ------------------ #
+        # Direct attachments #
+        # ------------------ #
+
+        try:
+            self.assertIn("password2.rar", m_attach_mgr.get_fileslist())
+        except AttributeError:
+            # Python 2.6
+            self.assertTrue("password2.rar" in m_attach_mgr.get_fileslist())
+
+        # ----------------- #
+        # extract all files #
+        # ----------------- #
+
+        # manually create md5/sha1 checksums
+        filearchive = join(TESTDATADIR, "password2.rar")
+
+        # EmptyDir.rar can not be uncompressed because it raises an exception
+        # Therefore "EmptyDir.rar" itself has to be in the list
+        try:
+            self.assertIn("password2.rar", m_attach_mgr.get_fileslist(level=None))
+        except AttributeError:
+            # Python 2.6
+            self.assertTrue("password2.rar" in m_attach_mgr.get_fileslist(level=None))
+
+        md5 = create_filehash([filearchive], "md5", ashexstr=True)[0][1]
+        sha1 = create_filehash([filearchive], "sha1", ashexstr=True)[0][1]
+
+        # now get all checksums for all extracted files
+        noextractinfo = NoExtractInfo()
+        checksums = m_attach_mgr.get_fileslist_checksum(level=None, noextractinfo=noextractinfo)
+        for file, cdict in checksums:
+            print("Filename: %s, checksums: %s" % (file, cdict))
+            if file == "EmptyDir.rar":
+                self.assertEqual(md5, cdict["md5"])
+                self.assertEqual(sha1, cdict["sha1"])
+
+        #---
+        # there is no information available if filelist is also password protected
+        # but there is also no error
+        #---
+        noextractlist = noextractinfo.get_filtered(minus_filters=["level"])
+        self.assertEqual([], noextractlist)
