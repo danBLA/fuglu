@@ -91,8 +91,7 @@ class FileArchiveHandle(unittest.TestCase):
         archive_flist = handle.namelist()
         self.assertEqual([u"One Földer/Hélö Wörld.txt", u"One Földer"], archive_flist)
 
-        # file should not be extracted if maximum size to extract a file is 0
-        extracted = handle.extract(archive_flist[0])
+        extracted = handle.extract(archive_flist[0], None)
         self.assertEqual(u"bla bla bla\n", force_uString(extracted))
         handle.close()
 
@@ -120,7 +119,7 @@ class FileArchiveHandle(unittest.TestCase):
         self.assertEqual([u"One Földer/Hélö Wörld.txt", u"One Földer"], archive_flist)
 
         with self.assertRaises(rarfile.PasswordRequired):
-            handle.extract(archive_flist[0])
+            handle.extract(archive_flist[0], None)
         handle.close()
 
     def test_rarfileextract_unicode_password2(self):
@@ -167,7 +166,7 @@ class FileArchiveHandle(unittest.TestCase):
         self.assertEqual([u"EmptyDir"], archive_flist)
 
         with self.assertRaises(TypeError):
-            handle.extract(archive_flist[0])
+            handle.extract(archive_flist[0], None)
         handle.close()
 
     def test_tarfileextract_gz(self):

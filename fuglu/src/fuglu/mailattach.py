@@ -68,7 +68,7 @@ class Mailattachment(Cachelimits):
             content_charset_mime (str): The characterset as defined in the mail attachment, only available for direct mail attachments
         """
         super(Mailattachment, self).__init__()
-        self.filename = filename
+        self.filename = force_uString(filename)
         self.filesize = filesize
         self.buffer = buffer
         self._buffer_archobj = {}
@@ -185,15 +185,12 @@ class Mailattachment(Cachelimits):
         """
 
         # only for first level attachments
+        decoded_buffer = u""
         if self.in_obj is None:
-            try:
-                # if charset is None or empty string use utf-8 as guess
-                charset = self.content_charset_mime if self.content_charset_mime  else "utf-8"
-                return force_uString(self.buffer,encodingGuess=charset)
-            except Exception:
-                pass
+            charset = self.content_charset_mime if self.content_charset_mime else "utf-8"
+            decoded_buffer = force_uString(self.buffer, encodingGuess=charset)
 
-        return force_uString("")
+        return decoded_buffer
 
     @smart_cached_memberfunc(inputs=['buffer'])
     def get_checksum(self, method):
