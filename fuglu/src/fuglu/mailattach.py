@@ -185,15 +185,12 @@ class Mailattachment(Cachelimits):
         """
 
         # only for first level attachments
+        decoded_buffer = u""
         if self.in_obj is None:
-            try:
-                # if charset is None or empty string use utf-8 as guess
-                charset = self.content_charset_mime if self.content_charset_mime  else "utf-8"
-                return force_uString(self.buffer,encodingGuess=charset)
-            except Exception:
-                pass
+            charset = self.content_charset_mime if self.content_charset_mime else "utf-8"
+            decoded_buffer = force_uString(self.buffer, encodingGuess=charset)
 
-        return force_uString("")
+        return decoded_buffer
 
     @smart_cached_memberfunc(inputs=['buffer'])
     def get_checksum(self, method):
