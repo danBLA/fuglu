@@ -319,14 +319,18 @@ class Mailattachment(Cachelimits):
             (list[str]): List with filenames contained in this object or this object filename itself
 
         """
+        filelist = []
         if levelmax is None or levelin < levelmax:
             if self.is_archive:
                 if levelmax is None or levelin + 1 < levelmax:
-                    return self.get_fileslist_arch(levelin,levelmax,maxsize_extract)
+                    filelist = self.get_fileslist_arch(levelin,levelmax,maxsize_extract)
                 else:
-                    return self.fileslist_archive
+                    filelist = self.fileslist_archive
 
-        return [self.filename]
+        if not filelist:
+            filelist = [self.filename]
+
+        return filelist
 
     def get_objectlist(self,levelin, levelmax, maxsize_extract, noextractinfo=None):
         """
@@ -346,31 +350,35 @@ class Mailattachment(Cachelimits):
             levelmax (in): Max recursive archive level up to which archives are extracted
             maxsize_extract (int): Maximum size that will be extracted to further go into archive
 
+        Keyword Args:
+            noextractinfo (NoExtractInfo): stores info why object was not extracted
+
         Returns:
             (list[Mailattachment]): List with Mailattachment objects contained in this object of this object itself
         """
+        newlist = []
         if levelmax is None or levelin < levelmax:
 
             if self.is_archive:
 
-                newlist = []
                 if levelmax is None or levelin + 1 < levelmax:
                     for fname in self.fileslist_archive:
                         attachObj = self.get_archive_obj(fname, maxsize_extract, noextractinfo)
                         if attachObj is not None:
-                            newlist.extend(attachObj.get_objectlist(levelin+1,levelmax,maxsize_extract, noextractinfo))
+                            newlist.extend(attachObj.get_objectlist(levelin+1, levelmax, maxsize_extract, noextractinfo))
                 else:
                     for fname in self.fileslist_archive:
-                        attachObj = self.get_archive_obj(fname, maxsize_extract,noextractinfo)
+                        attachObj = self.get_archive_obj(fname, maxsize_extract, noextractinfo)
                         if attachObj is not None:
                             newlist.append(attachObj)
-                return newlist
-            else:
-                return [self]
         elif self.is_archive and noextractinfo is not None:
             for fname in self.fileslist_archive:
-                noextractinfo.append((fname,"level","level (current/max) %u/%u"%(levelin,levelmax)))
-        return [self]
+                noextractinfo.append(fname, u"level", u"level (current/max) %u/%u" % (levelin, levelmax))
+
+        if not newlist:
+            newlist = [self]
+
+        return newlist
 
     @smart_cached_memberfunc(inputs=['fileslist_archive','archive_handle','is_archive'])
     def get_archive_flist(self, maxsize_extract=None, inverse=False):
@@ -416,7 +424,7 @@ class Mailattachment(Cachelimits):
             maxsize_extract (int): Maximum size that will be extracted
 
         Keyword Args:
-            noextractinfo (list): list with info why object was not extracted
+            noextractinfo (NoExtractInfo): stores info why object was not extracted
 
         Returns:
             list containing objects contained in archive
@@ -439,7 +447,7 @@ class Mailattachment(Cachelimits):
             maxsize_extract (int): Maximum size that will be extracted
 
         Keyword Args:
-            noextractinfo (list): list with info why object was not extracted
+            noextractinfo (NoExtractInfo): stores info why object was not extracted
 
         Returns:
             (Mailattachment): Requested object from archive
@@ -451,14 +459,27 @@ class Mailattachment(Cachelimits):
             try:
                 obj = self._buffer_archobj[fname]
             except KeyError:
-                filesize = self.archive_handle.filesize(fname)
-                buffer = self.archive_handle.extract(fname,maxsize_extract)
+                try:
+                    filesize = self.archive_handle.filesize(fname)
+                except Exception as e:
+                    if noextractinfo is not None:
+                        noextractinfo.append(fname, u"archivehandle", u"exception: %s" % force_uString(e))
+                    return None
+
+                try:
+                    buffer = self.archive_handle.extract(fname,maxsize_extract)
+                except Exception as e:
+                    if noextractinfo is not None:
+                        noextractinfo.append(fname, u"archivehandle", u"exception: %s" % force_uString(e))
+                    return None
+
                 if buffer is None:
                     if noextractinfo is not None:
                         if filesize > maxsize_extract:
-                            noextractinfo.append((fname,"size","not extracted: %u > %u"%(filesize,maxsize_extract)))
+                            noextractinfo.append(fname, u"extractsize", u"not extracted: %u > %u"
+                                                  % (filesize, maxsize_extract))
                         else:
-                            noextractinfo.append((fname,"archivehandle","(no info)"))
+                            noextractinfo.append(fname, u"archivehandle", u"(no info)")
                     return None
                 obj = Mailattachment(buffer, fname, self._mgr(), filesize=filesize, in_obj=self)
 
@@ -845,7 +866,7 @@ class Mailattachment_mgr(object):
             file_list.extend(att_obj.get_fileslist(0, level, maxsize_extract))
         return file_list
 
-    def get_objectlist(self,level=0, maxsize_extract=None):
+    def get_objectlist(self,level=0, maxsize_extract=None, noextractinfo=None):
         """
         Get list of all Mailattachment objects attached to message. For given recursion level attached
         archives are extracted.
@@ -854,31 +875,89 @@ class Mailattachment_mgr(object):
 
         Keyword Args:
             level (in): Level up to which archives are opened to get file list (default: 0 -> direct mail attachments)
+            noextractinfo (NoExtractInfo): stores info why object was not extracted
 
         Returns:
             list[Mailattachment]: list containing attached files with archives extracted to given level
         """
         obj_list = []
         for att_obj in self.get_mailatt_generator():
-            obj_list.extend(att_obj.get_objectlist(0,level,maxsize_extract))
+            obj_list.extend(att_obj.get_objectlist(0, level, maxsize_extract, noextractinfo=noextractinfo))
         return obj_list
 
-    def get_fileslist_checksum(self, level=0, maxsize_extract=None, methods=()):
+    def get_fileslist_checksum(self, level=0, maxsize_extract=None, methods=(), noextractinfo=None):
         """
         Get a list containg tuples (filanem, checksumdict) for all the extracted files up to a given extraction level
 
         Keyword Args:
             level (in): Level up to which archives are opened to get file list (default: 0 -> direct mail attachments)
             methods (set): set containing the checksum methods requested
+            noextractinfo (NoExtractInfo): stores info why object was not extracted
 
         Returns:
             list[(string, dict)]: list containing tuples (filename, checksumdict)
         """
         obj_list = []
         for att_obj in self.get_mailatt_generator():
-            obj_list.extend(att_obj.get_objectlist(0,level,maxsize_extract))
+            obj_list.extend(att_obj.get_objectlist(0,level,maxsize_extract, noextractinfo=noextractinfo))
 
         checksumlist = []
         for obj in obj_list:
             checksumlist.append((obj.filename, obj.get_checksumdict(methods=methods)))
         return checksumlist
+
+
+class NoExtractInfo(object):
+    """Store info about files """
+
+    valid_causes = [u"level", u"archivehandle", u"toolarge", u"extractsize"]
+
+    def __init__(self):
+        """Constructor"""
+
+        self.infolists = {}
+        for cause in NoExtractInfo.valid_causes:
+            self.infolists[cause] = []
+
+    def append(self, filename, cause, message):
+        """
+        Append a new info about noExtraction
+
+        Args:
+            filename (str, unicode): filename causing the issue
+            cause (str, unicode): reason for being added, must be in valid_causes
+            message (str, unicode): an additional message
+        """
+
+        assert cause in NoExtractInfo.valid_causes
+
+        self.infolists[cause].append((force_uString(filename), force_uString(message)))
+
+    def get_filtered(self, plus_filters=None, minus_filters=None):
+        """
+        Get filtered result
+
+        Args:
+            plus_filters (list): list with valid causes (all causes if not defined)
+            minus_filters (list): list with causes not to show (empty if not defined)
+
+        Returns:
+            list(tuples): (filename, message)
+
+        """
+        if plus_filters is None:
+            plus_filters = NoExtractInfo.valid_causes
+        if minus_filters is None:
+            minus_filters = []
+
+        output = []
+        for filter in plus_filters:
+            assert filter in NoExtractInfo.valid_causes
+        for filter in minus_filters:
+            assert filter in NoExtractInfo.valid_causes
+
+        for filter in plus_filters:
+            if filter not in minus_filters:
+                output.extend(self.infolists[filter])
+        return output
+
