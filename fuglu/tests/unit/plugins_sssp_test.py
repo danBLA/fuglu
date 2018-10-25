@@ -66,7 +66,7 @@ class SSSPTestCase(unittest.TestCase):
            b'TYPE 60', b'TYPE 81', b'TYPE 53', b'TYPE 60', b'TYPE 81',
            b'EVENT VIRUS Mal/DummyFlu /tmp/savid_tmpgMEMBE/AAAAAAAAA%20AA%20AAAAAAAA.zip/AAAAAAAAA%20AA%20AAAAAAAA.exe',
            b'VIRUS Mal/DummyFlu /tmp/savid_tmpgMEMBE/AAAAAAAAA%20AA%20AAAAAAAA.zip/AAAAAAAAA%20AA%20AAAAAAAA.exe',
-           b'OK 0203 /tmp/savid_tmpgMEMBE', 'DONE OK 0203 Virus found during virus scan']
+           b'OK 0203 /tmp/savid_tmpgMEMBE', b'DONE OK 0203 Virus found during virus scan']
 
         candidate = SSSPPlugin(self.config)
         candidate.__init_socket__ = MagicMock()
