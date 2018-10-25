@@ -45,7 +45,7 @@ class SSSPTestCase(unittest.TestCase):
     @patch("fuglu.plugins.sssp.exchangeGreetings")
     @patch("fuglu.plugins.sssp.readoptions")
     def test_answer(self, rops, exchgr, acc, rcvmsg, sgb):
-        """Test if the spam status header gets extracted correctly"""
+        """Test parsing of sophos answer, especially removal of tmp-folder in name"""
 
         rops.return_value = {u'maxscandata': [u'0'], u'version': [u'SAV Dynamic Interface 2.6.0'],
                              u'maxclassificationsize': [u'4096'],
@@ -53,28 +53,27 @@ class SSSPTestCase(unittest.TestCase):
                                          u'SCANDATA', u'SCANFILE', u'SCANDIR'], u'maxmemorysize': [u'250000']}
         acc.return_value = True
         rcvmsg.return_value = \
-          [b'EVENT FILE /tmp/savid_temporary', b'FILE /tmp/savid_temporary', b'TYPE D0',
-           b'EVENT ARCHIVE /tmp/savid_temporary/AAAA0001', b'FILE /tmp/savid_temporary/AAAA0001',
-           b'TYPE D0', b'EVENT ARCHIVE /tmp/savid_temporary/AAAA0001/AAAA0001',
-           b'FILE /tmp/savid_temporary/AAAA0001/AAAA0001', b'TYPE 80',
-           b'EVENT ARCHIVE /tmp/savid_temporary/AAAA0001/AAAA0002',
-           b'FILE /tmp/savid_temporary/AAAA0001/AAAA0002', b'TYPE D9',
-           b'EVENT ARCHIVE /tmp/savid_temporary/AAAAAAAAA%20OF%20AAAAAAAA.zip',
-           b'FILE /tmp/savid_temporary/AAAAAAAAA%20OF%20AAAAAAAA.zip', b'TYPE 30',
-           b'EVENT ARCHIVE /tmp/savid_temporary/AAAAAAAAA%20OF%20AAAAAAAA.zip/AAAAAAAAA%20OF%20AAAAAAAA.exe',
-           b'FILE /tmp/savid_temporary/AAAAAAAAA%20OF%20AAAAAAAA.zip/AAAAAAAAA%20OF%20AAAAAAAA.exe',
+          [b'EVENT FILE /tmp/savid_tmpgMEMBE', b'FILE /tmp/savid_tmpgMEMBE', b'TYPE D0',
+           b'EVENT ARCHIVE /tmp/savid_tmpgMEMBE/AAAA0001', b'FILE /tmp/savid_tmpgMEMBE/AAAA0001',
+           b'TYPE D0', b'EVENT ARCHIVE /tmp/savid_tmpgMEMBE/AAAA0001/AAAA0001',
+           b'FILE /tmp/savid_tmpgMEMBE/AAAA0001/AAAA0001', b'TYPE 80',
+           b'EVENT ARCHIVE /tmp/savid_tmpgMEMBE/AAAA0001/AAAA0002',
+           b'FILE /tmp/savid_tmpgMEMBE/AAAA0001/AAAA0002', b'TYPE D9',
+           b'EVENT ARCHIVE /tmp/savid_tmpgMEMBE/AAAAAAAAA%20AA%20AAAAAAAA.zip',
+           b'FILE /tmp/savid_tmpgMEMBE/AAAAAAAAA%20AA%20AAAAAAAA.zip', b'TYPE 30',
+           b'EVENT ARCHIVE /tmp/savid_tmpgMEMBE/AAAAAAAAA%20AA%20AAAAAAAA.zip/AAAAAAAAA%20AA%20AAAAAAAA.exe',
+           b'FILE /tmp/savid_tmpgMEMBE/AAAAAAAAA%20AA%20AAAAAAAA.zip/AAAAAAAAA%20AA%20AAAAAAAA.exe',
            b'TYPE 60', b'TYPE 81', b'TYPE 53', b'TYPE 60', b'TYPE 81',
-           b'EVENT VIRUS Mal/DummaFlu /tmp/savid_temporary/AAAAAAAAA%20OF%20AAAAAAAA.zip/AAAAAAAAA%20OF%20AAAAAAAA.exe',
-           b'VIRUS Mal/DummaFlu /tmp/savid_temporary/AAAAAAAAA%20OF%20AAAAAAAA.zip/AAAAAAAAA%20OF%20AAAAAAAA.exe',
-           b'OK 0203 /tmp/savid_temporary', 'DONE OK 0203 Virus found during virus scan']
+           b'EVENT VIRUS Mal/DummyFlu /tmp/savid_tmpgMEMBE/AAAAAAAAA%20AA%20AAAAAAAA.zip/AAAAAAAAA%20AA%20AAAAAAAA.exe',
+           b'VIRUS Mal/DummyFlu /tmp/savid_tmpgMEMBE/AAAAAAAAA%20AA%20AAAAAAAA.zip/AAAAAAAAA%20AA%20AAAAAAAA.exe',
+           b'OK 0203 /tmp/savid_tmpgMEMBE', 'DONE OK 0203 Virus found during virus scan']
 
         candidate = SSSPPlugin(self.config)
         candidate.__init_socket__ = MagicMock()
         candidate.__init_socket__.return_value = MagicMock()
-        suspect = Suspect(
-            'sender@unittests.fuglu.org', 'recipient@unittests.fuglu.org', '/dev/null')
 
-        #candidate.examine(suspect)
         reply = candidate.scan_stream(b"dummy")
-        targetanswer = {u'/tmp/savid_temporary/AAAAAAAAA%20OF%20AAAAAAAA.zip/AAAAAAAAA%20OF%20AAAAAAAA.exe': u'Mal/DummaFlu'}
+        # ideally we don't want the tmp-folder structure in the message
+        # /tmp/savid_tmpgMEMBE should be removed by the regex sssp.tmpdirsyntax
+        targetanswer = {u'AAAAAAAAA%20AA%20AAAAAAAA.zip/AAAAAAAAA%20AA%20AAAAAAAA.exe': u'Mal/DummyFlu'}
         self.assertEqual(targetanswer, reply)
