@@ -33,7 +33,7 @@ virussyntax = re.compile(b"^VIRUS\s+(\S+)\s+(.*)")
 typesyntax = re.compile(b"^TYPE\s+(\w+)")
 donesyntax = re.compile(b"^DONE\s+(\w+)\s+(\w+)\s+(.*?)\s*$")
 eventsyntax = re.compile(b"^([A-Z]+)\s+(\w+)")
-
+tmpdirsyntax = re.compile(u"(/tmp/savid_tmp[^\/]+/)(.+)")
 
 # Receives a line of text from the socket
 # \r chars are discarded
@@ -287,6 +287,10 @@ Prerequisites: Requires a running sophos daemon with dynamic interface (SAVDI)
                 parts = virussyntax.findall(l)
                 virus = force_uString(parts[0][0])
                 filename = force_uString(parts[0][1])
+                try:
+                    filename = tmpdirsyntax.findall(filename)[0][1]
+                except:
+                    pass
                 dr[filename] = virus
 
         try:
