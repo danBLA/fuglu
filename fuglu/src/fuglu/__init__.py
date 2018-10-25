@@ -18,4 +18,4 @@ __all__ = ['bounce', 'core', 'daemon', 'debug', 'funkyconsole',
            'protocolbase', 'scansession', 'shared', 'stats', 'threadpool',
            'caching', 'mailattach']
 
-FUGLU_VERSION = "0.8.0"
+FUGLU_VERSION = "0.9.0"
