@@ -1,15 +1,15 @@
+
 [main]
 
 #identifier can be any string that helps you identifying your config file
 #this helps making sure the correct config is loaded. this identifier will be printed out when fuglu is reloading its config
 identifier=dist
 
-# scantime logger disabled
-# -> after enable also configure logger in logging.conf
-scantimelogger = 0
-
 #run as a daemon? (fork)
 daemonize=1
+
+#Enable session scantime logger
+scantimelogger=0
 
 #run as user
 user=nobody
@@ -95,44 +95,51 @@ logtemplate=Suspect ${id} from=${from_address} to=${to_address} size=${size} spa
 #Disable this if you consider the DNS lookup an unwanted information leak.
 versioncheck=1
 
-# Method to check mail address validity (Default/LazyLocalPart)
-address_compliance_checker = Default
+#Method to check mail address validity ("Default","LazyLocalPart")
+address_compliance_checker=Default
 
-# Action to perform if address validity check fails (defer/reject/discard)
-address_compliance_fail_action = defer
+#Action to perform if address validity check fails ("defer","reject","discard")
+address_compliance_fail_action=defer
 
-# Reply message if address validity check fails
-address_compliance_fail_message = invalid send or receive address
+#Reply message if address validity check fails
+address_compliance_fail_message=invalid sender or recipient address
 
-# Remove temporary message file from disk for receive or address compliance errors
-remove_tmpfiles_on_error = True
+#Remove temporary message file from disk for receive or address compliance errors
+remove_tmpfiles_on_error=1
 
 [PluginAlias]
 
 debug=fuglu.plugins.p_debug.MessageDebugger
+
 skip=fuglu.plugins.p_skipper.PluginSkipper
+
 fraction=fuglu.plugins.p_fraction.PluginFraction
+
 archive=fuglu.plugins.archive.ArchivePlugin
+
 attachment=fuglu.plugins.attachment.FiletypePlugin
+
 clamav=fuglu.plugins.clamav.ClamavPlugin
+
 spamassassin=fuglu.plugins.sa.SAPlugin
+
 vacation=fuglu.plugins.vacation.VacationPlugin
+
 actionoverride=fuglu.plugins.actionoverride.ActionOverridePlugin
+
 icap=fuglu.plugins.icap.ICAPPlugin
+
 sssp=fuglu.plugins.sssp.SSSPPlugin
+
 fprot=fuglu.plugins.fprot.FprotPlugin
+
 scriptfilter=fuglu.plugins.script.ScriptFilter
+
 dkimsign=fuglu.plugins.domainauth.DKIMSignPlugin
+
 dkimverify=fuglu.plugins.domainauth.DKIMVerifyPlugin
+
 spf=fuglu.plugins.domainauth.SPFPlugin
-srs=fuglu.plugins.domainauth.SenderRewriteScheme
-
-[milter]
-# available options: readonly,manual,auto,tags,replace_demo
-milter_mode=readonly
-
-# available options: all,body,headers,from,to
-milter_mode_options=
 
 [databaseconfig]
 
@@ -157,13 +164,8 @@ backend=thread
 #Initial number of processes when backend='process'. If 0 (the default), automatically selects twice the number of available virtual cores. Despite its 'initial'-name, this number currently is not adapted automatically.
 initialprocs=0
 
-# Maximum cache size to keep attachemnts (archives extracted) per suspect during mail analysis (in bytes)
-att_mgr_cachesize = 50000000
-
-# If using the backend "process", the "join_timeout" can be defined to define the time to
-# wait for a process at fuglu shutdown or reload. If undefined, fuglu waits 120 seconds at the
-# reload (which should give enough time to finish processing a mail) and 1 second for shutdown.
-# join_timeout = 30
+#Maximum cache size to keep attachemnts (archives extracted) per suspect during mail analysis (in bytes)
+att_mgr_cachesize=50000000
 
 [spam]
 
@@ -268,16 +270,13 @@ checkarchivenames=0
 #extract compressed archives(zip,rar) and check file content type with libmagics
 #note that the files will be extracted into memory - tune archivecontentmaxsize  accordingly.
 #fuglu does not extract archives within the archive(recursion)
-#fuglu can recursively extract archives up to the level defined by "archiveextractlevel"
 checkarchivecontent=0
-
-#recursive extraction level for archives. Undefined or negative value means extract
-#until it's not an archive anymore. To block something in the content of a direct attachment
-#the level has to be 1.
-archiveextractlevel=1
 
 #only extract and examine files up to this amount of (uncompressed) bytes
 archivecontentmaxsize=5000000
+
+#recursive extraction level for archives. Undefined or negative value means extract until it's not an archive anymore
+archiveextractlevel=1
 
 #comma separated list of archive extensions. do only process archives of given types.
 enabledarchivetypes=
@@ -336,8 +335,8 @@ timeout=30
 #maximum size in bytes. larger messages will be skipped
 maxsize=256000
 
-#enable scanning of messages larger than maxsize. all attachments will be stripped and only headers, plaintext and html part will be scanned. If message is still oversize it will be truncated. Also enable forwardoriginal or truncated version of large messages will be forwarded
-strip_oversize=0
+#enable scanning of messages larger than maxsize. all attachments will be stripped and only headers, plaintext and html part will be scanned. If message is still oversize it will be truncated.
+strip_oversize=1
 
 #how often should fuglu retry the connection before giving up
 retries=3
@@ -359,6 +358,9 @@ forwardoriginal=0
 #if 'forwardoriginal' is set to 0
 #eg. start with _YESNO_ or _YESNOCAPS_ and contain score=_SCORE_
 spamheader=X-Spam-Status
+
+#tells fuglu what spamassassin prepends to its headers. Set this according to your spamassassin config especially if you forwardoriginal=0 and strip_oversize=1
+spamheader_prepend=X-Spam-
 
 #enable user_prefs in SA. This hands the recipient address over the spamd connection which allows SA to search for configuration overrides
 peruserconfig=1
