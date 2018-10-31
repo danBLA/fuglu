@@ -141,22 +141,22 @@ def force_uString(inputstring,encodingGuess="utf-8"):
         # expected to be converted to unicode
 
         logger = logging.getLogger("fuglu.force_uString")
-        logger.warning("object is not string/unicode/bytes but %s" % str(type(inputstring)))
+        logger.debug("object is not string/unicode/bytes but %s" % str(type(inputstring)))
 
         if sys.version_info < (3,):
             try:
                 return unicode(inputstring)
             except (NameError, ValueError, TypeError, UnicodeEncodeError, UnicodeDecodeError) as e:
-                logger.warning("Could not convert using 'unicode' -> error %s" % str(e))
+                logger.debug("Could not convert using 'unicode' -> error %s" % str(e))
                 pass
 
         try:
             return str(inputstring)
         except (NameError, ValueError, TypeError, UnicodeEncodeError, UnicodeDecodeError) as e:
-            logger.warning("Could not convert using 'str' -> error %s" % str(e))
+            logger.debug("Could not convert using 'str' -> error %s" % str(e))
             pass
         except Exception as e:
-            logger.warning("Could not convert using 'str' -> error %s" % str(e))
+            logger.debug("Could not convert using 'str' -> error %s" % str(e))
             pass
 
         try:
