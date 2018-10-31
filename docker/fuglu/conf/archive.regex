@@ -1,0 +1,3 @@
+#Archive Mail
+#<headername> <regex> <yes(default) or no>
+#see https://fumail.gitlab.io/fuglu/plugins-index.html#suspect-filters
