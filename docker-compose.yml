@@ -1,0 +1,32 @@
+version: '3'
+
+services:
+  clamd:
+    build:
+      context: docker/clamd
+    image: fuglu:clamd
+  spamd:
+    build:
+      context: docker/spamd
+    image: fuglu:spamd
+  fuglu:
+    build:
+      context: docker/fuglu
+    image: fuglu:fuglu
+    depends_on:
+      - clamd
+      - spamd
+    volumes:
+      - "./docker/fuglu/conf:/etc/fuglu"
+      - "./fuglu:/fuglu"
+  fuglu2:
+    build:
+      context: docker/fuglu
+      dockerfile: Dockerfile.python2
+    image: fuglu:fuglu2
+    depends_on:
+    - clamd
+    - spamd
+    volumes:
+    - "./docker/fuglu/conf:/etc/fuglu"
+    - "./fuglu:/fuglu"

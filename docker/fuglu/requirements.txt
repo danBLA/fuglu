@@ -1,0 +1,16 @@
+objgraph
+python-magic
+rarfile
+ipaddr
+py3dns
+lxml
+sqlalchemy
+dkimpy
+pyspf
+pysrs
+beautifulsoup4
+chardet
+# devel stuff
+nose
+rednose
+mock
