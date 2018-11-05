@@ -27,8 +27,21 @@ class DelayPlugin(ScannerPlugin):
 
     min_logfrequency = 1e-4
     min_delay        = 1e-6
+
     def __init__(self, config, section=None):
         ScannerPlugin.__init__(self, config, section)
+        self.requiredvars = {
+            'delay': {
+                'default': DelayPlugin.min_delay,
+                'description': 'hostname where spamd runs',
+            },
+
+            'logfrequency': {
+                'default': DelayPlugin.min_delay,
+                'description': "tcp port number or path to spamd unix socket",
+            },
+        }
+
         self.logger = self._logger()
         try:
             self.delay = config.getfloat(self.section,"delay",)
