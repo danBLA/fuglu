@@ -85,8 +85,16 @@ class TestPropagateDefaultErrors(unittest.TestCase):
         with self.assertRaises(ValueError) as e:
             MainController.propagate_defaults(requiredvars, config)
 
+
+        try:
+            # Py2
+            message = e.exception.message
+        except AttributeError:
+            # Py3
+            message = e.exception.args[0]
+
         # check exception message
-        self.assertEqual(e.exception.message, "Defaultsection can not be None if it is actually used!")
+        self.assertEqual(message, "Defaultsection can not be None if it is actually used!")
 
     def test(self):
         # same output as lint
