@@ -33,12 +33,12 @@ class DelayPlugin(ScannerPlugin):
         self.requiredvars = {
             'delay': {
                 'default': DelayPlugin.min_delay,
-                'description': 'hostname where spamd runs',
+                'description': 'execution time of the examine function',
             },
 
             'logfrequency': {
                 'default': DelayPlugin.min_delay,
-                'description': "tcp port number or path to spamd unix socket",
+                'description': "frequency of writing a log message while waiting in the examine function",
             },
         }
 
