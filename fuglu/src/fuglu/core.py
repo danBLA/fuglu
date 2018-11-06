@@ -974,13 +974,16 @@ class MainController(object):
 
         return errors
 
-    def propagate_defaults(self, requiredvars, config, defaultsection=None):
+    @staticmethod
+    def propagate_defaults(requiredvars, config, defaultsection=None):
         """propagate defaults from requiredvars if they are missing in config"""
         for option, infodic in requiredvars.items():
             if 'section' in infodic:
                 section = infodic['section']
             else:
                 section = defaultsection
+                if defaultsection is None:
+                    raise ValueError("Defaultsection can not be None if it is actually used!")
 
             default = infodic['default']
 
@@ -994,17 +997,57 @@ class MainController(object):
         """check for missing core config options and try to fill them with defaults
         must be called before we can do plugin loading stuff
         """
-        self.propagate_defaults(self.requiredvars, self.config, 'main')
+        MainController.propagate_defaults(self.requiredvars, self.config, 'main')
 
     def propagate_plugin_defaults(self):
         """propagate defaults from loaded lugins"""
         #plugins, prependers, appenders
         allplugs = self.plugins + self.prependers + self.appenders
+        remove_plugin = []
         for plug in allplugs:
             if hasattr(plug, 'requiredvars'):
                 requiredvars = getattr(plug, 'requiredvars')
                 if type(requiredvars) == dict:
-                    self.propagate_defaults(requiredvars, self.config, plug.section)
+                    try:
+                        MainController.propagate_defaults(requiredvars, self.config, plug.section)
+                    except ValueError:
+                        remove_plugin.append(plug)
+
+        if len(remove_plugin) > 0:
+            # if there are problems print then to screen and into log.
+            # The screen output will be ignored in daemon mode but there
+            # are the log messages
+            fc = FunkyConsole()
+
+            msg_string = "Warning: \"None\" plugin section name found in %u plugin%s!" % \
+                         (len(remove_plugin), "s" if len(remove_plugin) > 1 else "")
+
+            print(fc.strcolor(msg_string, "yellow"))
+            self.logger.warning(msg_string)
+
+            for plug in remove_plugin:
+                if plug in self.plugins:
+                    msg_string = "Warning: Removing plugin %s from plugin-list" % plug
+                    self.logger.warning(msg_string)
+                    print(fc.strcolor(msg_string, "yellow"))
+
+                    self.plugins.remove(plug)
+                elif plug in self.prependers:
+                    msg_string = "Warning: Removing plugin %s from prependers-list" % plug
+                    self.logger.warning(msg_string)
+                    print(fc.strcolor(msg_string, "yellow"))
+
+                    self.prepernders.remove(plug)
+                elif plug in self.appenders:
+                    msg_string = "Warning: Removing plugin %s from appenders-list" % plug
+                    self.logger.warning(msg_string)
+                    print(fc.strcolor(msg_string, "yellow"))
+                    self.appenders.remove(plug)
+                else:
+                    msg_string = "Error: Could not remove plugin %s, not found in any list!" % str(plug)
+                    self.logger.error(msg_string)
+                    print(fc.strcolor(msg_string, "red"))
+                    raise ValueError("Plugin %s with bad config section name not found in any list!" % str(plug))
 
     def checkConfig(self):
         """Check if all requred options are in the config file
