@@ -575,6 +575,13 @@ class Mailattachment(Cachelimits):
             upstream_obj = upstream_obj().in_obj
         return parentsList
 
+    def location(self):
+        """Print the location of the the file in the archive tree"""
+        element_of = u" \u2208 "
+        location = self.filename
+        if self.parent_archives:
+            location += element_of + element_of.join([u"{" + obj().filename + u"}" for obj in self.parent_archives])
+        return location
 
     def __str__(self):
         """
