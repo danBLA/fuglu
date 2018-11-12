@@ -332,7 +332,7 @@ class Mailattachment(Cachelimits):
 
         return filelist
 
-    def get_objectlist(self,levelin, levelmax, maxsize_extract, noextractinfo=None):
+    def get_objectlist(self,levelin, levelmax, maxsize_extract, noextractinfo=None, include_parents=False):
         """
         Get a list of file objects contained in this archive (recursively extracting archives)
         or the current object if this is not an archive.
@@ -348,15 +348,23 @@ class Mailattachment(Cachelimits):
         Args:
             levelin  (in): Current recursive level
             levelmax (in): Max recursive archive level up to which archives are extracted
-            maxsize_extract (int): Maximum size that will be extracted to further go into archive
+            maxsize_extract (int, None): Maximum size that will be extracted to further go into archive
 
         Keyword Args:
             noextractinfo (NoExtractInfo): stores info why object was not extracted
+            include_parents (bool): True means extract the archives (depending on level) but return archive as well,
+                                    not only the extracted files
 
         Returns:
             (list[Mailattachment]): List with Mailattachment objects contained in this object of this object itself
         """
-        newlist = []
+
+        if include_parents:
+            # if include_parents is true than the current object has to be part of the list whatever...
+            newlist = [self]
+        else:
+            newlist = []
+
         if levelmax is None or levelin < levelmax:
 
             if self.is_archive:
@@ -575,6 +583,13 @@ class Mailattachment(Cachelimits):
             upstream_obj = upstream_obj().in_obj
         return parentsList
 
+    def location(self):
+        """Print the location of the the file in the archive tree"""
+        element_of = u" \u2208 "
+        location = self.filename
+        if self.parent_archives:
+            location += element_of + element_of.join([u"{" + obj().filename + u"}" for obj in self.parent_archives])
+        return location
 
     def __str__(self):
         """
@@ -866,7 +881,7 @@ class Mailattachment_mgr(object):
             file_list.extend(att_obj.get_fileslist(0, level, maxsize_extract))
         return file_list
 
-    def get_objectlist(self,level=0, maxsize_extract=None, noextractinfo=None):
+    def get_objectlist(self, level=0, maxsize_extract=None, noextractinfo=None, include_parents=False):
         """
         Get list of all Mailattachment objects attached to message. For given recursion level attached
         archives are extracted.
@@ -875,14 +890,18 @@ class Mailattachment_mgr(object):
 
         Keyword Args:
             level (in): Level up to which archives are opened to get file list (default: 0 -> direct mail attachments)
+            maxsize_extract (int, None): The maximum size for files to be extracted from archives
             noextractinfo (NoExtractInfo): stores info why object was not extracted
+            include_parents (bool): True means extract the archives (depending on level) but return archive as well,
+                                    not only the extracted files
 
         Returns:
             list[Mailattachment]: list containing attached files with archives extracted to given level
         """
         obj_list = []
         for att_obj in self.get_mailatt_generator():
-            obj_list.extend(att_obj.get_objectlist(0, level, maxsize_extract, noextractinfo=noextractinfo))
+            obj_list.extend(att_obj.get_objectlist(0, level, maxsize_extract,
+                                                   noextractinfo=noextractinfo, include_parents=include_parents))
         return obj_list
 
     def get_fileslist_checksum(self, level=0, maxsize_extract=None, methods=(), noextractinfo=None):

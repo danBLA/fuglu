@@ -4,7 +4,7 @@ import sys
 import email
 from os.path import join
 from fuglu.mailattach import Mailattachment_mgr, Mailattachment, NoExtractInfo
-from fuglu.shared import Suspect, create_filehash
+from fuglu.shared import Suspect, create_filehash, SuspectFilter
 from unittestsetup import TESTDATADIR
 from fuglu.stringencode import force_uString
 import hashlib
@@ -655,6 +655,65 @@ class SuspectTest(unittest.TestCase):
         #---
         noextractlist = noextractinfo.get_filtered(minus_filters=["level"])
         self.assertEqual([], noextractlist)
+
+
+    def test_suspectintegration_loginfo(self):
+        """Get, check and print information useful for logging attachments"""
+
+        tempfile = join(TESTDATADIR, "6mbzipattachment.eml")
+
+        suspect = Suspect('sender@unittests.fuglu.org',
+                          'recipient@unittests.fuglu.org', tempfile)
+
+        mail_attachment_manager = suspect.att_mgr
+
+        # body size
+        sf = SuspectFilter(None)
+        bodyparts = sf.get_decoded_textparts(suspect)
+        size = 0
+        for p in bodyparts:
+            size += len(p)
+        totalsize = len(suspect.get_original_source())
+
+        print("Mail bodysize = %u" % size)
+        print("Mail totalsize= %u" % totalsize)
+
+        self.assertTrue(46, size)
+        self.assertTrue(9141, totalsize)
+
+        expected = {u'unnamed.txt': {u'attname': u'unnamed.txt',
+                                     u'attsha1': u'e5eab52deadb670811d447c8ab42ac123d8bead2',
+                                     u'size': 46,
+                                     u'attmd5': u'b083a044414c3c0cc322de5b8addf858'},
+                    u'6mbile.zip': {u'attname': u'6mbile.zip',
+                                    u'attsha1': u'c4b6f6764724c43ef73c6e103c5dc8df70f57b0d',
+                                    u'size': 6281,
+                                    u'attmd5': u'05afb01cee059f5ed35ea49e8e059b0b'},
+                    u'largefile': {u'attname': u'largefile ∈ {6mbile.zip}',
+                                   u'attsha1': u'3fe7a5994304d180a443254fb3f512253be3a29d',
+                                   u'size': 6291456,
+                                   u'attmd5': u'da6a0d097e307ac52ed9b4ad551801fc'},
+                    }
+
+        for attObj in suspect.att_mgr.get_objectlist(level=1, include_parents=True):
+            objdict = expected.get(attObj.filename, None)
+            try:
+                self.assertIsNotNone(objdict, "Filename not in dict: %s" % attObj.filename)
+            except AttributeError:
+                # Python 2.6
+                self.assertTrue(objdict is not None)
+
+
+            logline = {
+                'attname': attObj.location(),
+                'attmd5': attObj.get_checksum('md5'),
+                'attsha1': attObj.get_checksum('sha1'),
+                'size': attObj.filesize
+            }
+            print("* logline: %s" % logline)
+
+            for key, value in iter(logline.items()):
+                self.assertEqual(objdict[key], value)
 
 class ConversionTest(unittest.TestCase):
     """Test a problematic mail for decoding errors using attachment manager and no attachment manager as they
