@@ -7,6 +7,7 @@ import threading
 import time
 import smtplib
 import mock
+import re
 from email.mime.text import MIMEText
 
 try:
@@ -29,6 +30,7 @@ from fuglu.lib.patcheddkimlib import verify, sign
 from fuglu.core import MainController
 from fuglu.scansession import SessionHandler
 from fuglu.stringencode import force_uString,force_bString, sendmail_address
+from fuglu.connectors.smtpconnector import FUSMTPClient
 
 
 class AllpluginTestCase(unittest.TestCase):
@@ -237,6 +239,7 @@ class ReinjectErrorTestCase(unittest.TestCase):
         env_recipients = [u'recipient@fuglu.org']
 
         self.smtp.response_code = 554
+        # python 3 returnes bytes
         self.smtp.response_message = '5.4.0 Error: too many hops'
 
         try:
@@ -245,7 +248,8 @@ class ReinjectErrorTestCase(unittest.TestCase):
                                 force_bString(msgstring))
         except smtplib.SMTPDataError as e:
             self.assertEqual(self.smtp.response_code, e.smtp_code)
-
+            self.assertEqual(self.smtp.response_message, force_uString(e.smtp_error))
+        pass
 
 class ReinjectTmpErrorTestCase(unittest.TestCase):
 
@@ -337,6 +341,86 @@ class ReinjectTmpErrorTestCase(unittest.TestCase):
                                 force_bString(msgstring))
         except smtplib.SMTPDataError as e:
             self.assertEqual(self.smtp.response_code, e.smtp_code)
+
+class RequeueMsgTestCase(unittest.TestCase):
+
+    """Full check if mail runs through"""
+
+    FUGLU_HOST = "127.0.0.1"
+    FUGLU_PORT = 7771
+    DUMMY_PORT = 7772
+    FUGLUCONTROL_PORT = 7773
+
+    def setUp(self):
+        self.config = RawConfigParser()
+        self.config.read([TESTDATADIR + '/endtoendtest.conf'])
+        self.config.set(
+            'main', 'incomingport', str(RequeueMsgTestCase.FUGLU_PORT))
+        self.config.set(
+            'main', 'outgoinghost', str(RequeueMsgTestCase.FUGLU_HOST))
+        self.config.set(
+            'main', 'outgoingport', str(RequeueMsgTestCase.DUMMY_PORT))
+        self.config.set(
+            'main', 'controlport', str(RequeueMsgTestCase.FUGLUCONTROL_PORT))
+        guess_clamav_socket(self.config)
+        # init core
+        self.mc = MainController(self.config)
+
+        # start listening smtp dummy server to get fuglus answer
+        self.smtp = DummySMTPServer(
+            self.config, RequeueMsgTestCase.DUMMY_PORT, RequeueMsgTestCase.FUGLU_HOST)
+        self.e2edss = threading.Thread(target = self.smtp.serve, args = ())
+        self.e2edss.daemon = True
+        self.e2edss.start()
+
+        # start fuglu's listening server
+        self.fls = threading.Thread(target = self.mc.startup, args = ())
+        self.fls.daemon = True
+        self.fls.start()
+
+    def tearDown(self):
+        self.mc.shutdown()
+        self.smtp.shutdown()
+
+        self.e2edss.join(timeout=3)
+        self.fls.join(timeout=3)
+
+    def test_requeue_message(self):
+        """test end to end and check requeue message"""
+
+        # give fuglu time to start listener
+        time.sleep(1)
+
+        # send test message
+        smtpclient = FUSMTPClient('127.0.0.1', RequeueMsgTestCase.FUGLU_PORT)
+        # smtpServer.set_debuglevel(1)
+        smtpclient.helo('test.e2e')
+        testmessage = """Hello World!\r
+Don't dare you change any of my bytes or even remove one!"""
+
+        msg = MIMEText(testmessage)
+        msg["Subject"] = "End to End Test"
+        msgstring = msg.as_string()
+        inbytes = len(msg.get_payload())
+
+        self.smtp.response_message = "2.0.0 Ok: queued as 42tk6y3qjCz5r2V"
+
+        smtpclient.sendmail(
+            'sender@fuglu.org', 'recipient@fuglu.org', msgstring)
+
+        lastserveranswer = smtpclient.lastserveranswer
+
+        smtpclient.quit()
+
+        # get answer (wait to give time to create suspect)
+        expected_answer = ("FUGLU REQUEUE(xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx): %s" % (self.smtp.response_message))
+        # replace fuglu id for comparison
+        lastserveranswer = re.sub(r"\(.*\)",
+                                  "(xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx)",
+                                  force_uString(lastserveranswer))
+        print("Expected: %s" % expected_answer)
+        print("Server  : %s" % lastserveranswer)
+        self.assertEqual(expected_answer, lastserveranswer)
 
 
 class EndtoEndBaseTestCase(unittest.TestCase):
