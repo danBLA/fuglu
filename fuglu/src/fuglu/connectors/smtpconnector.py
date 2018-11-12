@@ -120,7 +120,9 @@ class SMTPHandler(ProtocolHandler):
         if serveranswer is None:
             self.logger.warning('Re-inject: could not get server answer.')
             serveranswer = ''
-        return responsecode, serveranswer
+
+        # make sure serveranswer is unicode (could be bytes, error, ...)
+        return responsecode, force_uString(serveranswer)
 
     def get_suspect(self):
         success = self.sess.getincomingmail()
