@@ -18,6 +18,7 @@
 import logging
 import traceback
 import socket
+import sys
 
 from fuglu.shared import Suspect
 from fuglu.protocolbase import ProtocolHandler, BasicTCPServer
@@ -483,8 +484,11 @@ class MilterSession(lm.MilterProtocol):
         self._tempfile = value
 
     def setReply(self, rcode, xcode, msg):
-        # actually setReply needs all bytes
-        return super(__class__, self).setReply(force_bString(rcode), force_bString(xcode), force_bString(msg))
+        if sys.version_info > (3, ):
+            # actually setReply needs all bytes
+            return super(__class__, self).setReply(force_bString(rcode), force_bString(xcode), force_bString(msg))
+        else:
+            return super(__class__, self).setReply(rcode, xcode, msg)
 
     def has_option(self, smfif_option, client=None):
         """

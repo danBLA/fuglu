@@ -186,26 +186,33 @@ def force_bString(inputstring,encoding="utf-8",checkEncoding=False):
     elif isinstance(inputstring,list):
         return [force_bString(item) for item in inputstring]
 
-    if sys.version_info > (3,):
-        # Python 3 and larger
-        # the basic "str" type is unicode
-        if not isinstance(inputstring,str):
-            # string is already a byte string
-            # since basic string type is unicode
-            b_outString = inputstring
+    try:
+        if sys.version_info > (3,):
+            # Python 3 and larger
+            # the basic "str" type is unicode
+            if isinstance(inputstring, bytes):
+                # string is already a byte string
+                # since basic string type is unicode
+                b_outString = inputstring
+            else:
+                # encode
+                b_outString = try_encoding(inputstring,encoding)
         else:
-            # encode
-            b_outString = try_encoding(inputstring,encoding)
-    else:
-        # Python 2.x
-        # the basic "str" type is bytes, unicode
-        # has its own type "unicode"
-        if not isinstance(inputstring,unicode):
-            # string is already a byte string
-            b_outString = inputstring
-        else:
-            # encode
-            b_outString = try_encoding(inputstring,encoding)
+            # Python 2.x
+            # the basic "str" type is bytes, unicode
+            # has its own type "unicode"
+            if isinstance(inputstring,str):
+                # string is already a byte string
+                b_outString = inputstring
+            else:
+                # encode
+                b_outString = try_encoding(inputstring,encoding)
+    except (AttributeError, ValueError):
+        # we end up here if the input is not a unicode/string
+        # just try to first create a string and then encode it
+        inputstring = force_uString(inputstring)
+        b_outString = try_encoding(inputstring, encoding)
+
 
     if checkEncoding:
         # re-encode to make sure it matches input encoding
