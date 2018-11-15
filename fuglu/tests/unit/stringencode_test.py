@@ -55,6 +55,13 @@ class ConversionTest(unittest.TestCase):
             self.assertEqual(bytestype,type(item),"After byte conversion, type has to be bytes")
             self.assertEqual(b"bla",item,"String has to match the test string b\"bla\"")
 
+    def test_int2bytes(self):
+        """Test if an integer can be converted to string->bytes"""
+        myint = 550
+        converted = force_bString(myint)
+        self.assertEqual(b"550", converted, "Integer should be converted to a string and then to bytes")
+        pass
+
     def test_nonstringinput(self):
         self.assertEqual(ustringtype,type(force_uString(1)),"After conversion, type has to be unicode")
         self.assertEqual(ustringtype,type(force_uString(1.3e-2)),"After conversion, type has to be unicode")
