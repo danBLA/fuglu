@@ -102,7 +102,8 @@ class MilterHandler(ProtocolHandler):
         temp_filename = sess.tempfilename
         suspect = Suspect(from_address, recipients, temp_filename, att_cachelimit=self._att_mgr_cachesize)
 
-        self.logger.info('"%s" "%s"' % (suspect.id, sess.queueid if sess.queueid else "NOQUEUE"))
+        logging.getLogger('fuglu.MilterHandler.queueid').info(
+            '"%s" "%s"' % (suspect.id, sess.queueid if sess.queueid else "NOQUEUE"))
 
         if sess.heloname is not None and sess.addr is not None and sess.rdns is not None:
             suspect.clientinfo = sess.heloname, sess.addr, sess.rdns
