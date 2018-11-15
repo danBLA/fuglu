@@ -102,6 +102,9 @@ class MilterHandler(ProtocolHandler):
         temp_filename = sess.tempfilename
         suspect = Suspect(from_address, recipients, temp_filename, att_cachelimit=self._att_mgr_cachesize)
 
+        logging.getLogger('fuglu.MilterHandler.queueid').info(
+            '"%s" "%s"' % (suspect.id, sess.queueid if sess.queueid else "NOQUEUE"))
+
         if sess.heloname is not None and sess.addr is not None and sess.rdns is not None:
             suspect.clientinfo = sess.heloname, sess.addr, sess.rdns
 
@@ -460,6 +463,7 @@ class MilterSession(lm.MilterProtocol):
         self.tempfilename = None
         self.original_headers = []
         self.be_verbose = False
+        self.queueid = None
 
     @property
     def tempfile(self):
@@ -477,6 +481,10 @@ class MilterSession(lm.MilterProtocol):
         except Exception:
             pass
         self._tempfile = value
+
+    def setReply(self, rcode, xcode, msg):
+        # actually setReply needs all bytes
+        return super(__class__, self).setReply(force_bString(rcode), force_bString(xcode), force_bString(msg))
 
     def has_option(self, smfif_option, client=None):
         """
@@ -532,10 +540,17 @@ class MilterSession(lm.MilterProtocol):
         if self.be_verbose:
             self.logger.debug(msg)
 
+    def store_queueid(self, command_dict):
+        if not self.queueid and command_dict:
+            queueid = command_dict.get(b'i', None)
+            if queueid:
+                self.queueid = force_uString(queueid)
+
     @lm.noReply
     def connect(self, hostname, family, ip, port, command_dict):
-        self.log('Connect from %s:%d (%s) with family: %s' % (ip, port,
-                                                              hostname, family))
+        self.log('Connect from %s:%d (%s) with family: %s, dict: %s' % (ip, port,
+                                                              hostname, family, str(command_dict)))
+        self.store_queueid(command_dict)
         if family not in (b'4', b'6'):  # we don't handle unix socket
             self.logger.error('Return temporary fail since family is: %s' % force_uString(family))
             self.logger.error('command dict is: %s' % force_uString(str(command_dict)))
@@ -556,18 +571,23 @@ class MilterSession(lm.MilterProtocol):
     @lm.noReply
     def mailFrom(self, from_address, command_dict):
         # store exactly what was received
+        self.log('FROM_ADDRESS: %s, dict: %s' % (from_address, str(command_dict)))
+        self.store_queueid(command_dict)
         self.from_address = from_address
         return lm.CONTINUE
 
     @lm.noReply
     def rcpt(self, recipient, command_dict):
         # store exactly what was received
+        self.log('RECIPIENT: %s, dict: %s' % (recipient, str(command_dict)))
+        self.store_queueid(command_dict)
         self.recipients.append(recipient)
         return lm.CONTINUE
 
     @lm.noReply
     def header(self, key, val, command_dict):
-        self.log('header: %s: %s' % (key, val))
+        self.log('HEADER, KEY: %s, VAL: %s, dict: %s' % (key, val, str(command_dict)))
+        self.store_queueid(command_dict)
         self.tempfile.write(key+b": "+val+b"\n")
         # backup original headers
         self.original_headers.append((key, val))
@@ -575,22 +595,26 @@ class MilterSession(lm.MilterProtocol):
 
     @lm.noReply
     def eoh(self, command_dict):
-        self.log('End of headers')
+        self.log('EOH, dict: %s' % str(command_dict))
+        self.store_queueid(command_dict)
         self.tempfile.write(b"\n")
         return lm.CONTINUE
 
     def data(self, command_dict):
-        self.log('Data command')
+        self.log('DATA, dict: %s' % str(command_dict))
+        self.store_queueid(command_dict)
         return lm.CONTINUE
 
     @lm.noReply
     def body(self, chunk, command_dict):
-        self.log('Body chunk: %d' % len(chunk))
+        self.log('BODY chunk: %d, dict: %s' % (len(chunk), str(command_dict)))
+        self.store_queueid(command_dict)
         self.tempfile.write(chunk)
         return lm.CONTINUE
 
     def eob(self, command_dict):
-        self.log('End of body')
+        self.log('EOB dict: %s' % str(command_dict))
+        self.store_queueid(command_dict)
         try:
             self.tempfile.close()
         except Exception as e:

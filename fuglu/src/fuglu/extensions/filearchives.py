@@ -27,11 +27,13 @@ import os.path
 STATUS = "available: zip, tar"
 ENABLED = True
 RARFILE_AVAILABLE = 0
+MISSING = []
 try:
     import rarfile
     RARFILE_AVAILABLE = 1
     STATUS += ", rar"
 except (ImportError, OSError):
+    MISSING.append('rar')
     pass
 
 
@@ -41,6 +43,7 @@ try:
     SEVENZIP_AVAILABLE = 1
     STATUS += ", 7z"
 except (ImportError, OSError):
+    MISSING.append('7z')
     pass
 
 GZIP_AVAILABLE = 0
@@ -51,7 +54,11 @@ try:
     GZIP_AVAILABLE = 1
     STATUS += ", gz"
 except (ImportError, OSError):
+    MISSING.append('gz')
     pass
+
+if MISSING:
+    STATUS += "; not available: "+", ".join(MISSING)
 
 
 #-------------#

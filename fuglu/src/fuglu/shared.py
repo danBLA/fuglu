@@ -328,6 +328,9 @@ class Suspect(object):
     @property
     def to_localpart(self):
         """Returns the local part of the first recipient"""
+        # catch empty and None
+        if not self.to_address:
+            return ''
         try:
             return self.to_address.rsplit('@', 1)[0]
         except Exception:
@@ -337,6 +340,9 @@ class Suspect(object):
     @property
     def to_domain(self):
         """Returns the local part of the first recipient"""
+        # catch empty and None
+        if not self.to_address:
+            return ''
         try:
             return self.to_address.rsplit('@', 1)[1]
         except Exception:
@@ -346,7 +352,8 @@ class Suspect(object):
 
     @property
     def from_localpart(self):
-        if self.from_address == '':
+        # catch empty and None
+        if not self.from_address:
             return ''
 
         else:
@@ -358,7 +365,8 @@ class Suspect(object):
 
     @property
     def from_domain(self):
-        if self.from_address == '':
+        # catch empty and None
+        if not self.from_address:
             return ''
 
         else:
