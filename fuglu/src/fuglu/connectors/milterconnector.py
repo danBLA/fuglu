@@ -478,6 +478,10 @@ class MilterSession(lm.MilterProtocol):
             pass
         self._tempfile = value
 
+    def setReply(self, rcode, xcode, msg):
+        # actually setReply needs all bytes
+        return super(__class__, self).setReply(force_bString(rcode), force_bString(xcode), force_bString(msg))
+
     def has_option(self, smfif_option, client=None):
         """
         Checks if option is available. Fuglu or mail transfer agent can
