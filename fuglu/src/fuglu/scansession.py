@@ -17,6 +17,7 @@
 
 from fuglu.shared import DUNNO, ACCEPT, REJECT, DEFER, DELETE, Suspect
 from fuglu.debug import CrashStore
+from fuglu.stringencode import force_uString
 import logging
 from fuglu.stats import Statskeeper, StatDelta
 import sys
@@ -230,6 +231,7 @@ class SessionHandler(TrackTimings):
             if suspect is None:
                 self.logger.error('No Suspect retrieved, ending session')
                 return
+
             self.tracktime("Message-Receive-Suspect")
             self.stats.increase_counter_values(StatDelta(in_=1))
 
@@ -341,8 +343,13 @@ class SessionHandler(TrackTimings):
                 self.logger.warning('Could not remove tempfile %s' % suspect.tempfile)
         except KeyboardInterrupt:
             sys.exit(0)
-        except ValueError:
+        except ValueError as e:
             # Error in envelope send/receive address
+            try:
+                self.logger.warning("Invalid send/receive address -> %s" % force_uString(e))
+            except Exception:
+                pass
+
             try:
                 address_compliance_fail_action = self.config.get('main','address_compliance_fail_action').lower()
             except Exception:
