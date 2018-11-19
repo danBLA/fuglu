@@ -98,8 +98,8 @@ class MilterHandler(ProtocolHandler):
         self.logger.debug("After getting incoming mail...")
 
         sess = self.sess
-        from_address = force_uString(sess.from_address)
-        recipients = force_uString(sess.recipients)
+        from_address = sess.get_cleaned_from_address()
+        recipients = sess.get_cleaned_recipients()
         temp_filename = sess.tempfilename
         suspect = Suspect(from_address, recipients, temp_filename, att_cachelimit=self._att_mgr_cachesize)
 
@@ -180,7 +180,7 @@ class MilterHandler(ProtocolHandler):
         """
         Add a new envelope recipient
         Args:
-            rcpt (str, unicode): new recipient mail address
+            rcpt (str, unicode): new recipient mail address, with <> qualification
         """
         if not self.sess.has_option(lm.SMFIF_ADDRCPT_PAR):
             self.logger.error('Add rcpt called without the proper opts set, '
@@ -466,6 +466,27 @@ class MilterSession(lm.MilterProtocol):
         self.be_verbose = False
         self.queueid = None
 
+    def get_cleaned_from_address(self):
+        """Return from_address, without <> qualification or other MAIL FROM parameters"""
+        from_address_cleaned = ""
+        if self.from_address is not None:
+            fromaddr = force_uString(self.from_address)
+            fromaddr_split = fromaddr.split(u'\0', maxsplit=1)
+            from_address_cleaned = fromaddr_split[0].strip(u'<>')
+        return from_address_cleaned
+
+    def get_cleaned_recipients(self):
+        """Return recipient addresses, without <> qualification or other RCPT TO parameters"""
+        to_addresses_cleaned = []
+        if self.recipients is not None:
+            for rec in self.recipients:
+                if rec is not None:
+                    recipient = force_uString(rec)
+                    recipient_split = recipient.split(u'\0', maxsplit=1)
+                    recipient_cleaned = recipient_split[0].strip(u'<>')
+                    to_addresses_cleaned.append(recipient_cleaned)
+
+        return to_addresses_cleaned
     @property
     def tempfile(self):
         if self._tempfile is None:
