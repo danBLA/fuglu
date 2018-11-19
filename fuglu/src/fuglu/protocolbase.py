@@ -48,6 +48,7 @@ class ProtocolHandler(object):
                 pass
 
     def get_tmpfile(self):
+        tmpfilename = None
         if self.sess is not None:
             try:
                 tmpfilename = self.sess.tempfilename
