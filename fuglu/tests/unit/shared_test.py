@@ -1,3 +1,4 @@
+# -*- coding: UTF-8 -*-
 from unittestsetup import TESTDATADIR
 import unittest
 import string
@@ -620,3 +621,97 @@ class FileListTestCase(unittest.TestCase):
         self.assertEqual(FileList(filename=self.filename, strip=True, skip_empty=True, skip_comments=True,
                                   lowercase=True, additional_filters=None).get_list(), ['case?', 'stripped ?'])
 
+class StaticFunctionTests(unittest.TestCase):
+    """Unit tests for static functions"""
+
+    @staticmethod
+    def old_add_header_use_python_mail(content, header_name, header_value):
+        try:
+            # Py3
+            msgrep = email.message_from_bytes(content)
+        except AttributeError:
+            # Py2 doesn not have method 'message_from_bytes'
+            msgrep = email.message_from_string(content)
+
+        msgrep.add_header(header_name, header_value)
+        try:
+            # Py3
+            msg = msgrep.as_bytes()
+        except AttributeError:
+            # Py2 doesn not have method 'as_bytes'
+            # use 'force_bString' here so output is consistently bytes Py2/3
+            msg = force_bString(msgrep.as_string())
+        return msg
+
+    def test_prepend_ascii_header_to_source(self):
+        """Test header with a simple us-ascii value"""
+
+        source = b""
+        expected = b'fancy-test-header: Fancy Value\n'
+        outsource = Suspect.prepend_header_to_source("fancy-test-header", "Fancy Value", source)
+        self.assertEqual(expected, outsource)
+
+    def test_prepend_header_to_source(self):
+        """Test header with a value that has to be encoded"""
+        source = b""
+        expected = b'fancy-test-header: =?utf-8?b?RsOkbnNpIFbDpGxqdQ==?=\n'
+        outsource = Suspect.prepend_header_to_source("fancy-test-header", u"Fänsi Välju", source)
+        self.assertEqual(expected, outsource)
+
+
+    def test_header_with_python_email(self):
+        """Compare result to the test method converting mail first to python email object"""
+        inputfile = TESTDATADIR + '/helloworld.eml'
+        msg_bstring = open(inputfile, 'rb').read()
+
+        expected = b'fancy-test-header: =?utf-8?b?RsOkbnNpIFbDpGxqdQ==?=\n'
+
+        source1 = Suspect.prepend_header_to_source("fancy-test-header", u"Fänsi Välju", msg_bstring)
+        source2 = StaticFunctionTests.old_add_header_use_python_mail(msg_bstring, "fancy-test-header", u"Fänsi Välju")
+
+        try:
+            self.assertIn(expected, source1)
+            self.assertIn(expected, source2)
+        except AttributeError:
+            # python 2.6
+            self.assertTrue(expected in source1)
+            self.assertTrue(expected in source2)
+
+        print(source1[:20])
+        print(source2[:20])
+
+        index1 = source1.index(expected)
+        index2 = source2.index(expected)
+        print("position prepend: %u, position python.email: %u" % (index1, index2))
+
+    def test_prepend_to_corrupted_mail(self):
+        """Corrupted mail, still it should be possible to prepend a header"""
+        inputfile = TESTDATADIR + '/new_ascii_error.eml'
+        msg_bstring = open(inputfile, 'rb').read()
+
+        expected = b'fancy-test-header: Fancy Value\n'
+
+        source1 = Suspect.prepend_header_to_source("fancy-test-header", u"Fancy Value", msg_bstring)
+        try:
+            self.assertIn(expected, source1)
+        except AttributeError:
+            # python 2.6
+            self.assertTrue(expected in source1)
+
+        # it is
+        if sys.version_info > (3,):
+            with self.assertRaises(UnicodeEncodeError, msg="Test can be changed if newer Python "
+                                                           "version don't create an exception anymore"):
+                source2 = StaticFunctionTests.old_add_header_use_python_mail(msg_bstring,
+                                                                             "fancy-test-header",
+                                                                             u"Fancy Value")
+        else:
+            # no problem with Py2
+            source2 = StaticFunctionTests.old_add_header_use_python_mail(msg_bstring,
+                                                                         "fancy-test-header",
+                                                                         u"Fancy Value")
+            try:
+                self.assertIn(expected, source2)
+            except AttributeError:
+                # python 2.6
+                self.assertTrue(expected in source2)

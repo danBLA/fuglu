@@ -506,6 +506,39 @@ class Suspect(object):
         msg[key] = value
         self.set_message_rep(msg,att_mgr_reset=False)
 
+    @staticmethod
+    def prepend_header_to_source(key, value, source):
+        """
+        Prepend a header to the message
+
+        Args:
+            key (str): the header key
+            value (str): the header value
+            source (bytes): the message source
+
+        Returns:
+            bytes: the new message buffer
+
+        """
+
+        b_source = force_bString(source)
+
+        # convert inputs if needed
+        u_key = force_uString(key)
+        u_value = force_uString(value)
+
+        # is ignore the right thing to do here?
+        # (moved from add_header) routine
+        b_value = u_value.encode('UTF-8', 'ignore')
+        try:
+            hdr = Header(u_value, header_name=u_key, continuation_ws=' ')
+        except (UnicodeDecodeError, UnicodeEncodeError):
+            b_value = force_bString(u_value)
+            hdr = Header(b_value, charset='utf-8', header_name=u_key, continuation_ws=' ')
+
+        hdrline = u"%s: %s\n" % (u_key, hdr.encode())
+        src = force_bString(hdrline) + b_source
+        return src
 
     def add_header(self, key, value, immediate=False):
         """adds a header to the message. by default, headers will added when re-injecting the message back to postfix
@@ -518,14 +551,8 @@ class Suspect(object):
         value = force_uString(value)
 
         if immediate:
-            # is ignore the right thing to do here?
-            value = value.encode('UTF-8', 'ignore')
-            hdr = Header(value, header_name=key, continuation_ws=' ')
-            hdrline = "%s: %s\n" % (key, hdr.encode())
-            src = force_bString(hdrline) + force_bString(self.get_source())
-
             # no need to reset the attachment manager when just adding a header
-            self.set_source(src,att_mgr_reset=False)
+            self.set_source(Suspect.prepend_header_to_source(key, value, self.get_source()), att_mgr_reset=False)
             # keep track of headers already added
             self.added_headers[key] = value
         else:
