@@ -647,14 +647,14 @@ class StaticFunctionTests(unittest.TestCase):
         """Test header with a simple us-ascii value"""
 
         source = b""
-        expected = b'fancy-test-header: Fancy Value\n'
+        expected = b'fancy-test-header: Fancy Value\r\n'
         outsource = Suspect.prepend_header_to_source("fancy-test-header", "Fancy Value", source)
         self.assertEqual(expected, outsource)
 
     def test_prepend_header_to_source(self):
         """Test header with a value that has to be encoded"""
         source = b""
-        expected = b'fancy-test-header: =?utf-8?b?RsOkbnNpIFbDpGxqdQ==?=\n'
+        expected = b'fancy-test-header: =?utf-8?b?RsOkbnNpIFbDpGxqdQ==?=\r\n'
         outsource = Suspect.prepend_header_to_source("fancy-test-header", u"Fänsi Välju", source)
         self.assertEqual(expected, outsource)
 
@@ -664,7 +664,7 @@ class StaticFunctionTests(unittest.TestCase):
         inputfile = TESTDATADIR + '/helloworld.eml'
         msg_bstring = open(inputfile, 'rb').read()
 
-        expected = b'fancy-test-header: =?utf-8?b?RsOkbnNpIFbDpGxqdQ==?=\n'
+        expected = b'fancy-test-header: =?utf-8?b?RsOkbnNpIFbDpGxqdQ==?='
 
         source1 = Suspect.prepend_header_to_source("fancy-test-header", u"Fänsi Välju", msg_bstring)
         source2 = StaticFunctionTests.old_add_header_use_python_mail(msg_bstring, "fancy-test-header", u"Fänsi Välju")
@@ -689,7 +689,7 @@ class StaticFunctionTests(unittest.TestCase):
         inputfile = TESTDATADIR + '/new_ascii_error.eml'
         msg_bstring = open(inputfile, 'rb').read()
 
-        expected = b'fancy-test-header: Fancy Value\n'
+        expected = b'fancy-test-header: Fancy Value'
 
         source1 = Suspect.prepend_header_to_source("fancy-test-header", u"Fancy Value", msg_bstring)
         try:
