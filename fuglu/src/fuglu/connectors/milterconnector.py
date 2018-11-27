@@ -100,7 +100,11 @@ class MilterHandler(ProtocolHandler):
         sess = self.sess
         from_address = sess.get_cleaned_from_address()
         recipients = sess.get_cleaned_recipients()
+
+        # If there's not file 
         temp_filename = sess.tempfilename
+        if not temp_filename:
+            return None
         suspect = Suspect(from_address, recipients, temp_filename, att_cachelimit=self._att_mgr_cachesize)
 
         logging.getLogger('fuglu.MilterHandler.queueid').info(
@@ -451,7 +455,7 @@ class MilterSession(lm.MilterProtocol):
         lm.MilterProtocol.__init__(self, opts=options)
         self.transport = sock
         self.config = config
-        self.logger = logging.getLogger('fuglu.miltersession2')
+        self.logger = logging.getLogger('fuglu.miltersession')
 
         self.recipients = []
         self.from_address = None
@@ -578,7 +582,10 @@ class MilterSession(lm.MilterProtocol):
         self.store_queueid(command_dict)
         if family not in (b'4', b'6'):  # we don't handle unix socket
             self.logger.error('Return temporary fail since family is: %s' % force_uString(family))
-            self.logger.error('command dict is: %s' % force_uString(str(command_dict)))
+            commanddictstring = u""
+            for key,value in iter(command_dict):
+                commanddictstring += force_uString(key) + u": " + force_uString(value) + u", "
+            self.logger.error(u'command dict is: %s' % commanddictstring)
             return lm.TEMPFAIL
         if hostname is None or force_uString(hostname) == u'[%s]' % force_uString(ip):
             hostname = u'unknown'
