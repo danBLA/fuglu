@@ -575,17 +575,21 @@ class MilterSession(lm.MilterProtocol):
             if queueid:
                 self.queueid = force_uString(queueid)
 
-    @lm.noReply
+    @staticmethod
+    def dict_unicode(command_dict):
+        commanddictstring = u""
+        if command_dict:
+            for key,value in iter(command_dict.items()):
+                commanddictstring += force_uString(key) + u": " + force_uString(value) + u", "
+        return commanddictstring
+
     def connect(self, hostname, family, ip, port, command_dict):
         self.log('Connect from %s:%d (%s) with family: %s, dict: %s' % (ip, port,
                                                               hostname, family, str(command_dict)))
         self.store_queueid(command_dict)
         if family not in (b'4', b'6'):  # we don't handle unix socket
             self.logger.error('Return temporary fail since family is: %s' % force_uString(family))
-            commanddictstring = u""
-            for key,value in iter(command_dict):
-                commanddictstring += force_uString(key) + u": " + force_uString(value) + u", "
-            self.logger.error(u'command dict is: %s' % commanddictstring)
+            self.logger.error(u'command dict is: %s' % MilterSession.dict_unicode(command_dict))
             return lm.TEMPFAIL
         if hostname is None or force_uString(hostname) == u'[%s]' % force_uString(ip):
             hostname = u'unknown'
@@ -603,7 +607,7 @@ class MilterSession(lm.MilterProtocol):
     @lm.noReply
     def mailFrom(self, from_address, command_dict):
         # store exactly what was received
-        self.log('FROM_ADDRESS: %s, dict: %s' % (from_address, str(command_dict)))
+        self.log('FROM_ADDRESS: %s, dict: %s' % (from_address, MilterSession.dict_unicode(command_dict)))
         self.store_queueid(command_dict)
         self.from_address = from_address
         return lm.CONTINUE
@@ -611,14 +615,14 @@ class MilterSession(lm.MilterProtocol):
     @lm.noReply
     def rcpt(self, recipient, command_dict):
         # store exactly what was received
-        self.log('RECIPIENT: %s, dict: %s' % (recipient, str(command_dict)))
+        self.log('RECIPIENT: %s, dict: %s' % (recipient, MilterSession.dict_unicode(command_dict)))
         self.store_queueid(command_dict)
         self.recipients.append(recipient)
         return lm.CONTINUE
 
     @lm.noReply
     def header(self, key, val, command_dict):
-        self.log('HEADER, KEY: %s, VAL: %s, dict: %s' % (key, val, str(command_dict)))
+        self.log('HEADER, KEY: %s, VAL: %s, dict: %s' % (key, val, MilterSession.dict_unicode(command_dict)))
         self.store_queueid(command_dict)
         self.tempfile.write(key+b": "+val+b"\n")
         # backup original headers
@@ -627,25 +631,25 @@ class MilterSession(lm.MilterProtocol):
 
     @lm.noReply
     def eoh(self, command_dict):
-        self.log('EOH, dict: %s' % str(command_dict))
+        self.log('EOH, dict: %s' % MilterSession.dict_unicode(command_dict))
         self.store_queueid(command_dict)
         self.tempfile.write(b"\n")
         return lm.CONTINUE
 
     def data(self, command_dict):
-        self.log('DATA, dict: %s' % str(command_dict))
+        self.log('DATA, dict: %s' % MilterSession.dict_unicode(command_dict))
         self.store_queueid(command_dict)
         return lm.CONTINUE
 
     @lm.noReply
     def body(self, chunk, command_dict):
-        self.log('BODY chunk: %d, dict: %s' % (len(chunk), str(command_dict)))
+        self.log('BODY chunk: %d, dict: %s' % (len(chunk), MilterSession.dict_unicode(command_dict)))
         self.store_queueid(command_dict)
         self.tempfile.write(chunk)
         return lm.CONTINUE
 
     def eob(self, command_dict):
-        self.log('EOB dict: %s' % str(command_dict))
+        self.log('EOB dict: %s' % MilterSession.dict_unicode(command_dict))
         self.store_queueid(command_dict)
         try:
             self.tempfile.close()
