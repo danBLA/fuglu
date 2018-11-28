@@ -822,7 +822,9 @@ class Mailattachment_mgr(object):
         if att_name:
             # some filenames are encoded, try to decode
             try:
-                att_name = ''.join([x[0] for x in decode_header(att_name)])
+                # include here to prevent cyclic import
+                from fuglu.shared import Suspect
+                att_name = Suspect.decode_msg_header(att_name)
             except Exception:
                 pass
         else:

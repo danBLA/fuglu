@@ -715,6 +715,103 @@ class SuspectTest(unittest.TestCase):
             for key, value in iter(logline.items()):
                 self.assertEqual(objdict[key], value)
 
+    def test_suspectintegration_loginfo_unicode(self):
+        """Get, check and print information useful for logging attachments with encoded names"""
+
+        tempfile = join(TESTDATADIR, "umlaut-in-attachment.eml")
+
+        suspect = Suspect('sender@unittests.fuglu.org',
+                          'recipient@unittests.fuglu.org', tempfile)
+
+        mail_attachment_manager = suspect.att_mgr
+
+        # body size
+        sf = SuspectFilter(None)
+        bodyparts = sf.get_decoded_textparts(suspect)
+        size = 0
+        for p in bodyparts:
+            size += len(p)
+        totalsize = len(suspect.get_original_source())
+
+        print("Mail bodysize = %u" % size)
+        print("Mail totalsize= %u" % totalsize)
+
+        self.assertTrue(46, size)
+        self.assertTrue(9141, totalsize)
+
+        expected = {u'unnamed.txt': {u'attname': u'unnamed.txt',
+                                     u'attsha1': u'f5a00902ea354b73b0bb04d43b0f9d9a8024ee89',
+                                     u'size': 36,
+                                     u'attmd5': u'bd65645c6ea1339d97056f05f67a531a'},
+                    u'chäschüechli.zip': { u'attname': u'chäschüechli.zip',
+                                           u'attsha1': u'fddb6009e75c9250fc32e3f62daa6cfc4e966740',
+                                           u'size': 198,
+                                           u'attmd5': u'db837166f8a3459418f254712601cf84'},
+                    u'scho\u0308ggeli.txt': { u'attname': u'scho\u0308ggeli.txt ∈ {chäschüechli.zip}',
+                                          u'attsha1': u'1ffb45bd40f47667a87bb517cf4aee4771449a55',
+                                          u'size': 18,
+                                          u'attmd5': u'9a2cb35b96891dbb68cc6c8dc25ab8a3'},
+                    }
+        for attObj in suspect.att_mgr.get_objectlist(level=1, include_parents=True):
+            objdict = expected.get(attObj.filename, None)
+
+            logline = {
+                'attname': attObj.location(),
+                'attmd5': attObj.get_checksum('md5'),
+                'attsha1': attObj.get_checksum('sha1'),
+                'size': attObj.filesize
+            }
+            print("* logline: %s" % logline)
+
+            try:
+                self.assertIsNotNone(objdict, "Filename %s not in dict: %s" % (attObj.filename, expected))
+            except AttributeError:
+                # Python 2.6
+                self.assertTrue(objdict is not None)
+
+            for key, value in iter(logline.items()):
+                self.assertEqual(objdict[key], value)
+
+    def test_suspectintegration_loginfo_unicode2(self):
+        """Get, check and print information useful for logging attachments with encoded names"""
+
+        tempfile = join(TESTDATADIR, "test_attachment_names_with_unicode_chars.eml")
+
+        suspect = Suspect('sender@unittests.fuglu.org',
+                          'recipient@unittests.fuglu.org', tempfile)
+
+        mail_attachment_manager = suspect.att_mgr
+
+        # body size
+        sf = SuspectFilter(None)
+        bodyparts = sf.get_decoded_textparts(suspect)
+        size = 0
+        for p in bodyparts:
+            size += len(p)
+        totalsize = len(suspect.get_original_source())
+
+        print("Mail bodysize = %u" % size)
+        print("Mail totalsize= %u" % totalsize)
+
+        self.assertTrue(46, size)
+        self.assertTrue(9141, totalsize)
+
+        expected = ["unnamed.htm", u'H\xe9l\xf4 W\xf6rld.pdf', u'H\xe9l\xf4 W\xf6rld.txt']
+        for attObj in suspect.att_mgr.get_objectlist(level=1, include_parents=True):
+
+            logline = {
+                'filename': attObj.filename,
+                'attname': attObj.location(),
+            }
+            print("* logline: %s" % logline)
+
+            # no archives, so filename and location are the same
+            self.assertTrue(attObj.filename in expected, "Filename %s not in list: %s" % (attObj.filename, expected))
+            self.assertTrue(attObj.location() in expected, "Location %s not in list: %s" % (attObj.filename, expected))
+
+        self.assertEqual(len(expected), len(suspect.att_mgr.get_objectlist(level=1, include_parents=True)))
+
+
 class ConversionTest(unittest.TestCase):
     """Test a problematic mail for decoding errors using attachment manager and no attachment manager as they
     did once not behave exactly the same. The decoding algorithm is from uriextract.py but due to the problem
