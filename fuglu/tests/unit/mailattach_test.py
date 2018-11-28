@@ -813,6 +813,48 @@ class SuspectTest(unittest.TestCase):
 
         self.assertEqual(len(expected), len(suspect.att_mgr.get_objectlist(level=1, include_parents=True)))
 
+    def test_suspectintegration_loginfo_unicode3(self):
+        """
+        Get, check and print information useful for logging attachments
+        with encoded names. Same as before but using the example of a bug report."""
+
+        tempfile = join(TESTDATADIR, "test_umlaut.eml")
+
+        suspect = Suspect('sender@unittests.fuglu.org',
+                          'recipient@unittests.fuglu.org', tempfile)
+
+        mail_attachment_manager = suspect.att_mgr
+
+        # body size
+        sf = SuspectFilter(None)
+        bodyparts = sf.get_decoded_textparts(suspect)
+        size = 0
+        for p in bodyparts:
+            size += len(p)
+        totalsize = len(suspect.get_original_source())
+
+        print("Mail bodysize = %u" % size)
+        print("Mail totalsize= %u" % totalsize)
+
+        self.assertTrue(46, size)
+        self.assertTrue(9141, totalsize)
+
+        expected = [u"unnamed.txt", u"\xfcml\xf6it.txt", u"\xfcml\xf6it.zip", u"\xfcml\xf6it.txt"]
+        expected_loc = [u"unnamed.txt", u"\xfcml\xf6it.txt", u"\xfcml\xf6it.zip", u'\xfcml\xf6it.txt ∈ {\xfcml\xf6it.zip}']
+        for attObj in suspect.att_mgr.get_objectlist(level=1, include_parents=True):
+
+            logline = {
+                'filename': attObj.filename,
+                'attname': attObj.location(),
+            }
+            print("* logline: %s" % logline)
+
+            # no archives, so filename and location are the same
+            self.assertTrue(attObj.filename in expected, "Filename %s not in list: %s" % (attObj.filename, expected))
+            self.assertTrue(attObj.location() in expected_loc, "Location %s not in list: %s" % (attObj.location(), expected))
+
+        self.assertEqual(len(expected), len(suspect.att_mgr.get_objectlist(level=1, include_parents=True)))
+
 
 class ConversionTest(unittest.TestCase):
     """Test a problematic mail for decoding errors using attachment manager and no attachment manager as they
