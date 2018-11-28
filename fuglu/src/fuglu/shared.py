@@ -519,9 +519,13 @@ class Suspect(object):
         """
         try:
             headerstring = "".join([force_uString(x[0], encodingGuess=x[1]) for x in decode_header(header)])
+        except TypeError:
+            # if input is bytes (Py3) we end here
+            header_unicode = force_uString(header)
+            headerstring = "".join([force_uString(x[0], encodingGuess=x[1]) for x in decode_header(header_unicode)])
         except Exception:
-            headerstring = force_uString(header)
-        return headerstring
+            pass
+        return force_uString(headerstring)
 
     @staticmethod
     def prepend_header_to_source(key, value, source):
