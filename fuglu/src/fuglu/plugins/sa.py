@@ -347,7 +347,7 @@ Tags:
                 self.logger.warning('%s Could not extract spam score from header: %s' % (suspect.id, spamheader))
                 suspect.debug( 'Could not read spam score from header %s' % spamheader)
             return isspam, spamscore, spamheader
-        return isspam, spamscore
+        return isspam, spamscore, spamheader
 
 
     def _strip_attachments(self, content, maxsize):
@@ -458,7 +458,16 @@ Tags:
             else:
                 if stripped:
                     # create msgrep of filtered msg
-                    msgrep_filtered = email.message_from_string(filtered)
+                    if sys.version_info > (3,):
+                        # Python 3 and larger
+                        # the basic "str" type is unicode
+                        if isinstance(content,str):
+                            msgrep_filtered = email.message_from_string(filtered)
+                        else:
+                            msgrep_filtered = email.message_from_bytes(filtered)
+                    else:
+                        # Python 2.x
+                        msgrep_filtered = email.message_from_string(filtered)
                     header_new = []
                     for h,v in msgrep_filtered.items():
                         header_new.append(h.strip() + ': ' + v.strip())
@@ -469,7 +478,7 @@ Tags:
                             break
                         if re.match('^' + sa_prepend + '[^:]+: ', i, re.I):
                             # in case of stripped msg add header to original content
-                            content_orig = i + '\r\n' + content_orig
+                            content_orig = force_bString(i) + b'\r\n' + force_bString(content_orig)
                         else:
                             continue
                     content = content_orig
