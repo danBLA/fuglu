@@ -68,7 +68,7 @@ except ImportError:
     import ConfigParser as configparser
 import datetime
 from string import Template
-from email.header import Header
+from email.header import Header, decode_header
 
 # constants
 
@@ -505,6 +505,23 @@ class Suspect(object):
 
         msg[key] = value
         self.set_message_rep(msg,att_mgr_reset=False)
+
+    @staticmethod
+    def decode_msg_header(header):
+        """
+        Decode message header from email.message into unicode string
+
+        Args:
+            header (str, email.header.Header):
+
+        Returns:
+            str
+        """
+        try:
+            headerstring = "".join([force_uString(x[0], encodingGuess=x[1]) for x in decode_header(header)])
+        except Exception:
+            headerstring = force_uString(header)
+        return headerstring
 
     @staticmethod
     def prepend_header_to_source(key, value, source):

@@ -9,6 +9,7 @@ import os
 import sys
 import datetime
 from fuglu.stringencode import force_uString, force_bString
+from email.header import Header
 
 try:
     from configparser import ConfigParser
@@ -188,6 +189,62 @@ class SuspectTestCase(unittest.TestCase):
                                                      % (sys.version_info.major, sys.version_info.minor,
                                                         sys.version_info.micro)):
                     mailstr = mailobj.as_string()
+
+    def test_suspect_decode_msg_header(self):
+        """Test static function "decode_msg_header" of suspect"""
+        suspect = Suspect('sender@unittests.fuglu.org',
+                          'recipient@unittests.fuglu.org', TESTDATADIR + '/helloworld.eml')
+
+        # check headers just set
+        msg = suspect.get_message_rep()
+
+        newheader0 = u"test direct string"
+        newheader1 = u"direct string in header object"
+        newheader2 = u"unicode chars: ünicödé chàrs"
+
+        msg["x-new-0"] = newheader0
+        msg["x-new-1"] = Header(newheader1).encode()
+        msg["x-new-2"] = Header(newheader2, charset='utf-8').encode()
+
+        self.assertEqual(newheader0, Suspect.decode_msg_header(msg["x-new-0"]))
+        self.assertEqual(newheader1, Suspect.decode_msg_header(msg["x-new-1"]))
+        self.assertEqual(newheader2, Suspect.decode_msg_header(msg["x-new-2"]))
+
+        # check if it's possible to apply strip (should be string, so ok)
+
+        self.assertEqual(newheader0.strip(), Suspect.decode_msg_header(msg["x-new-0"]).strip())
+        self.assertEqual(newheader1.strip(), Suspect.decode_msg_header(msg["x-new-1"]).strip())
+        self.assertEqual(newheader2.strip(), Suspect.decode_msg_header(msg["x-new-2"]).strip())
+
+    def test_suspect_decode_msg_header_strip(self):
+        """Test static function "decode_msg_header" of suspect with strip function applied"""
+
+        # originates from a bug report where the return type Header did not
+        # have "strip" as a member function
+
+        suspect = Suspect('sender@unittests.fuglu.org',
+                          'recipient@unittests.fuglu.org', TESTDATADIR + '/helloworld.eml')
+
+        # check headers just set
+        msg = suspect.get_message_rep()
+
+        newheader0 = u"test direct string"
+        newheader1 = u"direct string in header object"
+        newheader2 = u"unicode chars: ünicödé chàrs"
+
+        msg["x-new-0"] = u"   "+newheader0+u" "
+        msg["x-new-1"] = Header(u"   "+newheader1+u" ").encode()
+        msg["x-new-2"] = Header(u"   "+newheader2+u" ", charset='utf-8').encode()
+
+        self.assertEqual(newheader0, Suspect.decode_msg_header(msg["x-new-0"]).strip())
+        self.assertEqual(newheader1, Suspect.decode_msg_header(msg["x-new-1"]).strip())
+        self.assertEqual(newheader2, Suspect.decode_msg_header(msg["x-new-2"]).strip())
+
+        # check if it's possible to apply strip (should be string, so ok)
+
+        self.assertEqual(newheader0.strip(), Suspect.decode_msg_header(msg["x-new-0"]).strip())
+        self.assertEqual(newheader1.strip(), Suspect.decode_msg_header(msg["x-new-1"]).strip())
+        self.assertEqual(newheader2.strip(), Suspect.decode_msg_header(msg["x-new-2"]).strip())
 
 class SuspectFilterTestCase(unittest.TestCase):
 
