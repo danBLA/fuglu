@@ -1,0 +1,38 @@
+X-Identity-Key: id3
+X-Account-Key: account6
+From: aaaaaa aaaaaaaa <aa@aaaaaaaaa.eu>
+Subject: test umlaut
+Message-ID: <xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx@aaaaaaaaa.eu>
+Date: Tue, 13 Nov 2018 11:11:11 +0100
+MIME-Version: 1.0
+Content-Type: multipart/mixed;
+ boundary="------------C65C1E170AD4C85C000845A1"
+Content-Language: en-US
+
+This is a multi-part message in MIME format.
+--------------C65C1E170AD4C85C000845A1
+Content-Type: text/plain; charset=utf-8; format=flowed
+Content-Transfer-Encoding: 7bit
+
+test umlaut
+
+--------------C65C1E170AD4C85C000845A1
+Content-Type: text/plain; charset=UTF-8;
+ name="=?UTF-8?B?w7xtbMO2aXQudHh0?="
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment;
+ filename*=utf-8''%C3%BC%6D%6C%C3%B6%69%74%2E%74%78%74
+
+RGlzcyBmYWlsIGtvbnTDpGlucyBzcMOkc2Now6RsIGNoYXJzLi4uCg==
+--------------C65C1E170AD4C85C000845A1
+Content-Type: application/zip;
+ name="=?UTF-8?B?w7xtbMO2aXQuemlw?="
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment;
+ filename*=utf-8''%C3%BC%6D%6C%C3%B6%69%74%2E%7A%69%70
+
+UEsDBAoAAAgAACBsbU3uKsDCKAAAACgAAAAMABwAw7xtbMO2aXQudHh0VVQJAAN7xOpbe8Tq
+W3V4CwABBOgDAAAE6AMAAERpc3MgZmFpbCBrb250w6RpbnMgc3DDpHNjaMOkbCBjaGFycy4u
+LgpQSwECHgMKAAAIAAAgbG1N7irAwigAAAAoAAAADAAYAAAAAAABAAAAtIEAAAAAw7xtbMO2
+aXQudHh0VVQFAAN7xOpbdXgLAAEE6AMAAAToAwAAUEsFBgAAAAABAAEAUgAAAG4AAAAAAA==
+--------------C65C1E170AD4C85C000845A1--
