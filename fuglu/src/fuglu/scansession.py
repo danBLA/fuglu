@@ -336,7 +336,7 @@ class SessionHandler(TrackTimings):
             # clean up
             try:
                 os.remove(suspect.tempfile)
-                self.logger.debug('Removed tempfile %s' % suspect.tempfile)
+                self.logger.debug('Removed tempfile %s' % (suspect.tempfile if suspect.tempfile else "(not available)"))
                 suspect.tempfile = None
                 self.tracktime("Remove-tempfile")
             except OSError:
@@ -388,11 +388,16 @@ class SessionHandler(TrackTimings):
                 tmpfilename = self.protohandler.get_tmpfile()
                 if tmpfilename is None:
                     tmpfilename = ""
+
                 if remove_tmpfiles_on_error:
-                    self.logger.debug('Remove tmpfile: %s for failed message' % tmpfilename)
+                    if tmpfilename:
+                        self.logger.debug('Remove tmpfile: %s for failed message' % tmpfilename)
                     self.protohandler.remove_tmpfile()
                 else:
-                    self.logger.warning('Keep tmpfile: %s for failed message' % tmpfilename)
+                    if tmpfilename:
+                        self.logger.warning('Keep tmpfile: %s for failed message' % tmpfilename)
+                    else:
+                        self.logger.warning('No tmpfile to keep for failed message')
 
             elif suspect.tempfile is not None:
                 # suspect was created but not stopped cleanly
