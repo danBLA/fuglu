@@ -42,7 +42,7 @@ except ImportError:
     pass
 
 class MilterHandler(ProtocolHandler):
-    protoname = 'MILTER V2'
+    protoname = 'MILTER V6'
 
     def __init__(self, sock, config):
         ProtocolHandler.__init__(self, sock, config)
@@ -652,7 +652,7 @@ class MilterSession(lm.MilterProtocol):
         self.log('EOB dict: %s' % MilterSession.dict_unicode(command_dict))
         self.store_queueid(command_dict)
         try:
-            self.tempfile.close()
+            self.tempfile = None
         except Exception as e:
             self.logger.exception(e)
             pass
@@ -667,29 +667,37 @@ class MilterSession(lm.MilterProtocol):
     def close(self):
         # close the socket
         self.log('Close')
-        try:
+        if self.transport:
             try:
-                self.transport.shutdown(socket.SHUT_RDWR)
-            except (OSError, socket.error):
+                try:
+                    self.transport.shutdown(socket.SHUT_RDWR)
+                except (OSError, socket.error) as e:
+                    self.logger.warning("while socket shutdown: %s" % str(e))
+                    pass
+                self.transport.close()
+            except Exception as e:
+                self.logger.error("during close: %s" % str(e))
                 pass
-            self.transport.close()
-        except Exception:
-            pass
 
         # close the tempfile
         try:
-            self.tempfile.close()
-        except Exception:
+            self.tempfile = None
+        except Exception as e:
+            self.logger.error("closing tempfile: %s" % str(e))
             pass
 
     def abort(self):
         self.log('Abort has been called')
+        self.logger.debug('Abort has been called')
         self.recipients = []
-        try:
-            self.tempfile.close()
-        except Exception:
-            pass
         self.tempfile = None
+        if self.tempfilename and os.path.exists(self.tempfilename):
+            try:
+                os.remove(self.tempfilename)
+                self.logger.info("Abort -> removed temp file: %s" % self.tempfilename)
+            except OSError:
+                self.logger.error("Could not remove tmp file: %s" % self.tempfilename)
+                pass
         self.tempfilename = None
 
 
