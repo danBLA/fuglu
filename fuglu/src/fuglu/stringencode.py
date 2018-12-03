@@ -40,6 +40,10 @@ def try_encoding(u_inputstring,encoding="utf-8"):
     if u_inputstring is None:
         return None
 
+    # make sure encoding is not None or empty
+    if not encoding:
+        encoding = "utf-8"
+
     logger = logging.getLogger("fuglu.stringencode.try_encoding")
     try:
         return u_inputstring.encode(encoding,"strict")
@@ -67,7 +71,11 @@ def try_decoding(b_inputstring,encodingGuess="utf-8"):
     """
     if b_inputstring is None:
         return None
-    
+
+    # make sure encoding is not None or empty
+    if not encodingGuess:
+        encodingGuess = "utf-8"
+
     logger = logging.getLogger("fuglu.stringencode.try_decoding")
     u_outputstring = None
     try:

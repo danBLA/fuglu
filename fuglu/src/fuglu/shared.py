@@ -517,12 +517,19 @@ class Suspect(object):
         Returns:
             str
         """
+
+        if sys.version_info > (3,):
+            connector = u""
+        else:
+            # Python 2 removes the spaces between the encoded header parts
+            connector = u" "
+
         try:
-            headerstring = "".join([force_uString(x[0], encodingGuess=x[1]) for x in decode_header(header)])
+            headerstring = connector.join([force_uString(x[0], encodingGuess=x[1]) for x in decode_header(header)])
         except TypeError:
             # if input is bytes (Py3) we end here
             header_unicode = force_uString(header)
-            headerstring = "".join([force_uString(x[0], encodingGuess=x[1]) for x in decode_header(header_unicode)])
+            headerstring = u"".join([force_uString(x[0], encodingGuess=x[1]) for x in decode_header(header_unicode)])
         except Exception:
             pass
         return force_uString(headerstring)
