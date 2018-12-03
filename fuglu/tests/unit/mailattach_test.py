@@ -6,7 +6,7 @@ from os.path import join
 from fuglu.mailattach import Mailattachment_mgr, Mailattachment, NoExtractInfo
 from fuglu.shared import Suspect, create_filehash, SuspectFilter
 from unittestsetup import TESTDATADIR
-from fuglu.stringencode import force_uString
+from fuglu.stringencode import force_uString, force_bString
 import hashlib
 try:
     from html.parser import HTMLParser
@@ -213,6 +213,51 @@ class MailAttachmentTest(unittest.TestCase):
         # get dict with subset
         self.assertEqual({"md5": expected["md5"]}, self.mailattach.get_checksumdict(methods=("md5",)))
 
+    def test_md5_checksum_unicodebuffer(self):
+        """From a bug-report, where buffer was unicode """
+        buffer = u""
+        filename = "test.txt"
+        mgr = None
+
+        self.mailattach = Mailattachment(buffer, filename, mgr)
+
+        md5 = hashlib.md5(force_bString(self.mailattach.buffer)).hexdigest()
+        self.assertEqual(md5, self.mailattach.get_checksum("md5"))
+
+    def test_sha1_checksum_unicodebuffer(self):
+        """From a bug-report, where buffer was unicode """
+        buffer = u""
+        filename = "test.txt"
+        mgr = None
+
+        self.mailattach = Mailattachment(buffer, filename, mgr)
+
+        sha1 = hashlib.sha1(force_bString(self.mailattach.buffer)).hexdigest()
+        self.assertEqual(sha1, self.mailattach.get_checksum("sha1"))
+
+    def test_md5_checksum_None(self):
+        """md5 - Special handling if buffer is None"""
+        buffer = None
+        filename = "test.txt"
+        mgr = None
+
+        self.mailattach = Mailattachment(buffer, filename, mgr)
+
+        md5 = ""
+        print(md5)
+        self.assertEqual(md5, self.mailattach.get_checksum("md5"))
+
+    def test_sha1_checksum_None(self):
+        """sha1 - Special handling if buffer is None"""
+        buffer = None
+        filename = "test.txt"
+        mgr = None
+
+        self.mailattach = Mailattachment(buffer, filename, mgr)
+
+        sha1 = ""
+        print(sha1)
+        self.assertEqual(sha1, self.mailattach.get_checksum("sha1"))
 
 class SuspectTest(unittest.TestCase):
     def test_suspectintegration(self):
