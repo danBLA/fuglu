@@ -27,7 +27,7 @@ import hashlib
 from fuglu.extensions.filearchives import Archivehandle
 from fuglu.extensions.filetype import filetype_handler
 from fuglu.caching import smart_cached_property, smart_cached_memberfunc, Cachelimits
-from fuglu.stringencode import force_uString
+from fuglu.stringencode import force_uString, force_bString
 from io import BytesIO
 
 # workarounds for mimetypes
@@ -70,7 +70,7 @@ class Mailattachment(Cachelimits):
         super(Mailattachment, self).__init__()
         self.filename = force_uString(filename)
         self.filesize = filesize
-        self.buffer = buffer
+        self.buffer = force_bString(buffer)
         self._buffer_archobj = {}
 
         myclass = self.__class__.__name__
@@ -205,11 +205,12 @@ class Mailattachment(Cachelimits):
 
         """
         csum = ""
-        try:
-            csum = Mailattachment.checksummethods[method](self.buffer)
-        except KeyError:
-            self.logger.error("checksum method %s not valid! Options are [%s]"
-                              % (method, ",".join(list(Mailattachment.checksummethods.keys()))))
+        if self.buffer is not None:
+            try:
+                csum = Mailattachment.checksummethods[method](self.buffer)
+            except KeyError:
+                self.logger.error("checksum method %s not valid! Options are [%s]"
+                                  % (method, ",".join(list(Mailattachment.checksummethods.keys()))))
         return csum
 
     @smart_cached_memberfunc(inputs=['buffer'])
