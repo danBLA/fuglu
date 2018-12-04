@@ -13,6 +13,7 @@ did=$(docker create -w /fuglu-src -v $srcdir:/fuglu-src:ro -t -i $image /bin/bas
 echo "Starting docker instance ID: $did"
 docker start $did
 echo "Installing current fuglu source"
+docker exec -i $did pip install --upgrade 'setuptools>=20.2.2'
 docker exec -i $did python setup.py build_py -d /tmp/build install
 echo "Writing default config"
 docker exec -i $did rename '.dist' '' /etc/fuglu/*.dist

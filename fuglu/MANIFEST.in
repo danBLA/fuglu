@@ -1,10 +1,12 @@
-include doc/CHANGELOG
-include doc/INSTALL
-include conf/*.dist
-include conf/*.cfg
-include conf/templates/*.dist
-include conf/rules/*.dist
-include scripts/init.d-centos/fuglu
-include scripts/init.d-debian/fuglu
-include scripts/fuglu_mrtg.sh
+graft doc/
+graft conf/
+graft scripts/
+
 include compareconfig.py
+include README.md
+include LICENSE
+include MANIFEST.in
+
+global-exclude __pycache__
+global-exclude *.py[co]
+
