@@ -246,6 +246,41 @@ class SuspectTestCase(unittest.TestCase):
         self.assertEqual(newheader1.strip(), Suspect.decode_msg_header(msg["x-new-1"]).strip())
         self.assertEqual(newheader2.strip(), Suspect.decode_msg_header(msg["x-new-2"]).strip())
 
+    def test_suspect_decode_msg_header(self):
+        """Test static function "decode_msg_header" for message with two encodings plus an unencoded part"""
+        suspect = Suspect('sender@unittests.fuglu.org',
+                          'recipient@unittests.fuglu.org', TESTDATADIR + '/helloworld.eml')
+
+        # check headers just set
+        msg = suspect.get_message_rep()
+
+        encodedheader = u"AAA; AAA: AAAA AAAAAAAAAAA AAAAAAA =?utf-8?Q?AAAAAAAA=C3=BCAAA?= " \
+                        u"=?utf-8?Q?A_A=C3=BCA?= AA-AAAAAAAAA DDDD"
+
+        expected = u"AAA; AAA: AAAA AAAAAAAAAAA AAAAAAA AAAAAAAAüAAAA AüA AA-AAAAAAAAA DDDD"
+
+        msg["x-new-2"] = encodedheader
+
+        self.assertEqual(expected, Suspect.decode_msg_header(msg["x-new-2"]))
+
+    def test_suspect_decode_msg_header2(self):
+        """Test static function "decode_msg_header" for header with only two characters being encoded"""
+        suspect = Suspect('sender@unittests.fuglu.org',
+                          'recipient@unittests.fuglu.org', TESTDATADIR + '/helloworld.eml')
+
+        # check headers just set
+        msg = suspect.get_message_rep()
+
+        encodedheader = "aa aaaaaaaa aaaaaaa : aa aaa =?iso-8859-1?q?aa=E9aa_aaaa_aaaaa_=E0?= " \
+                        "aaaa aa aaaa aaaaaa aaaaaaaaa aaaaaaa aa aaaa"
+
+        expected = u"aa aaaaaaaa aaaaaaa : aa aaa aaéaa aaaa aaaaa à aaaa aa aaaa aaaaaa aaaaaaaaa aaaaaaa aa aaaa"
+
+        msg["x-new-2"] = encodedheader
+        out = Suspect.decode_msg_header(msg["x-new-2"])
+
+        self.assertEqual(expected, out)
+
 class SuspectFilterTestCase(unittest.TestCase):
 
     """Test Suspectfilter"""
