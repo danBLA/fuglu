@@ -51,15 +51,21 @@ def usage():
         dict parameters: typelist
         example: objgraph_count_types '{"typelist":["Worker","Suspect","SessionHandler"]}'
         
-    objgraph_leaking_objects '{"nresults": 5}' : C-level leaking objects
+    objgraph_leaking_objects [dict in json format] : C-level leaking objects
         dict parameters: nresults, dont_startwith, must_startwith, cont_contain, must_contain
         example: objgraph_leaking_objects '{"nresults": 5}'
         
+    objgraph_creategraph_backrefchain '{"typelist": ["SMTPServer"]}'
+        dict parameters: max_depth, filename, selector, typelist
+            * max_depth": 20,
+            * filename": output filename (not defined will use objectname)
+            * selector": Which object to pick from available objects "random"/"first"/"last"
+            * typelist": list containing 1 object type
+        example: objgraph_creategraph_backrefchain '{"typelist": ["SMTPServer"]}'
+        
     ----    
-    dict for objgraph:
+    common dict parameters for objgraph:
     ----    
-    {"nresults": 20, "lowercase": True, "dont_startwith": [], "dont_contain": [], "must_startwith": [], "must_contain": [], "typelist"}
-    
     - dict must be surrounded by single quotes 
     - lists contain strings (quoted with "")
     - arguments:
@@ -70,7 +76,6 @@ def usage():
         * dont_contain : don't show objects containing one of the strings in list
         * must_contain : show objects starting with one of the strings in list if not blocked by a dont_*
         * typelist : a typelist (case sensitive)
-    
     
     """
 

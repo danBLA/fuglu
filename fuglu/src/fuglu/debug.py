@@ -283,18 +283,20 @@ Block:\t\t${blockedcount}
         res = u"---------------\n" \
             + u"Count suspects:\n" \
             + u"---------------\n\n"
+
+        defaults = {"typelist": ["Suspect", "Mailattachment", "Mailattachment_mgr"]}
+
         if OBJGRAPH_EXTENSION_ENABLED:
-            reset = {"typelist": ["Suspect", "Mailattachment", "Mailattachment_mgr"]}
             if not args:
-                args = reset
+                args = {}
 
             # fill filter lists and other vars from dict
-            res, _, _, _, _, _, _, typelist = \
-                ControlSession.prepare_objectgraph_list_from_dict(args, res, [k for k in reset.keys()])
+            res, inputdict = ControlSession.prepare_objectgraph_list_from_dict(args, res, defaults)
+
             try:
                 res += u"Object types found in memory:\n"
-                for otype in typelist:
-                    n_otypes = len(objgraph.by_type(otype))
+                for otype in inputdict["typelist"]:
+                    n_otypes = objgraph.count(otype)
                     res += u"%s : %u\n" % (otype, n_otypes)
             except Exception as e:
                 res += u"ERROR: %s" % force_uString(e)
@@ -333,30 +335,30 @@ Block:\t\t${blockedcount}
             + u"Leaking objects:\n" \
             + u"----------------\n\n"
         if OBJGRAPH_EXTENSION_ENABLED:
-            reset = {"nresults": 20,
-                    "lowercase": True,
-                    "dont_startwith": ["builtins", "_"],
-                    "dont_contain": [],
-                    "must_startwith": [],
-                    "must_contain": []}
+            defaults = {"nresults": 20,
+                        "lowercase": True,
+                        "dont_startwith": ["builtins", "_"],
+                        "dont_contain": [],
+                        "must_startwith": [],
+                        "must_contain": []}
 
             if not args:
-                args = reset
+                args = {}
 
             # fill filter lists and other vars from dict
-            res, nresults, lowercase, dont_startwith, \
-            must_startwith, dont_contain, must_contain, _ =\
-                ControlSession.prepare_objectgraph_list_from_dict(args, res, [k for k in reset.keys()])
+            res, inputdict = ControlSession.prepare_objectgraph_list_from_dict(args, res, defaults)
 
             try:
                 roots = objgraph.get_leaking_objects()
 
                 # build filter
-                finalfilter = ControlSession.buildfilter(dont_contain=dont_contain, dont_startwith=dont_startwith,
-                                                         must_contain=must_contain, must_startwith=must_startwith,
-                                                         lowercase=lowercase)
+                finalfilter = ControlSession.buildfilter(dont_contain=inputdict["dont_contain"],
+                                                         dont_startwith=inputdict["dont_startwith"],
+                                                         must_contain=inputdict["must_contain"],
+                                                         must_startwith=inputdict["must_startwith"],
+                                                         lowercase=inputdict["lowercase"])
 
-                types_list = objgraph.most_common_types(objects=roots, limit=nresults,
+                types_list = objgraph.most_common_types(objects=roots, limit=inputdict["nresults"],
                                                         shortnames=False, filter=finalfilter)
                 for otype in types_list:
                     res += u"%s : %u\n" % otype
@@ -403,28 +405,30 @@ Block:\t\t${blockedcount}
             + u"----------------\n\n"
 
         if OBJGRAPH_EXTENSION_ENABLED:
-            reset = {"nresults": 20,
-                     "lowercase": True,
-                     "dont_startwith": ["builtins", "_"],
-                     "dont_contain": [],
-                     "must_startwith": [],
-                     "must_contain": []}
+            defaults = {"nresults": 20,
+                        "lowercase": True,
+                        "dont_startwith": ["builtins", "_"],
+                        "dont_contain": [],
+                        "must_startwith": [],
+                        "must_contain": []}
 
             if not args:
-                args = reset
+                args = {}
 
             # fill filter lists and other vars from dict
-            res, nresults, lowercase, dont_startwith, \
-            must_startwith, dont_contain, must_contain, _ = \
-                ControlSession.prepare_objectgraph_list_from_dict(args, res, [k for k in reset.keys()])
+            res, inputdict = ControlSession.prepare_objectgraph_list_from_dict(args, res, defaults)
 
             try:
                 # build filter
-                finalfilter = ControlSession.buildfilter(dont_contain=dont_contain, dont_startwith=dont_startwith,
-                                                         must_contain=must_contain, must_startwith=must_startwith,
-                                                         lowercase=lowercase)
+                finalfilter = ControlSession.buildfilter(dont_contain=inputdict["dont_contain"],
+                                                         dont_startwith=inputdict["dont_startwith"],
+                                                         must_contain=inputdict["must_contain"],
+                                                         must_startwith=inputdict["must_startwith"],
+                                                         lowercase=inputdict["lowercase"])
 
-                types_list = objgraph.most_common_types(limit=nresults, shortnames=False, filter=finalfilter)
+                types_list = objgraph.most_common_types(limit=inputdict["nresults"],
+                                                        shortnames=False,
+                                                        filter=finalfilter)
                 for otype in types_list:
                     res += u"%s : %u\n" % otype
             except Exception as e:
@@ -491,29 +495,29 @@ Block:\t\t${blockedcount}
               + u"--------------\n\n"
 
         if OBJGRAPH_EXTENSION_ENABLED:
-            reset = {"nresults": 20,
-                     "lowercase": True,
-                     "dont_startwith": ["builtins", "_"],
-                     "dont_contain": [],
-                     "must_startwith": [],
-                     "must_contain": []}
+            defaults = {"nresults": 20,
+                        "lowercase": True,
+                        "dont_startwith": ["builtins", "_"],
+                        "dont_contain": [],
+                        "must_startwith": [],
+                        "must_contain": []}
 
             if not args:
-                args = reset
+                args = {}
 
             # fill filter lists and other vars from dict
-            res, nresults, lowercase, dont_startwith, \
-            must_startwith, dont_contain, must_contain, _ = \
-                ControlSession.prepare_objectgraph_list_from_dict(args, res, [k for k in reset.keys()])
+            res, inputdict = ControlSession.prepare_objectgraph_list_from_dict(args, res, defaults)
 
             try:
 
                 # build filter
-                finalfilter = ControlSession.buildfilter(dont_contain=dont_contain, dont_startwith=dont_startwith,
-                                                         must_contain=must_contain, must_startwith=must_startwith,
-                                                         lowercase=lowercase)
+                finalfilter = ControlSession.buildfilter(dont_contain=inputdict["dont_contain"],
+                                                         dont_startwith=inputdict["dont_startwith"],
+                                                         must_contain=inputdict["must_contain"],
+                                                         must_startwith=inputdict["must_startwith"],
+                                                         lowercase=inputdict["lowercase"])
 
-                result = objgraph.growth(nresults, shortnames=False, filter=finalfilter)
+                result = objgraph.growth(inputdict["nresults"], shortnames=False, filter=finalfilter)
 
                 if result:
                     width = max(len(name) for name, _, _ in result)
@@ -527,47 +531,195 @@ Block:\t\t${blockedcount}
             res = u"please install module 'objgraph'"
         return res
 
-    @staticmethod
-    def prepare_objectgraph_list_from_dict(args, res, keys):
+    def objgraph_creategraph_backrefchain(self, args):
+        """
+        This function can be used to display what is referencing an object to find why
+        an object is not garbage collected. The output is a graph.
 
-        # initialise to None
-        nresults, lowercase, dont_startwith, must_startwith, dont_contain, must_contain, typelist = (None,)*7
+        Requirements: objgraph and graphviz installed
+
+        Fuglu has to be running as a daemon.
+        "fuglu_control" is used to communicate with the fuglu instance.
+
+        Examples:
+
+            $ fuglu_control objgraph_creategraph_backrefchain '{"typelist": ["SMTPServer"]}'
+
+            ---------------------------------
+            Create Graph for backref chain:
+            ---------------------------------
+
+            params:
+            * typelist: SMTPServer
+            * selector: random
+            * filename: /tmp/SMTPServer.png
+
+            Graph for one object of type SMTPServer written to /tmp/SMTPServer.png
+
+            SMTPServer.png:
+
+            #-----------------#
+            # module __main__ #
+            #-----------------#
+                   |
+                   |   __dict__
+                   |
+            #---------------#
+            # dict 61 items #
+            #---------------#
+                   |
+                   |   controller
+                   |
+            #--------------------------------------------------#
+            # MainController <fuglu.core.MainController objet> #
+            #--------------------------------------------------#
+                   |
+                   |   __dict__
+                   |
+            #---------------#
+            # dict 18 items #
+            #---------------#
+                   |
+                   |   servers
+                   |
+            #--------------#
+            # list 4 items #
+            #--------------#
+                   |
+                   |
+                   |
+            #--------------------------------------------------------#
+            # SMTPServer <fuglu.connectors.smtpconnector.SMTPServer> #
+            #--------------------------------------------------------#
+
+        """
+        res = u"---------------------------------\n" \
+              + u"Create Graph for backref chain:\n" \
+              + u"---------------------------------\n\n"
+
+        if OBJGRAPH_EXTENSION_ENABLED:
+            defaults = {"max_depth": 20,
+                        "filename": "",
+                        "selector": "random",
+                        "typelist": ["Suspect"],
+                        }
+
+            if not args:
+                args = {}
+
+            # fill filter lists and other vars from dict
+            res, inputdict = ControlSession.prepare_objectgraph_list_from_dict(args, res, defaults)
+
+            try:
+                if not len(inputdict["typelist"]) == 1:
+                    res += "Please define exactly one type in 'typelist' for this function"
+                    return res
+
+                if not inputdict["filename"]:
+                    res += "Please define a non-empty filename in 'filename' key of input dict or don't define key"
+                    return res
+
+                if inputdict["selector"] not in ["first", "last", "random"]:
+                    res += 'Valid choices for selector are : "first", "last", "random"'
+                    return res
+
+                for otype in inputdict["typelist"]:
+                    olist = objgraph.by_type(otype)
+                    if not olist:
+                        res += u"%s: no objects\n" % otype
+                    else:
+                        if inputdict["selector"] == "first":
+                            examine_obj = olist[0]
+                        elif inputdict["selector"] == "last":
+                            examine_obj = olist[-1]
+                        else:
+                            import random
+                            examine_obj = random.choice(olist)
+
+                        if examine_obj is None:
+                            res += 'ERROR: Object to examine is None'
+                            return
+
+                        backrefchain = objgraph.find_backref_chain( examine_obj, objgraph.is_proper_module)
+
+                        if not backrefchain:
+                            res += 'WARNING: Backref chain is empty'
+                            return
+
+                        objgraph.show_chain(backrefchain, filename=inputdict["filename"])
+
+                        res += 'Graph for one object of type %s written to %s' % (otype, inputdict['filename'])
+
+            except Exception as e:
+                res += force_uString(e)
+        else:
+            res = u"please install module 'objgraph' and 'graphviz'"
+        return res
+
+    @staticmethod
+    def prepare_objectgraph_list_from_dict(args, res, defaults):
+
+        keys = [k for k in defaults.keys()]
+        outdict = {}
 
         res += "params:\n"
 
         if "nresults" in keys:
-            nresults = int(args.get("nresults", 20))
+            nresults = int(args.get("nresults", defaults["nresults"]))
+            outdict["nresults"] = nresults
             res += "* nresults: %u\n" % nresults
 
         if "lowercase" in keys:
-            lowercase = force_uString(args.get("lowercase", "True"))
-            if lowercase is not None and lowercase.lower() not in ["false", "f", '0']:
-                lowercase = True
-            res += "* lowercase: %s\n" % "True" if lowercase else "False"
+            lowercase = args.get("lowercase", defaults["lowercase"])
+            outdict["lowercase"] = lowercase
+            res += "* lowercase: %s\n" % lowercase
 
         if "dont_startwith" in keys:
-            dont_startwith = ControlSession.preparelist(args, "dont_startwith", [])
+            dont_startwith = ControlSession.preparelist(args, "dont_startwith", defaults["dont_startwith"])
+            outdict["dont_startwith"] = dont_startwith
             res += "* dont_startwith: %s\n" % ",".join(dont_startwith)
 
         if "must_startwith" in keys:
-            must_startwith = ControlSession.preparelist(args, "must_startwith", [])
+            must_startwith = ControlSession.preparelist(args, "must_startwith", defaults["must_startwith"])
+            outdict["must_startwith"] = must_startwith
             res += "* must_startwith: %s\n" % ",".join(must_startwith)
 
         if "dont_contain" in keys:
-            dont_contain = ControlSession.preparelist(args, "dont_contain", [])
+            dont_contain = ControlSession.preparelist(args, "dont_contain", defaults["dont_contain"])
+            outdict["dont_contain"] = dont_contain
             res += "* dont_contain: %s\n" % ",".join(dont_contain)
 
         if "must_contain" in keys:
-            must_contain = ControlSession.preparelist(args, "must_contain", [])
+            must_contain = ControlSession.preparelist(args, "must_contain", defaults["must_contain"])
+            outdict["must_contain"] = must_contain
             res += "* must_contain: %s\n" % ",".join(must_contain)
 
         if "typelist" in keys:
-            typelist = ControlSession.preparelist(args, "typelist", [])
+            typelist = ControlSession.preparelist(args, "typelist", defaults["typelist"])
+            outdict["typelist"] = typelist
             res += "* typelist: %s\n" % ",".join(typelist)
+
+        if "maxdepth" in keys:
+            maxdepth = int(args.get("maxdepth", defaults["maxdepth"]))
+            outdict["maxdepth"] = maxdepth
+            res += "* maxdepth: %u\n" % maxdepth
+
+        if "selector" in keys:
+            selector = force_uString(args.get("selector", defaults["selector"]))
+            outdict["selector"] = selector
+            res += "* selector: %s\n" % selector
+
+        if "filename" in keys:
+            filename = force_uString(args.get("filename", defaults["filename"]))
+            if not filename and len(outdict.get("typelist", [])) > 0:
+                filename = os.path.join("/tmp", ".".join(outdict["typelist"])+".png")
+
+            outdict["filename"] = filename
+            res += "* filename: %s\n" % filename
 
         res += "\n"
 
-        return res, nresults, lowercase, dont_startwith, must_startwith, dont_contain, must_contain, typelist
+        return res, outdict
 
     @staticmethod
     def json_string_to_obj(jsonstring, ForcedType=None):
