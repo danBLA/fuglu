@@ -28,6 +28,11 @@ try:
     OBJGRAPH_EXTENSION_ENABLED = True
 except ImportError:
     OBJGRAPH_EXTENSION_ENABLED = False
+    # dummy object so we can keep objgraph._long_typename
+    # as default input method in buildfilter
+    class objgraph:
+        _long_typename = None
+        pass
 
 class ControlServer(object):
 
