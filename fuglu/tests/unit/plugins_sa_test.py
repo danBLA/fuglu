@@ -77,12 +77,8 @@ class SAPluginTestCase(unittest.TestCase):
 
     """Testcases for the Plugin"""
 
-    def test_forward_modified_stripped(self):
+    def setUp(self):
         """Tests a message that is stripped and forwared in a modified way"""
-        try:
-            from configparser import RawConfigParser
-        except ImportError:
-            from ConfigParser import RawConfigParser
 
         config = RawConfigParser()
         config.add_section('main')
@@ -169,14 +165,22 @@ class SAPluginTestCase(unittest.TestCase):
                                        b'Content-Type: multipart/mixed; boundary="========' \
                                        b'\n------------=_5BFE473C.76E9108C--\n' \
                                        b'\n'
+        self.saplugin = saplug
 
+    def test_forward_modified_stripped(self):
         suspect = Suspect('sender@unittests.fuglu.org','recipient@unittests.fuglu.org', TESTDATADIR + '/helloworld.eml')
 
-
-        action, message = saplug.examine(suspect)
+        action, message = self.saplugin.examine(suspect)
         self.assertEqual(DUNNO, action)
         try:
             self.assertIsNotNone(suspect.get_tag('SAPlugin.report'))
         except AttributeError:
             # Python 2.6
             self.assertTrue(suspect.get_tag('SAPlugin.report') is not None)
+
+
+    def test_forward_modified_stripped(self):
+        suspect = Suspect('sender@unittests.fuglu.org',
+                          'recipient@unittests.fuglu.org',
+                          TESTDATADIR + '/contentproblem.eml')
+        action, message = self.saplugin.examine(suspect)

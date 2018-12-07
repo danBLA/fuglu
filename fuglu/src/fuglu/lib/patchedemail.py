@@ -1,5 +1,6 @@
 import sys
 from email.message import Message
+from email.mime.multipart import MIMEMultipart
 from email.generator import Generator
 from copy import deepcopy
 from io import StringIO
@@ -81,3 +82,9 @@ class PatchedMessage(Message):
                              policy=policy)
         g.flatten(self, unixfrom=unixfrom)
         return fp.getvalue()
+
+
+class PatchedMIMEMultipart(PatchedMessage, MIMEMultipart):
+    """Same problem as above. Appeared in sa - plugin"""
+    def __init__(self, *args, **kwargs):
+        super(PatchedMIMEMultipart, self).__init__(*args, **kwargs)
