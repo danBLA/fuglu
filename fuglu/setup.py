@@ -37,7 +37,7 @@ def git_version():
 
 def requirements():
     install_requires = []
-    if sys.version_info > (2,7):
+    if (2,7) < sys.version_info < (3,):
         install_requires.append('importlib')
     return install_requires
 
