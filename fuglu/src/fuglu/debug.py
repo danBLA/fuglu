@@ -601,6 +601,7 @@ Block:\t\t${blockedcount}
             defaults = {"max_depth": 20,
                         "filename": "",
                         "selector": "random",
+                        "maxobjects": 1,
                         "typelist": ["Suspect"],
                         }
 
@@ -611,47 +612,176 @@ Block:\t\t${blockedcount}
             res, inputdict = ControlSession.prepare_objectgraph_list_from_dict(args, res, defaults)
 
             try:
-                if not len(inputdict["typelist"]) == 1:
-                    res += "Please define exactly one type in 'typelist' for this function"
+                if not len(inputdict["typelist"]) > 0 or not inputdict["typelist"]:
+                    res += "Please define at least one type in 'typelist'"
                     return res
 
                 if not inputdict["filename"]:
                     res += "Please define a non-empty filename in 'filename' key of input dict or don't define key"
                     return res
 
-                if inputdict["selector"] not in ["first", "last", "random"]:
-                    res += 'Valid choices for selector are : "first", "last", "random"'
+                if inputdict["selector"] not in ["first", "last", "random", "all"]:
+                    res += 'Valid choices for selector are : "first", "last", "random", "all"'
                     return res
 
+                backrefchains = []
+                all_object_ids = []
                 for otype in inputdict["typelist"]:
                     olist = objgraph.by_type(otype)
                     if not olist:
                         res += u"%s: no objects\n" % otype
                     else:
-                        if inputdict["selector"] == "first":
-                            examine_obj = olist[0]
+                        if inputdict["selector"] == "all":
+                            examine_obj = olist
+                        elif inputdict["selector"] == "first":
+                            examine_obj = olist[:inputdict["maxobjects"]]
                         elif inputdict["selector"] == "last":
-                            examine_obj = olist[-1]
+                            examine_obj = olist[-inputdict["maxobjects"]:]
                         else:
                             import random
-                            examine_obj = random.choice(olist)
+                            if inputdict["maxobjects"] <= 1:
+                                examine_obj = [random.choice(olist)]
+                            else:
+                                examine_obj = random.sample(olist, min(inputdict["maxobjects"], len(olist)))
 
-                        if examine_obj is None:
-                            res += 'ERROR: Object to examine is None'
-                            return
+                        if not examine_obj:
+                            res += 'WARNING: Object to examine is None for %s' % otype
+                            continue
 
-                        backrefchain = objgraph.find_backref_chain( examine_obj, objgraph.is_proper_module)
+                        for obj in examine_obj:
+                            backrefchain = objgraph.find_backref_chain(obj, objgraph.is_proper_module)
 
-                        if not backrefchain:
-                            res += 'WARNING: Backref chain is empty'
-                            return
+                            if not backrefchain:
+                                res += 'WARNING: Backref chain is empty for %s' % otype
+                                continue
 
-                        objgraph.show_chain(backrefchain, filename=inputdict["filename"])
+                            backrefchains.append(backrefchain)
+                            backrefchain_ids = [id(x) for x in backrefchain if x]
+                            all_object_ids.extend(backrefchain_ids)
+                            self.logger.debug("chain is: %s" % ",".join([str(i) for i in backrefchain_ids]))
 
-                        res += 'Graph for one object of type %s written to %s' % (otype, inputdict['filename'])
+                chains = backrefchains
+                chains = [chain for chain in chains if chain]  # remove empty ones
+
+                class TmpObj(object):
+                    def __init__(self, ids, logger):
+                        self.ids = set(ids)
+                        self.logger = logger
+                        self.logger.debug("allids: %s" % ",".join([str(i) for i in self.ids]))
+                    def __call__(self, x):
+                        out = id(x) in self.ids
+                        return out
+
+                in_chains = TmpObj(all_object_ids, self.logger)
+
+                max_depth = max(map(len, chains)) - 1
+                objgraph.show_backrefs([chain[-1] for chain in chains], max_depth=max_depth,
+                              filter=in_chains, filename=inputdict["filename"])
+
+                res += 'Graph for one object of type(s) %s written to %s' % (",".join(inputdict["typelist"]),
+                                                                             inputdict['filename'])
 
             except Exception as e:
+                self.logger.exception(e)
                 res += force_uString(e)
+        else:
+            res = u"please install module 'objgraph' and 'graphviz'"
+        return res
+
+    def objgraph_creategraph_backrefs(self, args):
+        """
+        This function can be used to display what is referencing an objects eventually explaining why
+        an object is not garbage collected. The output is a graph.
+
+        Requirements: objgraph and graphviz installed
+
+        Fuglu has to be running as a daemon.
+        "fuglu_control" is used to communicate with the fuglu instance.
+
+        Examples:
+
+
+        """
+        res = u"---------------------------------\n" \
+              + u"Create Graph for backref chain:\n" \
+              + u"---------------------------------\n\n"
+
+        if OBJGRAPH_EXTENSION_ENABLED:
+            defaults = {"max_depth": 3,
+                        "filename": "",
+                        "selector": "all",
+                        "maxobjects": 20,
+                        "typelist": ["Suspect"],
+                        "lowercase": True,
+                        "dont_startwith": ["_"],
+                        "dont_contain": [],
+                        "must_startwith": [],
+                        "must_contain": []
+                        }
+
+            if not args:
+                args = {}
+
+            # fill filter lists and other vars from dict
+            res, inputdict = ControlSession.prepare_objectgraph_list_from_dict(args, res, defaults)
+
+            try:
+                if not len(inputdict["typelist"]) > 0 or not inputdict["typelist"]:
+                    res += "Please define at least one type in 'typelist'"
+                    return res
+
+                if not inputdict["filename"]:
+                    res += "Please define a non-empty filename in 'filename' key of input dict or don't define key"
+                    return res
+
+                if inputdict["selector"] not in ["first", "last", "random", "all"]:
+                    res += 'Valid choices for selector are : "first", "last", "random", "all"'
+                    return res
+
+                list_objects = []
+                for otype in inputdict["typelist"]:
+                    olist = objgraph.by_type(otype)
+                    if not olist:
+                        res += u"%s: no objects\n" % otype
+                    else:
+                        if inputdict["selector"] == "all":
+                            examine_obj = olist
+                        elif inputdict["selector"] == "first":
+                            examine_obj = olist[:inputdict["maxobjects"]]
+                        elif inputdict["selector"] == "last":
+                            examine_obj = olist[-inputdict["maxobjects"]:]
+                        else:
+                            import random
+                            if inputdict["maxobjects"] <= 1:
+                                examine_obj = [random.choice(olist)]
+                            else:
+                                examine_obj = random.sample(olist, min(inputdict["maxobjects"], len(olist)))
+
+                        list_objects.extend(examine_obj)
+
+                if not list_objects:
+                    res += 'No objects found -> return'
+                    return res
+
+                # build filter
+                finalfilter = ControlSession.buildfilter(dont_contain=inputdict["dont_contain"],
+                                                         dont_startwith=inputdict["dont_startwith"],
+                                                         must_contain=inputdict["must_contain"],
+                                                         must_startwith=inputdict["must_startwith"],
+                                                         lowercase=inputdict["lowercase"])
+
+                objgraph.show_backrefs(list_objects,
+                                       max_depth=inputdict["max_depth"],
+                                       filter=finalfilter,
+                                       filename=inputdict["filename"],
+                                       refcounts=True,
+                                       shortnames=False)
+
+                res += 'Graph for one object of type(s) %s written to %s' % (",".join(inputdict["typelist"]), inputdict['filename'])
+
+
+            except Exception as e:
+                res += u"Exception: %s" % force_uString(e)
         else:
             res = u"please install module 'objgraph' and 'graphviz'"
         return res
@@ -668,6 +798,11 @@ Block:\t\t${blockedcount}
             nresults = int(args.get("nresults", defaults["nresults"]))
             outdict["nresults"] = nresults
             res += "* nresults: %u\n" % nresults
+
+        if "maxobjects" in keys:
+            maxobjects = int(args.get("maxobjects", defaults["maxobjects"]))
+            outdict["maxobjects"] = maxobjects
+            res += "* maxobjects: %u\n" % maxobjects
 
         if "lowercase" in keys:
             lowercase = args.get("lowercase", defaults["lowercase"])
@@ -699,10 +834,10 @@ Block:\t\t${blockedcount}
             outdict["typelist"] = typelist
             res += "* typelist: %s\n" % ",".join(typelist)
 
-        if "maxdepth" in keys:
-            maxdepth = int(args.get("maxdepth", defaults["maxdepth"]))
-            outdict["maxdepth"] = maxdepth
-            res += "* maxdepth: %u\n" % maxdepth
+        if "max_depth" in keys:
+            maxdepth = int(args.get("max_depth", defaults["max_depth"]))
+            outdict["max_depth"] = maxdepth
+            res += "* max_depth: %u\n" % maxdepth
 
         if "selector" in keys:
             selector = force_uString(args.get("selector", defaults["selector"]))
