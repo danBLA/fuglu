@@ -179,7 +179,8 @@ class SAPluginTestCase(unittest.TestCase):
             self.assertTrue(suspect.get_tag('SAPlugin.report') is not None)
 
 
-    def test_forward_modified_stripped(self):
+    def test_contenttype_problem_message(self):
+        """Should just not crash. There was bug in handling such messages."""
         suspect = Suspect('sender@unittests.fuglu.org',
                           'recipient@unittests.fuglu.org',
                           TESTDATADIR + '/contentproblem.eml')
