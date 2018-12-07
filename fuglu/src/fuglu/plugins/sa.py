@@ -23,7 +23,11 @@ import email
 import re
 import os
 import sys
-from email.mime.multipart import MIMEMultipart
+if sys.version_info > (3,):
+    from fuglu.lib.patchedemail import PatchedMessage, PatchedMIMEMultipart
+else:
+    from email.message import Message as PatchedMessage
+    from email.mime.multipart import MIMEMultipart as PatchedMIMEMultipart
 
 
 GTUBE = """Date: Mon, 08 Sep 2008 17:33:54 +0200
@@ -365,13 +369,13 @@ Tags:
 
         # Content is str or bytes (Py3), so try both
         try:
-            msgrep = email.message_from_string(content)
+            msgrep = email.message_from_string(content, _class=PatchedMessage)
         except TypeError:
-            msgrep = email.message_from_bytes(content)
+            msgrep = email.message_from_bytes(content, _class=PatchedMessage)
 
         
         if msgrep.is_multipart():
-            new_msg = MIMEMultipart()
+            new_msg = PatchedMIMEMultipart()
             for hdr, val in msgrep.items():
                 # convert "val" to "str" since in Py3 it might be of type email.header.Header
                 new_msg.add_header(hdr, str(val))
@@ -462,12 +466,12 @@ Tags:
                         # Python 3 and larger
                         # the basic "str" type is unicode
                         if isinstance(content,str):
-                            msgrep_filtered = email.message_from_string(filtered)
+                            msgrep_filtered = email.message_from_string(filtered, _class=PatchedMessage)
                         else:
-                            msgrep_filtered = email.message_from_bytes(filtered)
+                            msgrep_filtered = email.message_from_bytes(filtered, _class=PatchedMessage)
                     else:
                         # Python 2.x
-                        msgrep_filtered = email.message_from_string(filtered)
+                        msgrep_filtered = email.message_from_string(filtered, _class=PatchedMessage)
                     header_new = []
                     for h,v in msgrep_filtered.items():
                         header_new.append(h.strip() + ': ' + v.strip())
@@ -488,12 +492,12 @@ Tags:
                 # Python 3 and larger
                 # the basic "str" type is unicode
                 if isinstance(content,str):
-                    newmsgrep = email.message_from_string(content)
+                    newmsgrep = email.message_from_string(content, _class=PatchedMessage)
                 else:
-                    newmsgrep = email.message_from_bytes(content)
+                    newmsgrep = email.message_from_bytes(content, _class=PatchedMessage)
             else:
                 # Python 2.x
-                newmsgrep = email.message_from_string(content)
+                newmsgrep = email.message_from_string(content, _class=PatchedMessage)
 
             # if original content is forwarded there's no need to reset the attachmant
             # manager. Only header have been changed.
