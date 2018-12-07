@@ -142,7 +142,7 @@ Tags:
                 continue
 
             if status > 3:
-                self.logger.warning("f-prot: got unusual status %s" % status)
+                self.logger.warning("f-prot: got unusual status %s (result: %s)" % (status, result))
 
             # http://www.f-prot.com/support/helpfiles/unix/appendix_c.html
             if status & 1 == 1 or status & 2 == 2:
