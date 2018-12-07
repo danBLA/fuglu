@@ -23,6 +23,11 @@ import string
 import os
 from fuglu.stringencode import force_bString, force_uString
 
+try:
+    import objgraph
+    OBJGRAPH_EXTENSION_ENABLED = True
+except ImportError:
+    OBJGRAPH_EXTENSION_ENABLED = False
 
 class ControlServer(object):
 
@@ -122,19 +127,38 @@ class ControlSession(object):
         self.logger = logging.getLogger('fuglu.controlsession')
 
     def handlesession(self):
-        line = force_uString(self.socket.recv(4096)).lower().strip()
+        line = force_uString(self.socket.recv(4096)).strip()
         if line == '':
             self.socket.close()
             return
 
         self.logger.debug('Control Socket command: %s' % line)
-        parts = line.split()
-        answer = self.handle_command(parts[0], parts[1:])
+        if line.startswith("objgraph"):
+            # special handling for objgraph
+            # -> argument is a dict in json format
+            # -> check attributes for commands, don't use list
+            parts = line.split(maxsplit=1)
+            if len(parts) == 2:
+                argsdict = ControlSession.json_string_to_obj(parts[1], ForcedType=dict)
+            else:
+                argsdict = {}
+            self.logger.debug('objgraph_growth: args dict: %s' % argsdict)
+            answer = self.handle_command(parts[0], argsdict, checkattr=True)
+        else:
+            # default handling
+            line = line.lower()
+            parts = line.split()
+            answer = self.handle_command(parts[0], parts[1:])
         self.socket.sendall(force_bString(answer))
         self.socket.close()
 
-    def handle_command(self, command, args):
+    def handle_command(self, command, args, checkattr=False):
         if command not in self.commands:
+            if checkattr:
+                try:
+                    return getattr(self, command)(args)
+                except AttributeError:
+                    pass
             return "ERR no such command: "+str(command)
 
         res = self.commands[command](args)
@@ -223,6 +247,438 @@ Block:\t\t${blockedcount}
         )
         res = renderer.safe_substitute(vrs)
         return res
+
+    def objgraph_count_types(self, args):
+        """
+        This function can be used to display the number of objects for one or several types of objects.
+        For now this works best for fuglu with thread backend.
+
+        Fuglu has to be running as a daemon.
+        "fuglu_control" is used to communicate with the fuglu instance.
+
+        Examples:
+            (1) Count ans sum objects given by a list
+            -----------------------------------------
+
+            $ fuglu_control objgraph_count_types '{"typelist":["Worker","Suspect","SessionHandler"]}'
+
+            ---------------
+            Count suspects:
+            ---------------
+
+            params:
+            * typelist: Worker,Suspect,SessionHandler
+
+            Object types found in memory:
+            Worker : 2
+            Suspect : 0
+            SessionHandler : 1
+
+        """
+        res = u"---------------\n" \
+            + u"Count suspects:\n" \
+            + u"---------------\n\n"
+        if OBJGRAPH_EXTENSION_ENABLED:
+            reset = {"typelist": ["Suspect", "Mailattachment", "Mailattachment_mgr"]}
+            if not args:
+                args = reset
+
+            # fill filter lists and other vars from dict
+            res, _, _, _, _, _, _, typelist = \
+                ControlSession.prepare_objectgraph_list_from_dict(args, res, [k for k in reset.keys()])
+            try:
+                res += u"Object types found in memory:\n"
+                for otype in typelist:
+                    n_otypes = len(objgraph.by_type(otype))
+                    res += u"%s : %u\n" % (otype, n_otypes)
+            except Exception as e:
+                res += u"ERROR: %s" % force_uString(e)
+        else:
+            res += u"please install module 'objgraph'"
+        return res
+
+    def objgraph_leaking_objects(self, args):
+        """
+        This is supposed to count reference counting bugs in C-level,
+        see https://mg.pov.lt/objgraph/#reference-counting-bugs
+
+        Example:
+
+            $ fuglu_control objgraph_leaking_objects '{"nresults": 5}'
+
+            ----------------
+            Leaking objects:
+            ----------------
+
+            params:
+            * nresults: 5
+            * lowercase: True
+            * dont_startwith:
+            * must_startwith:
+            * dont_contain:
+            * must_contain:
+
+            builtins.dict : 797
+            builtins.list : 132
+            builtins.tuple : 28
+            builtins.method : 13
+            builtins.weakref : 12
+        """
+        res = u"----------------\n" \
+            + u"Leaking objects:\n" \
+            + u"----------------\n\n"
+        if OBJGRAPH_EXTENSION_ENABLED:
+            reset = {"nresults": 20,
+                    "lowercase": True,
+                    "dont_startwith": ["builtins", "_"],
+                    "dont_contain": [],
+                    "must_startwith": [],
+                    "must_contain": []}
+
+            if not args:
+                args = reset
+
+            # fill filter lists and other vars from dict
+            res, nresults, lowercase, dont_startwith, \
+            must_startwith, dont_contain, must_contain, _ =\
+                ControlSession.prepare_objectgraph_list_from_dict(args, res, [k for k in reset.keys()])
+
+            try:
+                roots = objgraph.get_leaking_objects()
+
+                # build filter
+                finalfilter = ControlSession.buildfilter(dont_contain=dont_contain, dont_startwith=dont_startwith,
+                                                         must_contain=must_contain, must_startwith=must_startwith,
+                                                         lowercase=lowercase)
+
+                types_list = objgraph.most_common_types(objects=roots, limit=nresults,
+                                                        shortnames=False, filter=finalfilter)
+                for otype in types_list:
+                    res += u"%s : %u\n" % otype
+            except Exception as e:
+                res += force_uString(e)
+        else:
+            res = u"please install module 'objgraph'"
+        return res
+
+    def objgraph_common_objects(self, args):
+        """
+        This function can be used to display the most common objects for a running fuglu instance which can
+        help finding memory leaks. For now this works best for fuglu with thread backend.
+
+        Fuglu has to be running as a daemon.
+        "fuglu_control" is used to communicate with the fuglu instance.
+
+        Examples:
+            (1) show most common fuglu objects
+            -----------------------------------
+
+            $ fuglu_control objgraph_common_objects '{"must_contain": ["fuglu"], "nresults": 5}'
+
+            ----------------
+            Most common objects:
+            ----------------
+
+            params:
+            * nresults: 5
+            * lowercase: True
+            * dont_startwith:
+            * must_startwith:
+            * dont_contain:
+            * must_contain: fuglu
+
+            fuglu.extensions.filearchives.classproperty : 6
+            fuglu.threadpool.Worker : 2
+            fuglu.extensions.filetype.MIME_types_base : 2
+            fuglu.debug.ControlSession : 2
+            fuglu.connectors.smtpconnector.SMTPServer : 2
+        """
+        res = u"----------------\n" \
+            + u"Most common objects:\n" \
+            + u"----------------\n\n"
+
+        if OBJGRAPH_EXTENSION_ENABLED:
+            reset = {"nresults": 20,
+                     "lowercase": True,
+                     "dont_startwith": ["builtins", "_"],
+                     "dont_contain": [],
+                     "must_startwith": [],
+                     "must_contain": []}
+
+            if not args:
+                args = reset
+
+            # fill filter lists and other vars from dict
+            res, nresults, lowercase, dont_startwith, \
+            must_startwith, dont_contain, must_contain, _ = \
+                ControlSession.prepare_objectgraph_list_from_dict(args, res, [k for k in reset.keys()])
+
+            try:
+                # build filter
+                finalfilter = ControlSession.buildfilter(dont_contain=dont_contain, dont_startwith=dont_startwith,
+                                                         must_contain=must_contain, must_startwith=must_startwith,
+                                                         lowercase=lowercase)
+
+                types_list = objgraph.most_common_types(limit=nresults, shortnames=False, filter=finalfilter)
+                for otype in types_list:
+                    res += u"%s : %u\n" % otype
+            except Exception as e:
+                res += force_uString(e)
+        else:
+            res = u"please install module 'objgraph'"
+        return res
+
+    def objgraph_growth(self, args):
+        """
+        This function can be used to display the new objects for a running fuglu instance which can
+        help finding memory leaks. For now this works best for fuglu with thread backend.
+
+        Fuglu has to be running as a daemon.
+        "fuglu_control" is used to communicate with the fuglu instance.
+
+        Examples:
+            (1) show fuglu objects after new fuglu start
+            ---------------------------------------------
+
+            $ fuglu_control objgraph_growth '{"must_contain": ["fuglu"], "nresults": 5}'
+
+            --------------
+            Object growth:
+            --------------
+
+            params:
+            * nresults: 5
+            * lowercase: True
+            * dont_startwith:
+            * must_startwith:
+            * dont_contain:
+            * must_contain: fuglu
+
+            fuglu.extensions.filearchives.classproperty        6        +6
+            fuglu.connectors.smtpconnector.SMTPServer          2        +2
+            fuglu.threadpool.Worker                            2        +2
+            fuglu.addrcheck.Default                            1        +1
+            fuglu.addrcheck.Addrcheck                          1        +1
+
+            (2) show new fuglu objects after fuglu processed a message
+            ------------------------------------------------------------
+
+            $ fuglu_control objgraph_growth '{"must_contain": ["fuglu"], "nresults": 5}'
+            --------------
+            Object growth:
+            --------------
+
+            params:
+            * nresults: 5
+            * lowercase: True
+            * dont_startwith:
+            * must_startwith:
+            * dont_contain:
+            * must_contain: fuglu
+
+            fuglu.extensions.filetype.MIME_types_base        2        +1
+            fuglu.plugins.attachment.RulesCache              1        +1
+            fuglu.shared.SuspectFilter                       1        +1
+
+        """
+        res = u"--------------\n" \
+              + u"Object growth:\n" \
+              + u"--------------\n\n"
+
+        if OBJGRAPH_EXTENSION_ENABLED:
+            reset = {"nresults": 20,
+                     "lowercase": True,
+                     "dont_startwith": ["builtins", "_"],
+                     "dont_contain": [],
+                     "must_startwith": [],
+                     "must_contain": []}
+
+            if not args:
+                args = reset
+
+            # fill filter lists and other vars from dict
+            res, nresults, lowercase, dont_startwith, \
+            must_startwith, dont_contain, must_contain, _ = \
+                ControlSession.prepare_objectgraph_list_from_dict(args, res, [k for k in reset.keys()])
+
+            try:
+
+                # build filter
+                finalfilter = ControlSession.buildfilter(dont_contain=dont_contain, dont_startwith=dont_startwith,
+                                                         must_contain=must_contain, must_startwith=must_startwith,
+                                                         lowercase=lowercase)
+
+                result = objgraph.growth(nresults, shortnames=False, filter=finalfilter)
+
+                if result:
+                    width = max(len(name) for name, _, _ in result)
+                    for name, count, delta in result:
+                        res += u'%-*s%9d %+9d\n' % (width, name, count, delta)
+                else:
+                    res += u'no growth captured'
+            except Exception as e:
+                res += force_uString(e)
+        else:
+            res = u"please install module 'objgraph'"
+        return res
+
+    @staticmethod
+    def prepare_objectgraph_list_from_dict(args, res, keys):
+
+        # initialise to None
+        nresults, lowercase, dont_startwith, must_startwith, dont_contain, must_contain, typelist = (None,)*7
+
+        res += "params:\n"
+
+        if "nresults" in keys:
+            nresults = int(args.get("nresults", 20))
+            res += "* nresults: %u\n" % nresults
+
+        if "lowercase" in keys:
+            lowercase = force_uString(args.get("lowercase", "True"))
+            if lowercase is not None and lowercase.lower() not in ["false", "f", '0']:
+                lowercase = True
+            res += "* lowercase: %s\n" % "True" if lowercase else "False"
+
+        if "dont_startwith" in keys:
+            dont_startwith = ControlSession.preparelist(args, "dont_startwith", [])
+            res += "* dont_startwith: %s\n" % ",".join(dont_startwith)
+
+        if "must_startwith" in keys:
+            must_startwith = ControlSession.preparelist(args, "must_startwith", [])
+            res += "* must_startwith: %s\n" % ",".join(must_startwith)
+
+        if "dont_contain" in keys:
+            dont_contain = ControlSession.preparelist(args, "dont_contain", [])
+            res += "* dont_contain: %s\n" % ",".join(dont_contain)
+
+        if "must_contain" in keys:
+            must_contain = ControlSession.preparelist(args, "must_contain", [])
+            res += "* must_contain: %s\n" % ",".join(must_contain)
+
+        if "typelist" in keys:
+            typelist = ControlSession.preparelist(args, "typelist", [])
+            res += "* typelist: %s\n" % ",".join(typelist)
+
+        res += "\n"
+
+        return res, nresults, lowercase, dont_startwith, must_startwith, dont_contain, must_contain, typelist
+
+    @staticmethod
+    def json_string_to_obj(jsonstring, ForcedType=None):
+        import json
+        pyobject = None
+        if jsonstring:
+            pyobject = json.loads(jsonstring)
+        if ForcedType is not None:
+            if not isinstance(pyobject,ForcedType):
+                pyobject = ForcedType()
+        return pyobject
+
+    @staticmethod
+    def preparelist(argsdict, key, default):
+        """
+        Prepare lists as received in arguments dict for objgraph functions.
+        Make sure type is list and it contains strings.
+
+        Args:
+            argsdict (dict): arguments dict
+            key (str): key in the argsdict dictionary
+            default (list): list containing default element
+
+        Returns:
+            list
+
+        """
+
+        # force_uString will convert each element of the list ..
+        newlist = force_uString(argsdict.get(key, default))
+        # ... unless the input is not a list. However force_uString
+        # will create a uniocode string in this case. Pack it into a list.
+        if not isinstance(newlist, list):
+            newlist = [newlist]
+
+        return newlist
+
+    @staticmethod
+    def buildfilter(input_to_string=objgraph._long_typename, dont_startwith=[],
+                    must_startwith=[], dont_contain=[], must_contain=[], lowercase=True):
+        """
+        Build a filter that can be passed to the obgraph filter keyword
+
+        Args:
+            input_to_string (function): function to convert the filter input to a string
+            dont_startwith (list): list of strings, none of them is allowed to appear at the beginning of the line
+            must_startwith (list): list of strings, one of them must appear at the beginning of the line
+            dont_contain (list): list of strings, none of them is allowed to appear in the line
+            must_contain (list): list of strings, one of them has to appear in the line
+            lowercase (bool): user lowercase comparison
+
+        Returns:
+            function
+        """
+
+        # build filter
+        filters = []
+        for dsw in dont_startwith:
+            # dsw=dsw sets the value in the lambda to what is the current
+            # value, otherwise it will use the last value from the scope
+            if lowercase:
+                filters.append(lambda o, dsw=dsw: not o.lower().startswith(dsw.lower()))
+            else:
+                filters.append(lambda o, dsw=dsw: not o.startswith(dsw))
+
+        if must_startwith:
+            # use a help class to combine the filters
+            # - we can't create a lambda using a set of lambda's because
+            #   the "any_filter" list is mutable
+            class TmpConstruct(object):
+
+                def __init__(self, must_startwith):
+                    self.any_filter = []
+                    for msw in must_startwith:
+                        # msw=msw sets the value in the lambda to what is the current
+                        # value, otherwise it will use the last value from the scope
+                        if lowercase:
+                            self.any_filter.append(lambda o, msw=msw: o.lower().startswith(msw.lower()))
+                        else:
+                            self.any_filter.append(lambda o, msw=msw: o.startswith(msw))
+
+                def __call__(self, o):
+                    return any(x(o) for x in self.any_filter)
+
+            filters.append(TmpConstruct(must_startwith))
+
+        for dcn in dont_contain:
+            # dcn=dcn sets the value in the lambda to what is the current
+            # value, otherwise it will use the last value from the scope
+            if lowercase:
+                filters.append(lambda o, dcn=dcn: dcn.lower() not in o.lower())
+            else:
+                filters.append(lambda o, dcn=dcn: dcn not in o)
+
+        if must_contain:
+            # use a help class to combine the filters
+            class TmpConstruct(object):
+
+                def __init__(self, must_contain):
+                    self.any_filter = []
+                    for mcn in must_contain:
+                        # mcn=mcn sets the value in the lambda to what is the current
+                        # value, otherwise it will use the last value from the scope
+                        if lowercase:
+                            self.any_filter.append(lambda o: mcn.lower() in o.lower())
+                        else:
+                            self.any_filter.append(lambda o: mcn in o)
+
+                def __call__(self, o):
+                    return any(x(o) for x in self.any_filter)
+
+            filters.append(TmpConstruct(must_contain))
+
+        finalfilter = lambda o: all(x(input_to_string(o)) for x in filters)
+
+        return finalfilter
 
 
 class CrashStore(object):
