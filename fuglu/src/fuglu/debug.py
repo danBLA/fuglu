@@ -21,6 +21,7 @@ import datetime
 import traceback
 import string
 import os
+import weakref
 from fuglu.stringencode import force_bString, force_uString
 
 try:
@@ -99,6 +100,7 @@ class ControlServer(object):
         self.logger.info('Control/Info Server running on port %s' % self.port)
         while self.stayalive:
             try:
+                engine = None
                 self.logger.debug('Waiting for connection...')
                 nsd = self._socket.accept()
                 if not self.stayalive:
@@ -115,6 +117,10 @@ class ControlServer(object):
                     fmt = traceback.format_exc()
                     self.logger.error('Exception in serve(): %s' % fmt)
 
+            finally:
+                if engine:
+                    del engine
+
 
 class ControlSession(object):
 
@@ -122,12 +128,12 @@ class ControlSession(object):
         self.controller = controller
         self.socket = socket
         self.commands = {
-            'workerlist': self.workerlist,
-            'threadlist': self.threadlist,
-            'uptime': self.uptime,
-            'stats': self.stats,
-            'exceptionlist': self.exceptionlist,
-            'netconsole': self.netconsole,
+            'workerlist': weakref.ref(self.workerlist),
+            'threadlist': weakref.ref(self.threadlist),
+            'uptime': weakref.ref(self.uptime),
+            'stats': weakref.ref(self.stats),
+            'exceptionlist': weakref.ref(self.exceptionlist),
+            'netconsole': weakref.ref(self.netconsole),
         }
         self.logger = logging.getLogger('fuglu.controlsession')
 
@@ -300,6 +306,7 @@ Block:\t\t${blockedcount}
                     res += u"%s : %u\n" % (otype, n_otypes)
             except Exception as e:
                 res += u"ERROR: %s" % force_uString(e)
+                self.logger.exception(e)
         else:
             res += u"please install module 'objgraph'"
         return res
@@ -347,7 +354,9 @@ Block:\t\t${blockedcount}
 
             # fill filter lists and other vars from dict
             res, inputdict = ControlSession.prepare_objectgraph_list_from_dict(args, res, defaults)
-
+            roots = None
+            types_list = None
+            finalfilter = None
             try:
                 roots = objgraph.get_leaking_objects()
 
@@ -364,6 +373,14 @@ Block:\t\t${blockedcount}
                     res += u"%s : %u\n" % otype
             except Exception as e:
                 res += force_uString(e)
+                self.logger.exception(e)
+            finally:
+                if roots:
+                    del roots
+                if types_list:
+                    del types_list
+                if finalfilter:
+                    del finalfilter
         else:
             res = u"please install module 'objgraph'"
         return res
@@ -417,7 +434,8 @@ Block:\t\t${blockedcount}
 
             # fill filter lists and other vars from dict
             res, inputdict = ControlSession.prepare_objectgraph_list_from_dict(args, res, defaults)
-
+            types_list = None
+            finalfilter = None
             try:
                 # build filter
                 finalfilter = ControlSession.buildfilter(dont_contain=inputdict["dont_contain"],
@@ -433,6 +451,12 @@ Block:\t\t${blockedcount}
                     res += u"%s : %u\n" % otype
             except Exception as e:
                 res += force_uString(e)
+                self.logger.exception(e)
+            finally:
+                if types_list:
+                    del types_list
+                if finalfilter:
+                    del finalfilter
         else:
             res = u"please install module 'objgraph'"
         return res
@@ -508,6 +532,8 @@ Block:\t\t${blockedcount}
             # fill filter lists and other vars from dict
             res, inputdict = ControlSession.prepare_objectgraph_list_from_dict(args, res, defaults)
 
+            finalfilter = None
+            result = None
             try:
 
                 # build filter
@@ -527,6 +553,12 @@ Block:\t\t${blockedcount}
                     res += u'no growth captured'
             except Exception as e:
                 res += force_uString(e)
+                self.logger.exception(e)
+            finally:
+                if finalfilter:
+                    del finalfilter
+                if result:
+                    del result
         else:
             res = u"please install module 'objgraph'"
         return res
@@ -610,6 +642,10 @@ Block:\t\t${blockedcount}
 
             # fill filter lists and other vars from dict
             res, inputdict = ControlSession.prepare_objectgraph_list_from_dict(args, res, defaults)
+            in_chains = None
+            chains = None
+            backrefchain_ids = None
+            all_object_ids = None
 
             try:
                 if not len(inputdict["typelist"]) > 0 or not inputdict["typelist"]:
@@ -624,7 +660,7 @@ Block:\t\t${blockedcount}
                     res += 'Valid choices for selector are : "first", "last", "random", "all"'
                     return res
 
-                backrefchains = []
+                chains = []
                 all_object_ids = []
                 for otype in inputdict["typelist"]:
                     olist = objgraph.by_type(otype)
@@ -632,35 +668,36 @@ Block:\t\t${blockedcount}
                         res += u"%s: no objects\n" % otype
                     else:
                         if inputdict["selector"] == "all":
-                            examine_obj = olist
+                            examine_objs = olist
                         elif inputdict["selector"] == "first":
-                            examine_obj = olist[:inputdict["maxobjects"]]
+                            examine_objs = olist[:inputdict["maxobjects"]]
                         elif inputdict["selector"] == "last":
-                            examine_obj = olist[-inputdict["maxobjects"]:]
+                            examine_objs = olist[-inputdict["maxobjects"]:]
                         else:
                             import random
                             if inputdict["maxobjects"] <= 1:
-                                examine_obj = [random.choice(olist)]
+                                examine_objs = [random.choice(olist)]
                             else:
-                                examine_obj = random.sample(olist, min(inputdict["maxobjects"], len(olist)))
+                                examine_objs = random.sample(olist, min(inputdict["maxobjects"], len(olist)))
 
-                        if not examine_obj:
+                        if not examine_objs:
                             res += 'WARNING: Object to examine is None for %s' % otype
                             continue
 
-                        for obj in examine_obj:
+                        for obj in examine_objs:
                             backrefchain = objgraph.find_backref_chain(obj, objgraph.is_proper_module)
 
                             if not backrefchain:
                                 res += 'WARNING: Backref chain is empty for %s' % otype
                                 continue
 
-                            backrefchains.append(backrefchain)
+                            chains.append(backrefchain)
                             backrefchain_ids = [id(x) for x in backrefchain if x]
                             all_object_ids.extend(backrefchain_ids)
                             self.logger.debug("chain is: %s" % ",".join([str(i) for i in backrefchain_ids]))
+                            del backrefchain
+                        del examine_objs
 
-                chains = backrefchains
                 chains = [chain for chain in chains if chain]  # remove empty ones
 
                 class TmpObj(object):
@@ -684,6 +721,15 @@ Block:\t\t${blockedcount}
             except Exception as e:
                 self.logger.exception(e)
                 res += force_uString(e)
+            finally:
+                if in_chains:
+                    del in_chains
+                if chains:
+                    del chains
+                if backrefchain_ids:
+                    del backrefchain_ids
+                if all_object_ids:
+                    del all_object_ids
         else:
             res = u"please install module 'objgraph' and 'graphviz'"
         return res
@@ -725,6 +771,9 @@ Block:\t\t${blockedcount}
             # fill filter lists and other vars from dict
             res, inputdict = ControlSession.prepare_objectgraph_list_from_dict(args, res, defaults)
 
+            finalfilter = None
+            list_objects = None
+
             try:
                 if not len(inputdict["typelist"]) > 0 or not inputdict["typelist"]:
                     res += "Please define at least one type in 'typelist'"
@@ -759,6 +808,9 @@ Block:\t\t${blockedcount}
 
                         list_objects.extend(examine_obj)
 
+                        del examine_obj
+                        del olist
+
                 if not list_objects:
                     res += 'No objects found -> return'
                     return res
@@ -782,6 +834,12 @@ Block:\t\t${blockedcount}
 
             except Exception as e:
                 res += u"Exception: %s" % force_uString(e)
+                self.logger.exception(e)
+            finally:
+                if finalfilter:
+                    del finalfilter
+                if list_objects:
+                    del list_objects
         else:
             res = u"please install module 'objgraph' and 'graphviz'"
         return res

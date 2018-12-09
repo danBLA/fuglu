@@ -63,6 +63,8 @@ def usage():
             * typelist": list containing 1 object type
         example: objgraph_creategraph_backrefchain '{"typelist": ["SMTPServer"]}'
         
+    objgraph_creategraph_backrefs '{"typelist": ["SuspectFilter"]}'
+        
     ----    
     common dict parameters for objgraph:
     ----    
