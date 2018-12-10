@@ -27,6 +27,7 @@ echo "Starting services (clamav, SA)..."
 docker exec -d $did sh /usr/local/bin/start-services.sh nolog
 
 echo "Installing current fuglu source"
+docker exec -i $did pip install --upgrade 'setuptools>=20.2.2'
 docker exec -i $did python setup.py build_py -d /tmp/build install
 
 echo "Writing default config"

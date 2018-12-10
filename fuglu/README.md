@@ -1,21 +1,20 @@
-# README for fuglu docker image
-Dockerfile to create fuglu test environment image
+FuGlu is a modular pre-queue/after-queue content filter written in Python that
+acts as the glue application between the MTA and SPAM, Virus, and other scanners.
+It can be used to filter spam, viruses, unwanted attachments, and do other content filtering.
 
-Based on danBLA/fuglutestenv docker image DockerfilePy2/3 create an image which :
-- contains a working fuglu (Python2/3) instance with default configuration
-- starts clamd, spamd and fuglu if run without arguments
-- exposes ports 10025 10026 10888
+FuGlu focuses on being solid, easy to manage, debug and monitor.
 
-The following docker containers are autobuilt and available at docker hub:
-- danbla/fuglupy3
-  - fuglu in Python3
-  - built from github master branch
-- danbla/fuglupy3:develop
-  - fuglu in Python3
-  - built from github develop branch
-- danbla/fuglupy2
-  - fuglu in Python2
-  - built from github master branch
-- danbla/fuglupy2:develop
-  - fuglu in Python2
-  - built from github develop branch
+Quick links:
+
+ * `Overview and documentation <https://fumail.gitlab.io/fuglu/>`_
+ * `Download <https://pypi.python.org/pypi/fuglu/>`_
+ * `Issue Tracker <https://gitlab.com/fumail/fuglu/issues>`_
+ * `Extra Plugins Repository <https://gitlab.com/fumail/fuglu-extra-plugins/>`_
+
+.. image:: https://badge.fury.io/py/fuglu.svg
+    :target: https://pypi.python.org/pypi/fuglu/
+    :alt: Latest PyPI version
+
+.. image:: https://gitlab.com/fumail/fuglu/badges/master/build.svg
+    :target: https://gitlab.com/fumail/fuglu/pipelines
+    :alt: Build status

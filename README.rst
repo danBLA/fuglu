@@ -1,4 +1,8 @@
-FuGlu is a mail scanning daemon for Postfix written in Python. It acts as the glue application between the MTA and spam checkers and antivirus software. FuGlu focuses on being solid, easy to manage, debug and monitor.
+FuGlu is a modular pre-queue/after-queue content filter written in Python that
+acts as the glue application between the MTA and SPAM, Virus, and other scanners.
+It can be used to filter spam, viruses, unwanted attachments, and do other content filtering.
+
+FuGlu focuses on being solid, easy to manage, debug and monitor.
 
 Quick links:
 
