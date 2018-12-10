@@ -49,6 +49,12 @@ class TrackTimings(object):
         self.timings = []
         self.port = port if port is not None else -1
 
+    def resettimer(self):
+        """Reset time tracker"""
+        if self.enabletimetracker:
+            self.timetracker = time.time()
+            self.timings = []
+
     @property
     def enabletimetracker(self):
         return self._enabletimetracker
@@ -220,212 +226,236 @@ class SessionHandler(TrackTimings):
             self.worker.workerstate = status
 
     def handlesession(self, worker=None):
+
         self.worker = worker
-
         prependheader = self.config.get('main', 'prependaddedheaders')
-        try:
-            suspect = None
-            self.set_workerstate('receiving message')
-            self.tracktime("SessionHandler-Setup")
-            suspect = self.protohandler.get_suspect()
-            if suspect is None:
-                self.logger.error('No Suspect retrieved, ending session')
-                return
 
-            self.tracktime("Message-Receive-Suspect")
-            self.stats.increase_counter_values(StatDelta(in_=1))
+        keep_connection = True
+        isuspect = 0  # in case connection is reused (milter) keep track of suspect for workerstate
 
-            if len(suspect.recipients) != 1:
-                self.logger.warning('Notice: Message from %s has %s recipients. Plugins supporting only one recipient will see: %s' % (
-                    suspect.from_address, len(suspect.recipients), suspect.to_address))
-            self.logger.debug("Message from %s to %s: %s bytes stored to %s" % (
-                suspect.from_address, suspect.to_address, suspect.size, suspect.tempfile))
-            self.set_workerstate("Handling message %s" % suspect)
-            # store incoming port to tag, could be used to disable plugins
-            # based on port
+        while keep_connection:
             try:
-                port = self.protohandler.socket.getsockname()[1]
-                if port is not None:
-                    suspect.tags['incomingport'] = port
-            except Exception as e:
-                self.logger.warning('Could not get incoming port: %s' % str(e))
+                isuspect += 1
+                suspect = None
+                self.resettimer()  # reset timer for time tracking
+                message_prefix = u"(#%u)" % isuspect  # identifier (receiving multiple suspects in one session)
 
-            pluglist = self.run_prependers(suspect)
+                self.set_workerstate(message_prefix+u'receiving message')
+                self.tracktime("SessionHandler-Setup")
+                suspect = self.protohandler.get_suspect()
+                if suspect is None:
+                    self.logger.debug(message_prefix+u'No Suspect retrieved, ending session')
+                    try:
+                        self.protohandler.endsession()
+                    except Exception:
+                        pass
+                    return
 
-            starttime = time.time()
-            self.run_plugins(suspect, pluglist)
+                self.tracktime("Message-Receive-Suspect")
+                self.stats.increase_counter_values(StatDelta(in_=1))
 
-            # Set fuglu spam status if wanted
-            if self.config.getboolean('main', 'spamstatusheader'):
-                if suspect.is_spam():
-                    suspect.addheader("%sSpamstatus" % prependheader, 'YES')
-                else:
-                    suspect.addheader("%sSpamstatus" % prependheader, 'NO')
-
-            # how long did it all take?
-            difftime = time.time() - starttime
-            suspect.tags['fuglu.scantime'] = "%.4f" % difftime
-
-            # Debug info to mail
-            if self.config.getboolean('main', 'debuginfoheader'):
-                debuginfo = str(suspect)
-                suspect.addheader("%sDebuginfo" % prependheader, debuginfo)
-
-            # add suspect id for tracking
-            if self.config.getboolean('main', 'suspectidheader'):
-                suspect.addheader('%sSuspect' % prependheader, suspect.id)
-            self.tracktime("Adding-Headers")
-
-            # checks done.. print out suspect status
-            logformat = self.config.get('main', 'logtemplate')
-            if logformat.strip() != '':
-                self.logger.info(suspect.log_format(logformat))
-            suspect.debug(suspect)
-            self.tracktime("Debug-Suspect")
-
-            # check if one of the plugins made a decision
-            result = self.action
-
-            self.set_workerstate("Finishing message %s" % suspect)
-
-            message_is_deferred = False
-            if result == ACCEPT or result == DUNNO:
+                if len(suspect.recipients) != 1:
+                    self.logger.warning(message_prefix+u'Notice: Message from %s has %s recipients. Plugins supporting only one recipient will see: %s' % (
+                        suspect.from_address, len(suspect.recipients), suspect.to_address))
+                self.logger.debug(message_prefix+u"Message from %s to %s: %s bytes stored to %s" % (
+                    suspect.from_address, suspect.to_address, suspect.size, suspect.tempfile))
+                self.set_workerstate(message_prefix+u"Handling message %s" % suspect)
+                # store incoming port to tag, could be used to disable plugins
+                # based on port
                 try:
-                    self.protohandler.commitback(suspect)
-                    self.tracktime("Commitback")
-                    self.stats.increase_counter_values(StatDelta(out=1))
-                    self.tracktime("Increase-Stats")
-
-                except KeyboardInterrupt:
-                    sys.exit()
+                    port = self.protohandler.socket.getsockname()[1]
+                    if port is not None:
+                        suspect.tags['incomingport'] = port
                 except Exception as e:
+                    self.logger.warning(message_prefix+u'Could not get incoming port: %s' % str(e))
+
+                pluglist = self.run_prependers(suspect)
+
+                starttime = time.time()
+                self.run_plugins(suspect, pluglist)
+
+                # Set fuglu spam status if wanted
+                if self.config.getboolean('main', 'spamstatusheader'):
+                    if suspect.is_spam():
+                        suspect.addheader("%sSpamstatus" % prependheader, 'YES')
+                    else:
+                        suspect.addheader("%sSpamstatus" % prependheader, 'NO')
+
+                # how long did it all take?
+                difftime = time.time() - starttime
+                suspect.tags['fuglu.scantime'] = "%.4f" % difftime
+
+                # Debug info to mail
+                if self.config.getboolean('main', 'debuginfoheader'):
+                    debuginfo = str(suspect)
+                    suspect.addheader("%sDebuginfo" % prependheader, debuginfo)
+
+                # add suspect id for tracking
+                if self.config.getboolean('main', 'suspectidheader'):
+                    suspect.addheader('%sSuspect' % prependheader, suspect.id)
+                self.tracktime("Adding-Headers")
+
+                # checks done.. print out suspect status
+                logformat = self.config.get('main', 'logtemplate')
+                if logformat.strip() != '':
+                    self.logger.info(suspect.log_format(logformat))
+                suspect.debug(suspect)
+                self.tracktime("Debug-Suspect")
+
+                # check if one of the plugins made a decision
+                result = self.action
+
+                self.set_workerstate(message_prefix+u"Finishing message %s" % suspect)
+
+                message_is_deferred = False
+                if result == ACCEPT or result == DUNNO:
+                    try:
+                        self.protohandler.commitback(suspect)
+                        self.tracktime("Commitback")
+                        self.stats.increase_counter_values(StatDelta(out=1))
+                        self.tracktime("Increase-Stats")
+
+                    except KeyboardInterrupt:
+                        sys.exit()
+                    except Exception as e:
+                        message_is_deferred = True
+                        trb = traceback.format_exc()
+                        self.logger.error("Could not commit message. Error: %s" % trb)
+                        self.logger.exception(e)
+                        self._defer()
+
+                elif result == DELETE:
+                    self.logger.info("MESSAGE DELETED: %s" % suspect.id)
+                    retmesg = 'OK: (%s)' % suspect.id
+                    if self.message is not None:
+                        retmesg = self.message
+                    self.protohandler.discard(retmesg)
+                elif result == REJECT:
+                    retmesg = "Rejected by content scanner"
+                    if self.message is not None:
+                        retmesg = self.message
+                    self.protohandler.reject(retmesg)
+                elif result == DEFER:
                     message_is_deferred = True
-                    trb = traceback.format_exc()
-                    self.logger.error("Could not commit message. Error: %s" % trb)
-                    self.logger.exception(e)
+                    self._defer(self.message)
+                else:
+                    self.logger.error(
+                        'Invalid Message action Code: %s. Using DEFER' % result)
+                    message_is_deferred = True
                     self._defer()
 
-            elif result == DELETE:
-                self.logger.info("MESSAGE DELETED: %s" % suspect.id)
-                retmesg = 'OK: (%s)' % suspect.id
-                if self.message is not None:
-                    retmesg = self.message
-                self.protohandler.discard(retmesg)
-            elif result == REJECT:
-                retmesg = "Rejected by content scanner"
-                if self.message is not None:
-                    retmesg = self.message
-                self.protohandler.reject(retmesg)
-            elif result == DEFER:
-                message_is_deferred = True
-                self._defer(self.message)
-            else:
-                self.logger.error(
-                    'Invalid Message action Code: %s. Using DEFER' % result)
-                message_is_deferred = True
-                self._defer()
-
-            # run appenders (stats plugin etc) unless msg is deferred
-            if not message_is_deferred:
-                self.stats.increasecounters(suspect)
-                self.tracktime("Increase-Counters")
-                self.run_appenders(suspect, result)
-            else:
-                self.logger.warning("DEFERRED %s" % suspect.id)
-
-            # clean up
-            try:
-                os.remove(suspect.tempfile)
-                self.logger.debug('Removed tempfile %s' % (suspect.tempfile if suspect.tempfile else "(not available)"))
-                suspect.tempfile = None
-                self.tracktime("Remove-tempfile")
-            except OSError:
-                self.logger.warning('Could not remove tempfile %s' % suspect.tempfile)
-        except KeyboardInterrupt:
-            sys.exit(0)
-        except ValueError as e:
-            # Error in envelope send/receive address
-            try:
-                self.logger.warning("Invalid send/receive address -> %s" % force_uString(e))
-            except Exception:
-                pass
-
-            try:
-                address_compliance_fail_action = self.config.get('main','address_compliance_fail_action').lower()
-            except Exception:
-                address_compliance_fail_action = "defer"
-
-            try:
-                message = self.config.get('main','address_compliance_fail_message')
-            except Exception:
-                message = "invalid sender or recipient address"
-
-            if address_compliance_fail_action   == "defer":
-                self._defer(message)
-            elif address_compliance_fail_action == "reject":
-                self._reject(message)
-            elif address_compliance_fail_action == "discard":
-                self._discard(message)
-            else:
-                self._defer(message)
-
-        except Exception as e:
-            exc = traceback.format_exc()
-            self.logger.error('Exception %s: %s' % (e, exc))
-            self._defer()
-
-        finally:
-            # finally is also executed if there's a return statement somewhere in try-except
-
-            try:
-                remove_tmpfiles_on_error = self.config.getboolean('main', 'remove_tmpfiles_on_error')
-            except Exception:
-                remove_tmpfiles_on_error = True
-
-            if suspect is None:
-                # if there was an error creating the suspect, check if the filename can be
-                # extracted from the protohandler
-                tmpfilename = self.protohandler.get_tmpfile()
-                if tmpfilename is None:
-                    tmpfilename = ""
-
-                if remove_tmpfiles_on_error:
-                    if tmpfilename:
-                        self.logger.debug('Remove tmpfile: %s for failed message' % tmpfilename)
-                    self.protohandler.remove_tmpfile()
+                # run appenders (stats plugin etc) unless msg is deferred
+                if not message_is_deferred:
+                    self.stats.increasecounters(suspect)
+                    self.tracktime("Increase-Counters")
+                    self.run_appenders(suspect, result)
                 else:
-                    if tmpfilename:
-                        self.logger.warning('Keep tmpfile: %s for failed message' % tmpfilename)
-                    else:
-                        self.logger.warning('No tmpfile to keep for failed message')
+                    self.logger.warning("DEFERRED %s" % suspect.id)
 
-            elif suspect.tempfile is not None:
-                # suspect was created but not stopped cleanly
-                if remove_tmpfiles_on_error:
-                    try:
-                        os.remove(suspect.tempfile)
-                        self.logger.debug('Removed tempfile %s' % suspect.tempfile)
-                    except OSError:
-                        self.logger.warning('Could not remove tempfile %s' % suspect.tempfile)
+                # clean up
+                try:
+                    os.remove(suspect.tempfile)
+                    self.logger.debug(message_prefix+u'Removed tempfile %s' % (suspect.tempfile if suspect.tempfile else "(not available)"))
+                    suspect.tempfile = None
+                    self.tracktime("Remove-tempfile")
+                except OSError:
+                    self.logger.warning(message_prefix+u'Could not remove tempfile %s' % suspect.tempfile)
+            except KeyboardInterrupt:
+                sys.exit(0)
+            except ValueError as e:
+                # Error in envelope send/receive address
+                try:
+                    self.logger.warning(message_prefix+u"Invalid send/receive address -> %s" % force_uString(e))
+                except Exception:
+                    pass
+
+                try:
+                    address_compliance_fail_action = self.config.get('main','address_compliance_fail_action').lower()
+                except Exception:
+                    address_compliance_fail_action = "defer"
+
+                try:
+                    message = self.config.get('main','address_compliance_fail_message')
+                except Exception:
+                    message = "invalid sender or recipient address"
+
+                if address_compliance_fail_action   == "defer":
+                    self._defer(message)
+                elif address_compliance_fail_action == "reject":
+                    self._reject(message)
+                elif address_compliance_fail_action == "discard":
+                    self._discard(message)
                 else:
-                    self.logger.warning('Keep tempfile %s for failed message' % suspect.tempfile)
+                    self._defer(message)
 
-            # try to remove the suspect
-            try:
-                self.logger.debug('Remove suspect (current refs): %u' % sys.getrefcount(suspect))
-                suspectid = suspect.id
-                del suspect
             except Exception as e:
-                suspectid = "unknown"
-                pass
+                exc = traceback.format_exc()
+                self.logger.error('Exception %s: %s' % (e, exc))
+                self._defer()
+                # don't continue, might end in an infinite loop
+                keep_connection = False
 
-            # ---------------#
-            # report timings #
-            # ---------------#
-            self.report_timings(suspectid)
+            finally:
+                # finally is also executed if there's a return statement somewhere in try-except
 
+                try:
+                    remove_tmpfiles_on_error = self.config.getboolean('main', 'remove_tmpfiles_on_error')
+                except Exception:
+                    remove_tmpfiles_on_error = True
 
-        self.logger.debug('Session finished')
+                if suspect is None:
+                    # if there was an error creating the suspect, check if the filename can be
+                    # extracted from the protohandler
+                    tmpfilename = self.protohandler.get_tmpfile()
+                    if tmpfilename is None:
+                        tmpfilename = ""
+
+                    if remove_tmpfiles_on_error:
+                        if tmpfilename:
+                            self.logger.debug(message_prefix+u'Remove tmpfile: %s for failed message' % tmpfilename)
+                        self.protohandler.remove_tmpfile()
+                    else:
+                        if tmpfilename:
+                            self.logger.warning(message_prefix+u'Keep tmpfile: %s for failed message' % tmpfilename)
+                        else:
+                            self.logger.warning(message_prefix+u'No tmpfile to keep for failed message')
+
+                elif suspect.tempfile is not None:
+                    # suspect was created but not stopped cleanly
+                    if remove_tmpfiles_on_error:
+                        try:
+                            os.remove(suspect.tempfile)
+                            self.logger.debug(message_prefix+u'Removed tempfile %s' % suspect.tempfile)
+                        except OSError:
+                            self.logger.warning(message_prefix+u'Could not remove tempfile %s' % suspect.tempfile)
+                    else:
+                        self.logger.warning(message_prefix+u'Keep tempfile %s for failed message' % suspect.tempfile)
+
+                # try to remove the suspect
+                try:
+                    self.logger.debug(message_prefix+u'Remove suspect (current refs): %u' % sys.getrefcount(suspect))
+                    suspectid = suspect.id
+                    del suspect
+                except Exception as e:
+                    suspectid = "unknown"
+                    pass
+
+                # ---------------#
+                # report timings #
+                # ---------------#
+                if not suspectid == "unknown":
+                    self.report_timings(suspectid)
+
+                if keep_connection:
+                    try:
+                        keep_connection = self.protohandler.keep_connection
+                    except AttributeError:
+                        keep_connection = False
+
+                self.logger.debug(message_prefix+u'Session finished')
+
+        if isuspect > 2:
+            self.logger.info(message_prefix+u'Session finished for %u sessions in same connection' % (isuspect-1))
 
 
     def _discard(self, message=None):

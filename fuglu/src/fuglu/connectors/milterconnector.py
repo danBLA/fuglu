@@ -46,6 +46,10 @@ class MilterHandler(ProtocolHandler):
 
     def __init__(self, sock, config):
         ProtocolHandler.__init__(self, sock, config)
+
+        # Milter can keep the connection and handle several suspect in one session
+        self.keep_connection = True
+
         if not LIMBMILTER_AVAILABLE:
             raise ImportError("libmilter not available, not possible to use MilterHandler")
 
@@ -202,6 +206,13 @@ class MilterHandler(ProtocolHandler):
             pass
         self.sess = None
 
+    def continuesession(self):
+        """Close session"""
+        try:
+            self.sess._exit_incomingmail = False
+        except Exception:
+            pass
+
     def remove_recipients(self):
         """
         Remove all the original envelope recipients
@@ -231,7 +242,7 @@ class MilterHandler(ProtocolHandler):
         """
         if self.enable_mode_readonly:
             self.sess.send(lm.CONTINUE)
-            self.endsession()
+            self.continuesession()
             return
 
         if self.replace_demo:
@@ -359,7 +370,7 @@ class MilterHandler(ProtocolHandler):
             self.replacebody(msg_string[msg_string.find("\n\n")+len("\n\n"):])
 
         self.sess.send(lm.CONTINUE)
-        self.endsession()
+        self.continuesession()
 
     @staticmethod
     def replacement_mail(from_address, to_address):
@@ -422,7 +433,7 @@ class MilterHandler(ProtocolHandler):
             self.sess.setReply(450, "", reason)
 
         self.logger.debug("defer message, reason: %s" % reason)
-        self.endsession()
+        self.continuesession()
 
     def reject(self, reason):
         """
@@ -436,7 +447,7 @@ class MilterHandler(ProtocolHandler):
             self.sess.setReply(550, "", reason)
 
         self.logger.debug("reject message, reason: %s" % reason)
-        self.endsession()
+        self.continuesession()
 
     def discard(self, reason):
         """
@@ -446,7 +457,7 @@ class MilterHandler(ProtocolHandler):
         """
         self.sess.send(lm.DISCARD)
         self.logger.debug("discard message, reason: %s" % reason)
-        self.endsession()
+        self.continuesession()
 
 
 class MilterSession(lm.MilterProtocol):
@@ -687,9 +698,9 @@ class MilterSession(lm.MilterProtocol):
             pass
 
     def abort(self):
-        self.log('Abort has been called')
         self.logger.debug('Abort has been called')
         self.recipients = []
+        self.original_headers = []
         self.tempfile = None
         if self.tempfilename and os.path.exists(self.tempfilename):
             try:
