@@ -34,6 +34,58 @@ def usage():
     threadlist: show current status of ALL threads (core + workers)
     exceptionlist: last 10 exception tracebacks
     netconsole [<port> [<bind address>]] : start a python interactive shell on a network socket
+    
+    ----    
+    Object graph memory options (needs objgraph module > 3.3):
+    ----    
+    
+    objgraph_growth [dict in json format] : new objects since last call
+        dict parameters: nresults, dont_startwith, must_startwith, cont_contain, must_contain
+        example: objgraph_growth '{"must_contain": ["fuglu"], "nresults": 5}'
+        
+    objgraph_common_objects [dict in json format] : most common objects
+        dict parameters: nresults, dont_startwith, must_startwith, cont_contain, must_contain
+        example: objgraph_common_objects '{"must_contain": ["fuglu"], "nresults": 5}'
+        
+    objgraph_count_types [dict in json format] : count objects in memory given by type
+        dict parameters: typelist
+        example: objgraph_count_types '{"typelist":["Worker","Suspect","SessionHandler"]}'
+        
+    objgraph_leaking_objects [dict in json format] : C-level leaking objects
+        dict parameters: nresults, dont_startwith, must_startwith, cont_contain, must_contain
+        example: objgraph_leaking_objects '{"nresults": 5}'
+        
+    objgraph_creategraph_backrefchain '{"typelist": ["SMTPServer"]}'
+        dict parameters: max_depth, filename, selector, typelist
+            * max_depth": length of the chain
+            * filename": output filename (not defined will use objectname)
+            * selector": Which object to pick from available objects "random"/"first"/"last/all"
+            * typelist": list containing object type(s) (CASE SENSITIVE)
+        example: objgraph_creategraph_backrefchain '{"typelist": ["SMTPServer"]}'
+        
+    objgraph_creategraph_backrefs '{"typelist": ["SuspectFilter"]}'
+        dict parameters: max_depth, filename, selector, maxobjects, typelist, lowercase,
+                         dont_startwith, dont_contain, must_startwith, must_contain
+            * max_depth": length of the chain
+            * filename": output filename (not defined will use objectname)
+            * selector": Which object to pick from available objects "random"/"first"/"last/all"
+            * typelist": list containing 1 object type (CASE SENSITIVE)
+        example: fuglu_control objgraph_creategraph_backrefs '{"typelist": ["ControlSession"],"dont_startwith":[],"max_depth":5}'
+        
+    ----    
+    common dict parameters for objgraph:
+    ----    
+    - dict must be surrounded by single quotes 
+    - lists contain strings (quoted with "")
+    - arguments:
+        * nresults : how many results to display
+        * lowercase : use lowercase comparison for filtering
+        * dont_startwith : don't show objects starting with one of the strings in list (object name starts with package)
+        * must_startwith : show objects starting with one of the strings in list (object name starts with package) if not blocked by a dont_*
+        * dont_contain : don't show objects containing one of the strings in list
+        * must_contain : show objects starting with one of the strings in list if not blocked by a dont_*
+        * typelist : a typelist (case sensitive)
+    
     """
 
 optionparser = OptionParser(usage=usage())

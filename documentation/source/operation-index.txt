@@ -60,6 +60,156 @@ The ``fuglu_control`` command offers various options to get real-time informatio
 	[107]: waiting for task
 
 
+**New Python objects created (requires objgraph):**
+
+Display new objects since last call. Works on the main thread.
+Can be filtered. Input parameters can be given as dict in jason format gian as string.
+
+Dict parameters:
+ - nresults : how many results to display
+ - lowercase : use lowercase comparison for filtering
+ - dont_startwith : don't show objects starting with one of the strings in list (object name starts with package)
+ - must_startwith : show objects starting with one of the strings in list (object name starts with package) if not blocked by a dont_*
+ - dont_contain : don't show objects containing one of the strings in list
+ - must_contain : show objects starting with one of the strings in list if not blocked by a dont_*
+Example:
+::
+            $ fuglu_control objgraph_growth '{"must_contain": ["fuglu"], "nresults": 5}'
+
+            --------------
+            Object growth:
+            --------------
+
+            params:
+            * nresults: 5
+            * lowercase: True
+            * dont_startwith:
+            * must_startwith:
+            * dont_contain:
+            * must_contain: fuglu
+
+            fuglu.extensions.filearchives.classproperty        6        +6
+            fuglu.connectors.smtpconnector.SMTPServer          2        +2
+            fuglu.threadpool.Worker                            2        +2
+            fuglu.addrcheck.Default                            1        +1
+            fuglu.addrcheck.Addrcheck                          1        +1
+
+**Most common Python objects in main thread (requires objgraph):**
+Show most common Pyhton objects. Works on the main thread.
+Can be filtered. Input parameters can be given as dict in jason format gian as string.
+
+Dict parameters:
+ - nresults : how many results to display
+ - lowercase : use lowercase comparison for filtering
+ - dont_startwith : don't show objects starting with one of the strings in list (object name starts with package)
+ - must_startwith : show objects starting with one of the strings in list (object name starts with package) if not blocked by a dont_*
+ - dont_contain : don't show objects containing one of the strings in list
+ - must_contain : show objects starting with one of the strings in list if not blocked by a dont_*
+Example:
+::
+            $ fuglu_control objgraph_common_objects '{"must_contain": ["fuglu"], "nresults": 5}'
+
+            ----------------
+            Most common objects:
+            ----------------
+
+            params:
+            * nresults: 5
+            * lowercase: True
+            * dont_startwith:
+            * must_startwith:
+            * dont_contain:
+            * must_contain: fuglu
+
+            fuglu.extensions.filearchives.classproperty : 6
+            fuglu.threadpool.Worker : 2
+            fuglu.extensions.filetype.MIME_types_base : 2
+            fuglu.debug.ControlSession : 2
+            fuglu.connectors.smtpconnector.SMTPServer : 2
+
+**Count Python objects (requires objgraph):**
+Count objects in memory given by type. Works on the main thread.
+
+Dict parameters:
+ - typelist
+Example:
+::
+
+            $ fuglu_control objgraph_count_types '{"typelist":["Worker","Suspect","SessionHandler"]}'
+
+            ---------------
+            Count suspects:
+            ---------------
+
+            params:
+            * typelist: Worker,Suspect,SessionHandler
+
+            Object types found in memory:
+            Worker : 2
+            Suspect : 0
+            SessionHandler : 1
+
+**Create backref chain(s) for given object(s) (requires objgraph, graphviz):**
+Create a graph showing the backref chain for given object types. Works on the main thread.
+
+Dict parameters:
+ - max_depth": length of the chain
+ - filename": output filename (not defined will use objectname)
+ - selector": Which object to pick from available objects "random"/"first"/"last/all"
+ - typelist": list containing object type(s) (CASE SENSITIVE)
+
+Example:
+::
+            $ fuglu_control objgraph_creategraph_backrefchain '{"typelist": ["SMTPServer"]}'
+
+            ---------------------------------
+            Create Graph for backref chain:
+            ---------------------------------
+
+            params:
+            * typelist: SMTPServer
+            * selector: random
+            * filename: /tmp/SMTPServer.png
+
+            Graph for one object of type SMTPServer written to /tmp/SMTPServer.png
+
+**Create backref graphs for given object(s) (requires objgraph, graphviz):**
+
+Show a backref graph for given type list. Works in the main thread only.
+Similar to "objgraph_creategraph_backrefchain" but with bigger output.
+
+Dict params:
+ - max_depth: max depth of graph
+ - filename: output filename (not defined will use objectname)
+ - selector: Which object to pick from available objects "random"/"first"/"last/all"
+ - typelist: list containing 1 object type (CASE SENSITIVE)
+ - lowercase: use lowercase for graph filtering
+ - dont_startwith: exclude nodes in graph starting with string from list
+ - dont_contain: exclude nodes in graph containing string from list
+ - must_startwith: only show nodes starting with string from list
+ - must_contain: only show nodes containing string from list
+
+Example:
+::
+            $ fuglu_control objgraph_creategraph_backrefs '{"typelist": ["ControlSession"],"dont_startwith":[],"max_depth":5}'
+            ---------------------------------
+            Create Graph for backref chain:
+            ---------------------------------
+
+            params:
+            * maxobjects: 20
+            * lowercase: True
+            * dont_startwith:
+            * must_startwith:
+            * dont_contain:
+            * must_contain:
+            * typelist: ControlSession
+            * max_depth: 5
+            * selector: all
+            * filename: /tmp/ControlSession.png
+
+            Graph for one object of type(s) ControlSession written to /tmp/ControlSession.png
+
 Run fuglu_control without arguments to get a list of all supported commands.
 
 Logs

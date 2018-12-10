@@ -21,8 +21,19 @@ import datetime
 import traceback
 import string
 import os
+import weakref
 from fuglu.stringencode import force_bString, force_uString
 
+try:
+    import objgraph
+    OBJGRAPH_EXTENSION_ENABLED = True
+except ImportError:
+    OBJGRAPH_EXTENSION_ENABLED = False
+    # dummy object so we can keep objgraph._long_typename
+    # as default input method in buildfilter
+    class objgraph:
+        _long_typename = None
+        pass
 
 class ControlServer(object):
 
@@ -89,6 +100,7 @@ class ControlServer(object):
         self.logger.info('Control/Info Server running on port %s' % self.port)
         while self.stayalive:
             try:
+                engine = None
                 self.logger.debug('Waiting for connection...')
                 nsd = self._socket.accept()
                 if not self.stayalive:
@@ -105,6 +117,10 @@ class ControlServer(object):
                     fmt = traceback.format_exc()
                     self.logger.error('Exception in serve(): %s' % fmt)
 
+            finally:
+                if engine:
+                    del engine
+
 
 class ControlSession(object):
 
@@ -112,29 +128,48 @@ class ControlSession(object):
         self.controller = controller
         self.socket = socket
         self.commands = {
-            'workerlist': self.workerlist,
-            'threadlist': self.threadlist,
-            'uptime': self.uptime,
-            'stats': self.stats,
-            'exceptionlist': self.exceptionlist,
-            'netconsole': self.netconsole,
+            'workerlist': weakref.ref(self.workerlist),
+            'threadlist': weakref.ref(self.threadlist),
+            'uptime': weakref.ref(self.uptime),
+            'stats': weakref.ref(self.stats),
+            'exceptionlist': weakref.ref(self.exceptionlist),
+            'netconsole': weakref.ref(self.netconsole),
         }
         self.logger = logging.getLogger('fuglu.controlsession')
 
     def handlesession(self):
-        line = force_uString(self.socket.recv(4096)).lower().strip()
+        line = force_uString(self.socket.recv(4096)).strip()
         if line == '':
             self.socket.close()
             return
 
         self.logger.debug('Control Socket command: %s' % line)
-        parts = line.split()
-        answer = self.handle_command(parts[0], parts[1:])
+        if line.startswith("objgraph"):
+            # special handling for objgraph
+            # -> argument is a dict in json format
+            # -> check attributes for commands, don't use list
+            parts = line.split(maxsplit=1)
+            if len(parts) == 2:
+                argsdict = ControlSession.json_string_to_obj(parts[1], ForcedType=dict)
+            else:
+                argsdict = {}
+            self.logger.debug('objgraph_growth: args dict: %s' % argsdict)
+            answer = self.handle_command(parts[0], argsdict, checkattr=True)
+        else:
+            # default handling
+            line = line.lower()
+            parts = line.split()
+            answer = self.handle_command(parts[0], parts[1:])
         self.socket.sendall(force_bString(answer))
         self.socket.close()
 
-    def handle_command(self, command, args):
+    def handle_command(self, command, args, checkattr=False):
         if command not in self.commands:
+            if checkattr:
+                try:
+                    return getattr(self, command)(args)
+                except AttributeError:
+                    pass
             return "ERR no such command: "+str(command)
 
         res = self.commands[command](args)
@@ -223,6 +258,796 @@ Block:\t\t${blockedcount}
         )
         res = renderer.safe_substitute(vrs)
         return res
+
+    def objgraph_count_types(self, args):
+        """
+        This function can be used to display the number of objects for one or several types of objects.
+        For now this works best for fuglu with thread backend.
+
+        Fuglu has to be running as a daemon.
+        "fuglu_control" is used to communicate with the fuglu instance.
+
+        Examples:
+            (1) Count ans sum objects given by a list
+            -----------------------------------------
+
+            $ fuglu_control objgraph_count_types '{"typelist":["Worker","Suspect","SessionHandler"]}'
+
+            ---------------
+            Count suspects:
+            ---------------
+
+            params:
+            * typelist: Worker,Suspect,SessionHandler
+
+            Object types found in memory:
+            Worker : 2
+            Suspect : 0
+            SessionHandler : 1
+
+        """
+        res = u"---------------\n" \
+            + u"Count suspects:\n" \
+            + u"---------------\n\n"
+
+        defaults = {"typelist": ["Suspect", "Mailattachment", "Mailattachment_mgr"]}
+
+        if OBJGRAPH_EXTENSION_ENABLED:
+            if not args:
+                args = {}
+
+            # fill filter lists and other vars from dict
+            res, inputdict = ControlSession.prepare_objectgraph_list_from_dict(args, res, defaults)
+
+            try:
+                res += u"Object types found in memory:\n"
+                for otype in inputdict["typelist"]:
+                    n_otypes = objgraph.count(otype)
+                    res += u"%s : %u\n" % (otype, n_otypes)
+            except Exception as e:
+                res += u"ERROR: %s" % force_uString(e)
+                self.logger.exception(e)
+        else:
+            res += u"please install module 'objgraph'"
+        return res
+
+    def objgraph_leaking_objects(self, args):
+        """
+        This is supposed to count reference counting bugs in C-level,
+        see https://mg.pov.lt/objgraph/#reference-counting-bugs
+
+        Example:
+
+            $ fuglu_control objgraph_leaking_objects '{"nresults": 5}'
+
+            ----------------
+            Leaking objects:
+            ----------------
+
+            params:
+            * nresults: 5
+            * lowercase: True
+            * dont_startwith:
+            * must_startwith:
+            * dont_contain:
+            * must_contain:
+
+            builtins.dict : 797
+            builtins.list : 132
+            builtins.tuple : 28
+            builtins.method : 13
+            builtins.weakref : 12
+        """
+        res = u"----------------\n" \
+            + u"Leaking objects:\n" \
+            + u"----------------\n\n"
+        if OBJGRAPH_EXTENSION_ENABLED:
+            defaults = {"nresults": 20,
+                        "lowercase": True,
+                        "dont_startwith": ["builtins", "_"],
+                        "dont_contain": [],
+                        "must_startwith": [],
+                        "must_contain": []}
+
+            if not args:
+                args = {}
+
+            # fill filter lists and other vars from dict
+            res, inputdict = ControlSession.prepare_objectgraph_list_from_dict(args, res, defaults)
+            roots = None
+            types_list = None
+            finalfilter = None
+            try:
+                roots = objgraph.get_leaking_objects()
+
+                # build filter
+                finalfilter = ControlSession.buildfilter(dont_contain=inputdict["dont_contain"],
+                                                         dont_startwith=inputdict["dont_startwith"],
+                                                         must_contain=inputdict["must_contain"],
+                                                         must_startwith=inputdict["must_startwith"],
+                                                         lowercase=inputdict["lowercase"])
+
+                types_list = objgraph.most_common_types(objects=roots, limit=inputdict["nresults"],
+                                                        shortnames=False, filter=finalfilter)
+                for otype in types_list:
+                    res += u"%s : %u\n" % otype
+            except Exception as e:
+                res += force_uString(e)
+                self.logger.exception(e)
+            finally:
+                if roots:
+                    del roots
+                if types_list:
+                    del types_list
+                if finalfilter:
+                    del finalfilter
+        else:
+            res = u"please install module 'objgraph'"
+        return res
+
+    def objgraph_common_objects(self, args):
+        """
+        This function can be used to display the most common objects for a running fuglu instance which can
+        help finding memory leaks. For now this works best for fuglu with thread backend.
+
+        Fuglu has to be running as a daemon.
+        "fuglu_control" is used to communicate with the fuglu instance.
+
+        Examples:
+            (1) show most common fuglu objects
+            -----------------------------------
+
+            $ fuglu_control objgraph_common_objects '{"must_contain": ["fuglu"], "nresults": 5}'
+
+            ----------------
+            Most common objects:
+            ----------------
+
+            params:
+            * nresults: 5
+            * lowercase: True
+            * dont_startwith:
+            * must_startwith:
+            * dont_contain:
+            * must_contain: fuglu
+
+            fuglu.extensions.filearchives.classproperty : 6
+            fuglu.threadpool.Worker : 2
+            fuglu.extensions.filetype.MIME_types_base : 2
+            fuglu.debug.ControlSession : 2
+            fuglu.connectors.smtpconnector.SMTPServer : 2
+        """
+        res = u"----------------\n" \
+            + u"Most common objects:\n" \
+            + u"----------------\n\n"
+
+        if OBJGRAPH_EXTENSION_ENABLED:
+            defaults = {"nresults": 20,
+                        "lowercase": True,
+                        "dont_startwith": ["builtins", "_"],
+                        "dont_contain": [],
+                        "must_startwith": [],
+                        "must_contain": []}
+
+            if not args:
+                args = {}
+
+            # fill filter lists and other vars from dict
+            res, inputdict = ControlSession.prepare_objectgraph_list_from_dict(args, res, defaults)
+            types_list = None
+            finalfilter = None
+            try:
+                # build filter
+                finalfilter = ControlSession.buildfilter(dont_contain=inputdict["dont_contain"],
+                                                         dont_startwith=inputdict["dont_startwith"],
+                                                         must_contain=inputdict["must_contain"],
+                                                         must_startwith=inputdict["must_startwith"],
+                                                         lowercase=inputdict["lowercase"])
+
+                types_list = objgraph.most_common_types(limit=inputdict["nresults"],
+                                                        shortnames=False,
+                                                        filter=finalfilter)
+                for otype in types_list:
+                    res += u"%s : %u\n" % otype
+            except Exception as e:
+                res += force_uString(e)
+                self.logger.exception(e)
+            finally:
+                if types_list:
+                    del types_list
+                if finalfilter:
+                    del finalfilter
+        else:
+            res = u"please install module 'objgraph'"
+        return res
+
+    def objgraph_growth(self, args):
+        """
+        This function can be used to display the new objects for a running fuglu instance which can
+        help finding memory leaks. For now this works best for fuglu with thread backend.
+
+        Fuglu has to be running as a daemon.
+        "fuglu_control" is used to communicate with the fuglu instance.
+
+        Examples:
+            (1) show fuglu objects after new fuglu start
+            ---------------------------------------------
+
+            $ fuglu_control objgraph_growth '{"must_contain": ["fuglu"], "nresults": 5}'
+
+            --------------
+            Object growth:
+            --------------
+
+            params:
+            * nresults: 5
+            * lowercase: True
+            * dont_startwith:
+            * must_startwith:
+            * dont_contain:
+            * must_contain: fuglu
+
+            fuglu.extensions.filearchives.classproperty        6        +6
+            fuglu.connectors.smtpconnector.SMTPServer          2        +2
+            fuglu.threadpool.Worker                            2        +2
+            fuglu.addrcheck.Default                            1        +1
+            fuglu.addrcheck.Addrcheck                          1        +1
+
+            (2) show new fuglu objects after fuglu processed a message
+            ------------------------------------------------------------
+
+            $ fuglu_control objgraph_growth '{"must_contain": ["fuglu"], "nresults": 5}'
+            --------------
+            Object growth:
+            --------------
+
+            params:
+            * nresults: 5
+            * lowercase: True
+            * dont_startwith:
+            * must_startwith:
+            * dont_contain:
+            * must_contain: fuglu
+
+            fuglu.extensions.filetype.MIME_types_base        2        +1
+            fuglu.plugins.attachment.RulesCache              1        +1
+            fuglu.shared.SuspectFilter                       1        +1
+
+        """
+        res = u"--------------\n" \
+              + u"Object growth:\n" \
+              + u"--------------\n\n"
+
+        if OBJGRAPH_EXTENSION_ENABLED:
+            defaults = {"nresults": 20,
+                        "lowercase": True,
+                        "dont_startwith": ["builtins", "_"],
+                        "dont_contain": [],
+                        "must_startwith": [],
+                        "must_contain": []}
+
+            if not args:
+                args = {}
+
+            # fill filter lists and other vars from dict
+            res, inputdict = ControlSession.prepare_objectgraph_list_from_dict(args, res, defaults)
+
+            finalfilter = None
+            result = None
+            try:
+
+                # build filter
+                finalfilter = ControlSession.buildfilter(dont_contain=inputdict["dont_contain"],
+                                                         dont_startwith=inputdict["dont_startwith"],
+                                                         must_contain=inputdict["must_contain"],
+                                                         must_startwith=inputdict["must_startwith"],
+                                                         lowercase=inputdict["lowercase"])
+
+                result = objgraph.growth(inputdict["nresults"], shortnames=False, filter=finalfilter)
+
+                if result:
+                    width = max(len(name) for name, _, _ in result)
+                    for name, count, delta in result:
+                        res += u'%-*s%9d %+9d\n' % (width, name, count, delta)
+                else:
+                    res += u'no growth captured'
+            except Exception as e:
+                res += force_uString(e)
+                self.logger.exception(e)
+            finally:
+                if finalfilter:
+                    del finalfilter
+                if result:
+                    del result
+        else:
+            res = u"please install module 'objgraph'"
+        return res
+
+    def objgraph_creategraph_backrefchain(self, args):
+        """
+        This function can be used to display what is referencing an object to find why
+        an object is not garbage collected. The output is a graph.
+
+        Requirements: objgraph and graphviz installed
+
+        Fuglu has to be running as a daemon.
+        "fuglu_control" is used to communicate with the fuglu instance.
+
+        Examples:
+
+            $ fuglu_control objgraph_creategraph_backrefchain '{"typelist": ["SMTPServer"]}'
+
+            ---------------------------------
+            Create Graph for backref chain:
+            ---------------------------------
+
+            params:
+            * typelist: SMTPServer
+            * selector: random
+            * filename: /tmp/SMTPServer.png
+
+            Graph for one object of type SMTPServer written to /tmp/SMTPServer.png
+
+            SMTPServer.png:
+
+            #-----------------#
+            # module __main__ #
+            #-----------------#
+                   |
+                   |   __dict__
+                   |
+            #---------------#
+            # dict 61 items #
+            #---------------#
+                   |
+                   |   controller
+                   |
+            #--------------------------------------------------#
+            # MainController <fuglu.core.MainController objet> #
+            #--------------------------------------------------#
+                   |
+                   |   __dict__
+                   |
+            #---------------#
+            # dict 18 items #
+            #---------------#
+                   |
+                   |   servers
+                   |
+            #--------------#
+            # list 4 items #
+            #--------------#
+                   |
+                   |
+                   |
+            #--------------------------------------------------------#
+            # SMTPServer <fuglu.connectors.smtpconnector.SMTPServer> #
+            #--------------------------------------------------------#
+
+        """
+        res = u"---------------------------------\n" \
+              + u"Create Graph for backref chain:\n" \
+              + u"---------------------------------\n\n"
+
+        if OBJGRAPH_EXTENSION_ENABLED:
+            defaults = {"max_depth": 20,
+                        "filename": "",
+                        "selector": "random",
+                        "maxobjects": 1,
+                        "typelist": ["Suspect"],
+                        }
+
+            if not args:
+                args = {}
+
+            # fill filter lists and other vars from dict
+            res, inputdict = ControlSession.prepare_objectgraph_list_from_dict(args, res, defaults)
+            in_chains = None
+            chains = None
+            backrefchain_ids = None
+            all_object_ids = None
+
+            try:
+                if not len(inputdict["typelist"]) > 0 or not inputdict["typelist"]:
+                    res += "Please define at least one type in 'typelist'"
+                    return res
+
+                if not inputdict["filename"]:
+                    res += "Please define a non-empty filename in 'filename' key of input dict or don't define key"
+                    return res
+
+                if inputdict["selector"] not in ["first", "last", "random", "all"]:
+                    res += 'Valid choices for selector are : "first", "last", "random", "all"'
+                    return res
+
+                chains = []
+                all_object_ids = []
+                for otype in inputdict["typelist"]:
+                    olist = objgraph.by_type(otype)
+                    if not olist:
+                        res += u"%s: no objects\n" % otype
+                    else:
+                        if inputdict["selector"] == "all":
+                            examine_objs = olist
+                        elif inputdict["selector"] == "first":
+                            examine_objs = olist[:inputdict["maxobjects"]]
+                        elif inputdict["selector"] == "last":
+                            examine_objs = olist[-inputdict["maxobjects"]:]
+                        else:
+                            import random
+                            if inputdict["maxobjects"] <= 1:
+                                examine_objs = [random.choice(olist)]
+                            else:
+                                examine_objs = random.sample(olist, min(inputdict["maxobjects"], len(olist)))
+
+                        if not examine_objs:
+                            res += 'WARNING: Object to examine is None for %s' % otype
+                            continue
+
+                        for obj in examine_objs:
+                            backrefchain = objgraph.find_backref_chain(obj, objgraph.is_proper_module)
+
+                            if not backrefchain:
+                                res += 'WARNING: Backref chain is empty for %s' % otype
+                                continue
+
+                            chains.append(backrefchain)
+                            backrefchain_ids = [id(x) for x in backrefchain if x]
+                            all_object_ids.extend(backrefchain_ids)
+                            self.logger.debug("chain is: %s" % ",".join([str(i) for i in backrefchain_ids]))
+                            del backrefchain
+                        del examine_objs
+
+                chains = [chain for chain in chains if chain]  # remove empty ones
+
+                class TmpObj(object):
+                    def __init__(self, ids, logger):
+                        self.ids = set(ids)
+                        self.logger = logger
+                        self.logger.debug("allids: %s" % ",".join([str(i) for i in self.ids]))
+                    def __call__(self, x):
+                        out = id(x) in self.ids
+                        return out
+
+                in_chains = TmpObj(all_object_ids, self.logger)
+
+                max_depth = max(map(len, chains)) - 1
+                objgraph.show_backrefs([chain[-1] for chain in chains], max_depth=max_depth,
+                              filter=in_chains, filename=inputdict["filename"])
+
+                res += 'Graph for one object of type(s) %s written to %s' % (",".join(inputdict["typelist"]),
+                                                                             inputdict['filename'])
+
+            except Exception as e:
+                self.logger.exception(e)
+                res += force_uString(e)
+            finally:
+                if in_chains:
+                    del in_chains
+                if chains:
+                    del chains
+                if backrefchain_ids:
+                    del backrefchain_ids
+                if all_object_ids:
+                    del all_object_ids
+        else:
+            res = u"please install module 'objgraph' and 'graphviz'"
+        return res
+
+    def objgraph_creategraph_backrefs(self, args):
+        """
+        This function can be used to display what is referencing an objects eventually explaining why
+        an object is not garbage collected. The output is a graph.
+
+        Requirements: objgraph and graphviz installed
+
+        Fuglu has to be running as a daemon.
+        "fuglu_control" is used to communicate with the fuglu instance.
+
+        Examples:
+
+            $ fuglu_control objgraph_creategraph_backrefs '{"typelist": ["ControlSession"],"dont_startwith":[],"max_depth":5}'
+            ---------------------------------
+            Create Graph for backref chain:
+            ---------------------------------
+
+            params:
+            * maxobjects: 20
+            * lowercase: True
+            * dont_startwith:
+            * must_startwith:
+            * dont_contain:
+            * must_contain:
+            * typelist: ControlSession
+            * max_depth: 5
+            * selector: all
+            * filename: /tmp/ControlSession.png
+
+            Graph for one object of type(s) ControlSession written to /tmp/ControlSession.png
+
+
+        """
+        res = u"---------------------------------\n" \
+              + u"Create Graph for backref chain:\n" \
+              + u"---------------------------------\n\n"
+
+        if OBJGRAPH_EXTENSION_ENABLED:
+            defaults = {"max_depth": 3,
+                        "filename": "",
+                        "selector": "all",
+                        "maxobjects": 20,
+                        "typelist": ["Suspect"],
+                        "lowercase": True,
+                        "dont_startwith": ["_"],
+                        "dont_contain": [],
+                        "must_startwith": [],
+                        "must_contain": []
+                        }
+
+            if not args:
+                args = {}
+
+            # fill filter lists and other vars from dict
+            res, inputdict = ControlSession.prepare_objectgraph_list_from_dict(args, res, defaults)
+
+            finalfilter = None
+            list_objects = None
+
+            try:
+                if not len(inputdict["typelist"]) > 0 or not inputdict["typelist"]:
+                    res += "Please define at least one type in 'typelist'"
+                    return res
+
+                if not inputdict["filename"]:
+                    res += "Please define a non-empty filename in 'filename' key of input dict or don't define key"
+                    return res
+
+                if inputdict["selector"] not in ["first", "last", "random", "all"]:
+                    res += 'Valid choices for selector are : "first", "last", "random", "all"'
+                    return res
+
+                list_objects = []
+                for otype in inputdict["typelist"]:
+                    olist = objgraph.by_type(otype)
+                    if not olist:
+                        res += u"%s: no objects\n" % otype
+                    else:
+                        if inputdict["selector"] == "all":
+                            examine_obj = olist
+                        elif inputdict["selector"] == "first":
+                            examine_obj = olist[:inputdict["maxobjects"]]
+                        elif inputdict["selector"] == "last":
+                            examine_obj = olist[-inputdict["maxobjects"]:]
+                        else:
+                            import random
+                            if inputdict["maxobjects"] <= 1:
+                                examine_obj = [random.choice(olist)]
+                            else:
+                                examine_obj = random.sample(olist, min(inputdict["maxobjects"], len(olist)))
+
+                        list_objects.extend(examine_obj)
+
+                        del examine_obj
+                        del olist
+
+                if not list_objects:
+                    res += 'No objects found -> return'
+                    return res
+
+                # build filter
+                finalfilter = ControlSession.buildfilter(dont_contain=inputdict["dont_contain"],
+                                                         dont_startwith=inputdict["dont_startwith"],
+                                                         must_contain=inputdict["must_contain"],
+                                                         must_startwith=inputdict["must_startwith"],
+                                                         lowercase=inputdict["lowercase"])
+
+                objgraph.show_backrefs(list_objects,
+                                       max_depth=inputdict["max_depth"],
+                                       filter=finalfilter,
+                                       filename=inputdict["filename"],
+                                       refcounts=True,
+                                       shortnames=False)
+
+                res += 'Graph for one object of type(s) %s written to %s' % (",".join(inputdict["typelist"]), inputdict['filename'])
+
+
+            except Exception as e:
+                res += u"Exception: %s" % force_uString(e)
+                self.logger.exception(e)
+            finally:
+                if finalfilter:
+                    del finalfilter
+                if list_objects:
+                    del list_objects
+        else:
+            res = u"please install module 'objgraph' and 'graphviz'"
+        return res
+
+    @staticmethod
+    def prepare_objectgraph_list_from_dict(args, res, defaults):
+
+        keys = [k for k in defaults.keys()]
+        outdict = {}
+
+        res += "params:\n"
+
+        if "nresults" in keys:
+            nresults = int(args.get("nresults", defaults["nresults"]))
+            outdict["nresults"] = nresults
+            res += "* nresults: %u\n" % nresults
+
+        if "maxobjects" in keys:
+            maxobjects = int(args.get("maxobjects", defaults["maxobjects"]))
+            outdict["maxobjects"] = maxobjects
+            res += "* maxobjects: %u\n" % maxobjects
+
+        if "lowercase" in keys:
+            lowercase = args.get("lowercase", defaults["lowercase"])
+            outdict["lowercase"] = lowercase
+            res += "* lowercase: %s\n" % lowercase
+
+        if "dont_startwith" in keys:
+            dont_startwith = ControlSession.preparelist(args, "dont_startwith", defaults["dont_startwith"])
+            outdict["dont_startwith"] = dont_startwith
+            res += "* dont_startwith: %s\n" % ",".join(dont_startwith)
+
+        if "must_startwith" in keys:
+            must_startwith = ControlSession.preparelist(args, "must_startwith", defaults["must_startwith"])
+            outdict["must_startwith"] = must_startwith
+            res += "* must_startwith: %s\n" % ",".join(must_startwith)
+
+        if "dont_contain" in keys:
+            dont_contain = ControlSession.preparelist(args, "dont_contain", defaults["dont_contain"])
+            outdict["dont_contain"] = dont_contain
+            res += "* dont_contain: %s\n" % ",".join(dont_contain)
+
+        if "must_contain" in keys:
+            must_contain = ControlSession.preparelist(args, "must_contain", defaults["must_contain"])
+            outdict["must_contain"] = must_contain
+            res += "* must_contain: %s\n" % ",".join(must_contain)
+
+        if "typelist" in keys:
+            typelist = ControlSession.preparelist(args, "typelist", defaults["typelist"])
+            outdict["typelist"] = typelist
+            res += "* typelist: %s\n" % ",".join(typelist)
+
+        if "max_depth" in keys:
+            maxdepth = int(args.get("max_depth", defaults["max_depth"]))
+            outdict["max_depth"] = maxdepth
+            res += "* max_depth: %u\n" % maxdepth
+
+        if "selector" in keys:
+            selector = force_uString(args.get("selector", defaults["selector"]))
+            outdict["selector"] = selector
+            res += "* selector: %s\n" % selector
+
+        if "filename" in keys:
+            filename = force_uString(args.get("filename", defaults["filename"]))
+            if not filename and len(outdict.get("typelist", [])) > 0:
+                filename = os.path.join("/tmp", ".".join(outdict["typelist"])+".png")
+
+            outdict["filename"] = filename
+            res += "* filename: %s\n" % filename
+
+        res += "\n"
+
+        return res, outdict
+
+    @staticmethod
+    def json_string_to_obj(jsonstring, ForcedType=None):
+        import json
+        pyobject = None
+        if jsonstring:
+            pyobject = json.loads(jsonstring)
+        if ForcedType is not None:
+            if not isinstance(pyobject,ForcedType):
+                pyobject = ForcedType()
+        return pyobject
+
+    @staticmethod
+    def preparelist(argsdict, key, default):
+        """
+        Prepare lists as received in arguments dict for objgraph functions.
+        Make sure type is list and it contains strings.
+
+        Args:
+            argsdict (dict): arguments dict
+            key (str): key in the argsdict dictionary
+            default (list): list containing default element
+
+        Returns:
+            list
+
+        """
+
+        # force_uString will convert each element of the list ..
+        newlist = force_uString(argsdict.get(key, default))
+        # ... unless the input is not a list. However force_uString
+        # will create a uniocode string in this case. Pack it into a list.
+        if not isinstance(newlist, list):
+            newlist = [newlist]
+
+        return newlist
+
+    @staticmethod
+    def buildfilter(input_to_string=objgraph._long_typename, dont_startwith=[],
+                    must_startwith=[], dont_contain=[], must_contain=[], lowercase=True):
+        """
+        Build a filter that can be passed to the obgraph filter keyword
+
+        Args:
+            input_to_string (function): function to convert the filter input to a string
+            dont_startwith (list): list of strings, none of them is allowed to appear at the beginning of the line
+            must_startwith (list): list of strings, one of them must appear at the beginning of the line
+            dont_contain (list): list of strings, none of them is allowed to appear in the line
+            must_contain (list): list of strings, one of them has to appear in the line
+            lowercase (bool): user lowercase comparison
+
+        Returns:
+            function
+        """
+
+        # build filter
+        filters = []
+        for dsw in dont_startwith:
+            # dsw=dsw sets the value in the lambda to what is the current
+            # value, otherwise it will use the last value from the scope
+            if lowercase:
+                filters.append(lambda o, dsw=dsw: not o.lower().startswith(dsw.lower()))
+            else:
+                filters.append(lambda o, dsw=dsw: not o.startswith(dsw))
+
+        if must_startwith:
+            # use a help class to combine the filters
+            # - we can't create a lambda using a set of lambda's because
+            #   the "any_filter" list is mutable
+            class TmpConstruct(object):
+
+                def __init__(self, must_startwith):
+                    self.any_filter = []
+                    for msw in must_startwith:
+                        # msw=msw sets the value in the lambda to what is the current
+                        # value, otherwise it will use the last value from the scope
+                        if lowercase:
+                            self.any_filter.append(lambda o, msw=msw: o.lower().startswith(msw.lower()))
+                        else:
+                            self.any_filter.append(lambda o, msw=msw: o.startswith(msw))
+
+                def __call__(self, o):
+                    return any(x(o) for x in self.any_filter)
+
+            filters.append(TmpConstruct(must_startwith))
+
+        for dcn in dont_contain:
+            # dcn=dcn sets the value in the lambda to what is the current
+            # value, otherwise it will use the last value from the scope
+            if lowercase:
+                filters.append(lambda o, dcn=dcn: dcn.lower() not in o.lower())
+            else:
+                filters.append(lambda o, dcn=dcn: dcn not in o)
+
+        if must_contain:
+            # use a help class to combine the filters
+            class TmpConstruct(object):
+
+                def __init__(self, must_contain):
+                    self.any_filter = []
+                    for mcn in must_contain:
+                        # mcn=mcn sets the value in the lambda to what is the current
+                        # value, otherwise it will use the last value from the scope
+                        if lowercase:
+                            self.any_filter.append(lambda o: mcn.lower() in o.lower())
+                        else:
+                            self.any_filter.append(lambda o: mcn in o)
+
+                def __call__(self, o):
+                    return any(x(o) for x in self.any_filter)
+
+            filters.append(TmpConstruct(must_contain))
+
+        finalfilter = lambda o: all(x(input_to_string(o)) for x in filters)
+
+        return finalfilter
 
 
 class CrashStore(object):
