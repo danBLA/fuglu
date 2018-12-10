@@ -128,12 +128,12 @@ class ControlSession(object):
         self.controller = controller
         self.socket = socket
         self.commands = {
-            'workerlist': weakref.ref(self.workerlist),
-            'threadlist': weakref.ref(self.threadlist),
-            'uptime': weakref.ref(self.uptime),
-            'stats': weakref.ref(self.stats),
-            'exceptionlist': weakref.ref(self.exceptionlist),
-            'netconsole': weakref.ref(self.netconsole),
+            'workerlist': weakref.WeakMethod(self.workerlist),
+            'threadlist': weakref.WeakMethod(self.threadlist),
+            'uptime': weakref.WeakMethod(self.uptime),
+            'stats': weakref.WeakMethod(self.stats),
+            'exceptionlist': weakref.WeakMethod(self.exceptionlist),
+            'netconsole': weakref.WeakMethod(self.netconsole),
         }
         self.logger = logging.getLogger('fuglu.controlsession')
 
@@ -172,7 +172,7 @@ class ControlSession(object):
                     pass
             return "ERR no such command: "+str(command)
 
-        res = self.commands[command](args)
+        res = self.commands[command]()(args)
         return res
 
     def netconsole(self, args):
