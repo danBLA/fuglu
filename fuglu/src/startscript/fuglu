@@ -25,7 +25,7 @@ try:
 except ImportError:
     import ConfigParser as configparser
 
-from fuglu import FUGLU_VERSION
+from fuglu import __version__ as FUGLU_VERSION
 from fuglu.daemon import DaemonStuff
 import logging
 import logging.config

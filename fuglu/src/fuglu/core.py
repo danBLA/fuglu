@@ -15,35 +15,37 @@
 
 from __future__ import print_function
 
+import code
+import datetime
+import inspect
+import logging
+import multiprocessing
 import os
 import re
+import socket
 import sys
+import threading
+import time
+import traceback
+
+import fuglu.procpool
+from fuglu import __version__ as FUGLU_VERSION
+from fuglu.connectors.esmtpconnector import ESMTPServer
+from fuglu.connectors.milterconnector import MilterServer
+from fuglu.connectors.ncconnector import NCServer
+from fuglu.connectors.smtpconnector import SMTPServer
+from fuglu.debug import ControlServer, CrashStore
+from fuglu.funkyconsole import FunkyConsole
+from fuglu.shared import (BS_VERSION, HAVE_BEAUTIFULSOUP, Suspect,
+                          default_template_values)
+from fuglu.stats import StatsThread
+from fuglu.stringencode import force_bString, force_uString
+from fuglu.threadpool import ThreadPool
 
 try:
     import configparser
 except ImportError:
     import ConfigParser as configparser
-import datetime
-import logging
-import threading
-from fuglu.threadpool import ThreadPool
-import fuglu.procpool
-import inspect
-import traceback
-import time
-import code
-import socket
-import multiprocessing
-from fuglu.shared import default_template_values, Suspect, HAVE_BEAUTIFULSOUP, BS_VERSION
-from fuglu.connectors.smtpconnector import SMTPServer
-from fuglu.connectors.milterconnector import MilterServer
-from fuglu.connectors.ncconnector import NCServer
-from fuglu.connectors.esmtpconnector import ESMTPServer
-from fuglu.stringencode import force_uString, force_bString
-from fuglu.stats import StatsThread
-from fuglu.debug import ControlServer, CrashStore
-from fuglu import FUGLU_VERSION
-from fuglu.funkyconsole import FunkyConsole
 
 
 #--------------------#
@@ -57,13 +59,16 @@ EXIT_FATAL = 66
 # counting errors in the setup
 
 def check_version_status(lint=False):
+    import pkg_resources
     """Check our version string in DNS for known issues and warn about them
 
     the lookup should be <7 chars of commitid>.<patch>.<minor>.<major>.versioncheck.fuglu.org
     in case of a release version, use 'release' instead of commit id
 
-    eg, the lookup for 0.6.3 would be:
-    release.3.6.0.versioncheck.fuglu.org
+    lookup examples:
+    - 0.9.1 -> 0.release.1.9.0.versioncheck.fuglu.org
+    - 0.9.1rc5 -> 5.rc.1.9.0.versioncheck.fuglu.org
+    - 0.9.1.dev20181204183236 -> 20181204183236.dev.1.9.0.versioncheck.fuglu.org
 
     DNS will return NXDOMAIN or 127.0.0.<bitmask>
     2: generic non security related issue
@@ -76,16 +81,36 @@ def check_version_status(lint=False):
         8: "there is a known high-risk security issue with this version - upgrade as soon as possible!",
     }
 
-    m = re.match(
-        r'^(?P<major>\d{1,4})\.(?P<minor>\d{1,4})\.(?P<patch>\d{1,4})(?:\-(?P<commitno>\d{1,4})\-g(?P<commitid>[a-f0-9]{7}))?$', FUGLU_VERSION)
-    if m is None:
-        logging.warn("could not parse my version string %s" % FUGLU_VERSION)
-        return
-    parts = m.groupdict()
-    if 'commitid' not in parts or parts['commitid'] is None:
-        parts['commitid'] = 'release'
+    version_obj = pkg_resources.parse_version(FUGLU_VERSION)._version
 
-    lookup = "{commitid}.{patch}.{minor}.{major}.versioncheck.fuglu.org".format(**parts)
+    if not isinstance(version_obj, pkg_resources.extern.packaging.version._Version):
+        logging.warn("Version string %s could not be parsed to pkg_resources version object", FUGLU_VERSION)
+        return
+
+    (major, minor, micro) = version_obj.release
+    (stage_str, stage_id) = ('release', 0)
+
+    if version_obj.dev:
+        stage_str = version_obj.dev[0]
+        stage_id = version_obj.dev[1]
+    
+    if version_obj.pre:
+        stage_str = version_obj.pre[0]
+        stage_id = version_obj.pre[1]
+
+    if version_obj.post:
+        stage_str = version_obj.post[0]
+        stage_id = version_obj.post[1]
+
+    parts = {
+        'major': major,
+        'minor': minor,
+        'micro': micro,
+        'stage_str': stage_str,
+        'stage_id': stage_id
+    }
+
+    lookup = "{stage_id}.{stage_str}.{micro}.{minor}.{major}.versioncheck.fuglu.org".format(**parts)
     result = None
     try:
         result = socket.gethostbyname(lookup)
@@ -1183,4 +1208,3 @@ class MainController(object):
                 raise Exception('Cannot set Config Section %s : Plugin %s does not support config override' % (
                     configsection, mod))
         return plugininstance
-

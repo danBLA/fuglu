@@ -13,9 +13,9 @@
 # limitations under the License.
 #
 #
-__all__ = ['bounce', 'core', 'daemon', 'debug', 'funkyconsole',
-           'stringencode.py', 'loghandlers', 'logtools', 'procpool',
-           'protocolbase', 'scansession', 'shared', 'stats', 'threadpool',
-           'caching', 'mailattach']
+from fuglu.utils.version import get_version
 
-FUGLU_VERSION = "0.9.0"
+
+FUGLU_VERSION = (0, 9, 1, 'rc', 0)
+
+__version__ = get_version()
