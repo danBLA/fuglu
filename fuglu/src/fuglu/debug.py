@@ -746,6 +746,25 @@ Block:\t\t${blockedcount}
 
         Examples:
 
+            $ fuglu_control objgraph_creategraph_backrefs '{"typelist": ["ControlSession"],"dont_startwith":[],"max_depth":5}'
+            ---------------------------------
+            Create Graph for backref chain:
+            ---------------------------------
+
+            params:
+            * maxobjects: 20
+            * lowercase: True
+            * dont_startwith:
+            * must_startwith:
+            * dont_contain:
+            * must_contain:
+            * typelist: ControlSession
+            * max_depth: 5
+            * selector: all
+            * filename: /tmp/ControlSession.png
+
+            Graph for one object of type(s) ControlSession written to /tmp/ControlSession.png
+
 
         """
         res = u"---------------------------------\n" \

@@ -57,13 +57,20 @@ def usage():
         
     objgraph_creategraph_backrefchain '{"typelist": ["SMTPServer"]}'
         dict parameters: max_depth, filename, selector, typelist
-            * max_depth": 20,
+            * max_depth": length of the chain
             * filename": output filename (not defined will use objectname)
-            * selector": Which object to pick from available objects "random"/"first"/"last"
-            * typelist": list containing 1 object type
+            * selector": Which object to pick from available objects "random"/"first"/"last/all"
+            * typelist": list containing object type(s) (CASE SENSITIVE)
         example: objgraph_creategraph_backrefchain '{"typelist": ["SMTPServer"]}'
         
     objgraph_creategraph_backrefs '{"typelist": ["SuspectFilter"]}'
+        dict parameters: max_depth, filename, selector, maxobjects, typelist, lowercase,
+                         dont_startwith, dont_contain, must_startwith, must_contain
+            * max_depth": length of the chain
+            * filename": output filename (not defined will use objectname)
+            * selector": Which object to pick from available objects "random"/"first"/"last/all"
+            * typelist": list containing 1 object type (CASE SENSITIVE)
+        example: fuglu_control objgraph_creategraph_backrefs '{"typelist": ["ControlSession"],"dont_startwith":[],"max_depth":5}'
         
     ----    
     common dict parameters for objgraph:
