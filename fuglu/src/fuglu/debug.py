@@ -144,22 +144,29 @@ class ControlSession(object):
             return
 
         self.logger.debug('Control Socket command: %s' % line)
-        if line.startswith("objgraph"):
-            # special handling for objgraph
-            # -> argument is a dict in json format
-            # -> check attributes for commands, don't use list
-            parts = line.split(maxsplit=1)
-            if len(parts) == 2:
-                argsdict = ControlSession.json_string_to_obj(parts[1], ForcedType=dict)
+        answer = None
+        try:
+            if line.startswith("objgraph"):
+                # special handling for objgraph
+                # -> argument is a dict in json format
+                # -> check attributes for commands, don't use list
+                parts = line.split(maxsplit=1)
+                if len(parts) == 2:
+                    argsdict = ControlSession.json_string_to_obj(parts[1], ForcedType=dict)
+                else:
+                    argsdict = {}
+                self.logger.debug('objgraph_growth: args dict: %s' % argsdict)
+                answer = self.handle_command(parts[0], argsdict, checkattr=True)
             else:
-                argsdict = {}
-            self.logger.debug('objgraph_growth: args dict: %s' % argsdict)
-            answer = self.handle_command(parts[0], argsdict, checkattr=True)
-        else:
-            # default handling
-            line = line.lower()
-            parts = line.split()
-            answer = self.handle_command(parts[0], parts[1:])
+                # default handling
+                line = line.lower()
+                parts = line.split()
+                answer = self.handle_command(parts[0], parts[1:])
+        except Exception as e:
+            if not answer:
+                answer = force_uString(e)
+            else:
+                answer += force_uString(e)
         self.socket.sendall(force_bString(answer))
         self.socket.close()
 
