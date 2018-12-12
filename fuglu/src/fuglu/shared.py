@@ -732,10 +732,11 @@ class Suspect(object):
         return self.get_source(maxbytes)
 
     def set_source(self, source, encoding='utf-8', att_mgr_reset=True):
-        """
-        Store message source. This might be modified by plugins later on...
+        """ Store message source. This might be modified by plugins later on...
+        
         Args:
             source (bytes,str,unicode): new message source
+
         Keyword Args:
             encoding (str): encoding, default is utf-8
             att_mgr_reset (bool): Reset the attachment manager
@@ -1626,13 +1627,13 @@ class FileList(object):
 
         if filename is not None:
             self._reload_if_necessary()
-            
-    
+
+
     @property
     def filename(self):
         return self._filename
-    
-    
+
+
     @filename.setter
     def filename(self, value):
         if self._filename != value:
@@ -1642,8 +1643,8 @@ class FileList(object):
             else:
                 self.content = []
                 self._lastreload = 0
-    
-    
+
+
     def _reload_if_necessary(self):
         """Calls _reload if the file has been changed since the last reload"""
         now = time.time()
@@ -1659,8 +1660,8 @@ class FileList(object):
         finally:
             self.lock.release()
         return True
-    
-    
+
+
     def _reload(self):
         """Reload the file and build the list"""
         self.logger.info('Reloading file %s' % self.filename)
@@ -1681,8 +1682,8 @@ class FileList(object):
                 newcontent.append(line)
 
         self.content = newcontent
-    
-    
+
+
     def file_changed(self):
         """Return True if the file has changed on disks since the last reload"""
         if not os.path.isfile(self.filename):
@@ -1692,8 +1693,8 @@ class FileList(object):
         if ctime > self._lastreload:
             return True
         return False
-    
-    
+
+
     def get_list(self):
         """Returns the current list. If the file has been changed since the last call, it will rebuild the list automatically."""
         if self.filename is not None:
@@ -1867,4 +1868,3 @@ def create_filehash(fnamelst, hashtype, ashexstr=False):
     return [(fname, hash_bytestr_iter(file_as_blockiter(open(fname, 'rb')),
                                       available_hashers[hashtype](), ashexstr=ashexstr))
             for fname in fnamelst]
-
