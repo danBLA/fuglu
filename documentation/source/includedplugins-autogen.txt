@@ -37,8 +37,8 @@ Configuration
     #reject message template if running in pre-queue mode
     rejectmessage=message identified as spam
 
-    #enable scanning of messages larger than maxsize. all attachments will be stripped and only headers, plaintext and html part will be scanned. If message is still oversize it will be truncated. Also enable forwardoriginal or truncated version of large messages will be forwarded
-    strip_oversize=0
+    #enable scanning of messages larger than maxsize. all attachments will be stripped and only headers, plaintext and html part will be scanned. If message is still oversize it will be truncated.
+    strip_oversize=1
 
     #forward the original message or replace the content as returned by spamassassin
     #if this is set to True/1/Yes , no spamassassin headers will be visible in the final message.
@@ -50,8 +50,8 @@ Configuration
     #requires the sql extension to be enabled
     check_sql_blacklist=0
 
-    #sqlalchemy db connect string
-    sql_blacklist_dbconnectstring=mysql:///localhost/spamassassin
+    #tells fuglu what spamassassin prepends to its headers. Set this according to your spamassassin config especially if you forwardoriginal=0 and strip_oversize=1
+    spamheader_prepend=X-Spam-
 
     #SQL query to get the blacklist entries for a suspect
     #you may use template variables: ${from_address} ${from_domain} ${to_address} ${to_domain}
@@ -71,6 +71,9 @@ Configuration
 
     #what should we do with high spam (spam score above highspamlevel)
     highspamaction=DEFAULTHIGHSPAMACTION
+
+    #sqlalchemy db connect string
+    sql_blacklist_dbconnectstring=mysql:///localhost/spamassassin
 
     #how long should we wait for an answer from sa
     timeout=30
@@ -283,12 +286,14 @@ Configuration
 ::
 
     [FiletypePlugin]
-    #inform the sender about blocked attachments.
-    #If a previous plugin tagged the message as spam or infected, no bounce will be sent to prevent backscatter
-    sendbounce=1
+    #Mail template for the bounce to inform sender about blocked attachment
+    template_blockedfile=/etc/fuglu/templates/blockedfile.tmpl
 
     #comma separated list of archive extensions. do only process archives of given types.
     enabledarchivetypes=
+
+    #recursive extraction level for archives. Undefined or negative value means extract until it's not an archive anymore
+    archiveextractlevel=1
 
     #sqlalchemy connectstring to load rules from a database and use files only as fallback. requires SQL extension to be enabled
     dbconnectstring=
@@ -297,11 +302,15 @@ Configuration
     #:check will be replaced 'filename','contenttype','archive-filename' or 'archive-contenttype'
     query=SELECT action,regex,description FROM attachmentrules WHERE scope=:scope AND checktype=:checktype ORDER BY prio
 
-    #Mail template for the bounce to inform sender about blocked attachment
-    template_blockedfile=/etc/fuglu/templates/blockedfile.tmpl
-
     #directory that contains attachment rules
     rulesdir=/etc/fuglu/rules
+
+    #only extract and examine files up to this amount of (uncompressed) bytes
+    archivecontentmaxsize=5000000
+
+    #inform the sender about blocked attachments.
+    #If a previous plugin tagged the message as spam or infected, no bounce will be sent to prevent backscatter
+    sendbounce=1
 
     #enable scanning of filenames within archives (zip,rar). This does not actually extract the files, it just looks at the filenames found in the archive.
     checkarchivenames=0
@@ -316,9 +325,6 @@ Configuration
     #note that the files will be extracted into memory - tune archivecontentmaxsize  accordingly.
     #fuglu does not extract archives within the archive(recursion)
     checkarchivecontent=0
-
-    #only extract and examine files up to this amount of (uncompressed) bytes
-    archivecontentmaxsize=5000000
 
 
 
@@ -463,8 +469,8 @@ Configuration
 
 
 
-Sophos
-......
+Sophos AV
+.........
 
 Plugin: fuglu.plugins.sssp.SSSPPlugin
 
@@ -541,7 +547,7 @@ Configuration
     #reject message template if running in pre-queue mode and virusaction=REJECT
     rejectmessage=threat detected: ${virusname}
 
-    #if fpscand runs on a different host than fuglu, set this to 1 to send the message over the network instead of just the filename
+    #set to 1 to always send data over network instead of just passing the file name when possible. if fpscand runs on a different host than fuglu, you must set this to 1
     networkmode=0
 
     #network timeout
