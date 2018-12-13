@@ -539,13 +539,17 @@ class Mailattachment(Cachelimits):
            (Archivehandle) : The handle to work with the archive
 
         """
-        # make sure there's not buffered archive object when
+        # make sure there's no buffered archive object when
         # the archive handle is created (or overwritten)
         self._buffer_archobj = {}
-        if self.buffer is None:
-            return None
-        else:
-            return Archivehandle(self.archive_type, BytesIO(self.buffer),archivename=self.filename)
+        handle = None
+        if self.buffer is not None:
+            try:
+                handle = Archivehandle(self.archive_type, BytesIO(self.buffer),archivename=self.filename)
+            except Exception as e:
+                self.logger.error("Problem creating Archivehandle for file: %s using archive handler %s (message: %s) -> ignore" % (self.filename, str(self.archive_type), force_uString(e)))
+
+        return handle
 
     @smart_cached_property(inputs=['archive_handle'])
     def fileslist_archive(self):
