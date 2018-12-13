@@ -72,27 +72,30 @@ Dict parameters:
  - must_startwith : show objects starting with one of the strings in list (object name starts with package) if not blocked by a dont_*
  - dont_contain : don't show objects containing one of the strings in list
  - must_contain : show objects starting with one of the strings in list if not blocked by a dont_*
+
 Example:
+
 ::
-            $ fuglu_control objgraph_growth '{"must_contain": ["fuglu"], "nresults": 5}'
 
-            --------------
-            Object growth:
-            --------------
+  $ fuglu_control objgraph_growth '{"must_contain": ["fuglu"], "nresults": 5}'
 
-            params:
-            * nresults: 5
-            * lowercase: True
-            * dont_startwith:
-            * must_startwith:
-            * dont_contain:
-            * must_contain: fuglu
+  --------------
+  Object growth:
+  --------------
 
-            fuglu.extensions.filearchives.classproperty        6        +6
-            fuglu.connectors.smtpconnector.SMTPServer          2        +2
-            fuglu.threadpool.Worker                            2        +2
-            fuglu.addrcheck.Default                            1        +1
-            fuglu.addrcheck.Addrcheck                          1        +1
+  params:
+  * nresults: 5
+  * lowercase: True
+  * dont_startwith:
+  * must_startwith:
+  * dont_contain:
+  * must_contain: fuglu
+
+  fuglu.extensions.filearchives.classproperty        6        +6
+  fuglu.connectors.smtpconnector.SMTPServer          2        +2
+  fuglu.threadpool.Worker                            2        +2
+  fuglu.addrcheck.Default                            1        +1
+  fuglu.addrcheck.Addrcheck                          1        +1
 
 **Most common Python objects in main thread (requires objgraph):**
 Show most common Pyhton objects. Works on the main thread.
@@ -105,49 +108,54 @@ Dict parameters:
  - must_startwith : show objects starting with one of the strings in list (object name starts with package) if not blocked by a dont_*
  - dont_contain : don't show objects containing one of the strings in list
  - must_contain : show objects starting with one of the strings in list if not blocked by a dont_*
+
 Example:
+
 ::
-            $ fuglu_control objgraph_common_objects '{"must_contain": ["fuglu"], "nresults": 5}'
 
-            ----------------
-            Most common objects:
-            ----------------
+  $ fuglu_control objgraph_common_objects '{"must_contain": ["fuglu"], "nresults": 5}'
 
-            params:
-            * nresults: 5
-            * lowercase: True
-            * dont_startwith:
-            * must_startwith:
-            * dont_contain:
-            * must_contain: fuglu
+  ----------------
+  Most common objects:
+  ----------------
 
-            fuglu.extensions.filearchives.classproperty : 6
-            fuglu.threadpool.Worker : 2
-            fuglu.extensions.filetype.MIME_types_base : 2
-            fuglu.debug.ControlSession : 2
-            fuglu.connectors.smtpconnector.SMTPServer : 2
+  params:
+  * nresults: 5
+  * lowercase: True
+  * dont_startwith:
+  * must_startwith:
+  * dont_contain:
+  * must_contain: fuglu
+
+  fuglu.extensions.filearchives.classproperty : 6
+  fuglu.threadpool.Worker : 2
+  fuglu.extensions.filetype.MIME_types_base : 2
+  fuglu.debug.ControlSession : 2
+  fuglu.connectors.smtpconnector.SMTPServer : 2
 
 **Count Python objects (requires objgraph):**
 Count objects in memory given by type. Works on the main thread.
 
 Dict parameters:
  - typelist
+
 Example:
+
 ::
 
-            $ fuglu_control objgraph_count_types '{"typelist":["Worker","Suspect","SessionHandler"]}'
+  $ fuglu_control objgraph_count_types '{"typelist":["Worker","Suspect","SessionHandler"]}'
 
-            ---------------
-            Count suspects:
-            ---------------
+  ---------------
+  Count suspects:
+  ---------------
 
-            params:
-            * typelist: Worker,Suspect,SessionHandler
+  params:
+  * typelist: Worker,Suspect,SessionHandler
 
-            Object types found in memory:
-            Worker : 2
-            Suspect : 0
-            SessionHandler : 1
+  Object types found in memory:
+  Worker : 2
+  Suspect : 0
+  SessionHandler : 1
 
 **Create backref chain(s) for given object(s) (requires objgraph, graphviz):**
 Create a graph showing the backref chain for given object types. Works on the main thread.
@@ -159,19 +167,21 @@ Dict parameters:
  - typelist": list containing object type(s) (CASE SENSITIVE)
 
 Example:
+
 ::
-            $ fuglu_control objgraph_creategraph_backrefchain '{"typelist": ["SMTPServer"]}'
 
-            ---------------------------------
-            Create Graph for backref chain:
-            ---------------------------------
+  $ fuglu_control objgraph_creategraph_backrefchain '{"typelist": ["SMTPServer"]}'
 
-            params:
-            * typelist: SMTPServer
-            * selector: random
-            * filename: /tmp/SMTPServer.png
+  ---------------------------------
+  Create Graph for backref chain:
+  ---------------------------------
 
-            Graph for one object of type SMTPServer written to /tmp/SMTPServer.png
+  params:
+  * typelist: SMTPServer
+  * selector: random
+  * filename: /tmp/SMTPServer.png
+
+  Graph for one object of type SMTPServer written to /tmp/SMTPServer.png
 
 **Create backref graphs for given object(s) (requires objgraph, graphviz):**
 
@@ -190,25 +200,27 @@ Dict params:
  - must_contain: only show nodes containing string from list
 
 Example:
+
 ::
-            $ fuglu_control objgraph_creategraph_backrefs '{"typelist": ["ControlSession"],"dont_startwith":[],"max_depth":5}'
-            ---------------------------------
-            Create Graph for backref chain:
-            ---------------------------------
 
-            params:
-            * maxobjects: 20
-            * lowercase: True
-            * dont_startwith:
-            * must_startwith:
-            * dont_contain:
-            * must_contain:
-            * typelist: ControlSession
-            * max_depth: 5
-            * selector: all
-            * filename: /tmp/ControlSession.png
+  $ fuglu_control objgraph_creategraph_backrefs '{"typelist": ["ControlSession"],"dont_startwith":[],"max_depth":5}'
+  ---------------------------------
+  Create Graph for backref chain:
+  ---------------------------------
 
-            Graph for one object of type(s) ControlSession written to /tmp/ControlSession.png
+  params:
+  * maxobjects: 20
+  * lowercase: True
+  * dont_startwith:
+  * must_startwith:
+  * dont_contain:
+  * must_contain:
+  * typelist: ControlSession
+  * max_depth: 5
+  * selector: all
+  * filename: /tmp/ControlSession.png
+
+  Graph for one object of type(s) ControlSession written to /tmp/ControlSession.png
 
 Run fuglu_control without arguments to get a list of all supported commands.
 
@@ -509,8 +521,8 @@ In this small example most of the time is overhead (Message-Receive-Suspect).
 .. Note::
     Default example is for writing the timing into a separate file "/var/log/fuglu/timing.log".
     If output is to syslog, make be aware by default there is a limit for log messages, see
-    `link <https://support.asperasoft.com/hc/en-us/articles/216128628-How-to-disable-rsyslog-rate-limiting>`_
-    or `link <https://www.rsyslog.com/tag/rate-limiting/>`_ which might make timing information useless if not
+    `link <https://support.asperasoft.com/hc/en-us/articles/216128628-How-to-disable-rsyslog-rate-limiting>`__
+    or `link <https://www.rsyslog.com/tag/rate-limiting/>`__ which might make timing information useless if not
     disabled.
 
 Example: Fuglu timinig with Postfix
