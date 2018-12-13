@@ -89,7 +89,7 @@ class ThreadPool(threading.Thread):
             self.logger.error("Exception happened trying to add task to queue: %s" % str(e))
             self.logger.exception(e)
 
-    def get_task_sessionhandler(self):
+    def get_task_sessionhandler(self, timeout=None):
         """
         Get task from queue, create a session handler and return it
 
@@ -98,10 +98,16 @@ class ThreadPool(threading.Thread):
 
         """
         if self._stayalive:
-            task = self.tasks.get(True)
+
+            try:
+                task = self.tasks.get(True, timeout)
+            except queue.Empty:
+                task = None
+
             if task is None:
-                # Poison pill
+                # Poison pill or empty queue
                 return None
+
             sock, handler_modulename, handler_classname, port = uncompress_task(task)
             handler_class = getattr(importlib.import_module(handler_modulename), handler_classname)
 
@@ -147,12 +153,12 @@ class ThreadPool(threading.Thread):
             # increase
             workload = float(queuesize) / float(numthreads)
 
-            if workload > 1 and numthreads < self.maxthreads:
+            if workload > 1.0 and numthreads < self.maxthreads:
                 self._add_worker()
                 numthreads += 1
                 changed = True
 
-            if workload < 1 and numthreads > self.minthreads:
+            if workload < 1.0 and numthreads > self.minthreads:
                 self._remove_worker()
                 numthreads -= 1
                 changed = True
@@ -171,10 +177,8 @@ class ThreadPool(threading.Thread):
     def _remove_worker(self, num=1):
         self.logger.debug('Removing %s workerthread(s)' % num)
         for bla in range(0, num):
-            worker = self.workers[0]
+            worker = self.workers.pop(0)
             worker.stayalive = False
-            worker.join(120)
-            del self.workers[0]
 
     def _add_worker(self, num=1):
         self.logger.debug('Adding %s workerthread(s)' % num)
@@ -245,6 +249,7 @@ class Worker(threading.Thread):
         self.noisy = False
         self.setDaemon(False)
         self.workerstate = 'created'
+        self.timeout = 1.0
 
     def __repr__(self):
         return "%s: %s" % (self.workerid, self.workerstate)
@@ -256,11 +261,10 @@ class Worker(threading.Thread):
             self.workerstate = 'waiting for task'
             if self.noisy:
                 self.logger.debug('Getting new task...')
-            sesshandler = self.pool.get_task_sessionhandler()
-            if sesshandler == None:  # poison pill -> shut down
+            sesshandler = self.pool.get_task_sessionhandler(timeout=self.timeout)
+            if sesshandler is None:  # poison pill -> shut down
                 if self.noisy:
-                    self.logger.debug("got a poison pill .. good bye world")
-                self.stayalive = False
+                    self.logger.debug('Got None task... Poison pill? -> %s ' % ("No..." if self.stayalive else "YES!"))
                 continue
 
             if self.noisy:
