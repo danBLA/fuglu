@@ -19,7 +19,7 @@ class BounceEnd2EndTestCase(unittest.TestCase):
     """Full check if mail runs through"""
 
     FUGLU_HOST = "127.0.0.1"
-    DUMMY_PORT = 7712
+    DUMMY_PORT = 7709
 
     def setUp(self):
         self.config = RawConfigParser()
