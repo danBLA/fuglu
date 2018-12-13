@@ -143,6 +143,11 @@ Don't dare you change any of my bytes or even remove one!"""
         smtpclient.quit()
 
         # get answer
+        start_waiting = time.time()
+        max_time_to_wait = 5.0
+        while self.smtp.suspect is None and start_waiting + max_time_to_wait < time.time():
+            time.sleep(0.05)
+
         gotback = self.smtp.suspect
         self.assertFalse(
             gotback == None, "Did not get message from dummy smtp server")
