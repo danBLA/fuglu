@@ -105,10 +105,17 @@ class MilterHandler(ProtocolHandler):
         from_address = sess.get_cleaned_from_address()
         recipients = sess.get_cleaned_recipients()
 
-        # If there's not file 
+        # If there's no file
         temp_filename = sess.tempfilename
         if not temp_filename:
             return None
+
+        # If there is a filename but no file
+        if temp_filename and not os.path.exists(temp_filename):
+            self.logger.warning("File '%s' not found for suspect creation! from: %s, to: %s"
+                                % (temp_filename, str(from_address), str(recipients)))
+            return None
+
         suspect = Suspect(from_address, recipients, temp_filename, att_cachelimit=self._att_mgr_cachesize)
 
         logging.getLogger('fuglu.MilterHandler.queueid').info(
