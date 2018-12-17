@@ -10,28 +10,24 @@ unittests:
   stage: test
   script:
     - cd fuglu
-    - pip2 install --upgrade 'setuptools>=20.2.2'
     - nosetests --rednose tests/unit
 
 isolated:
   stage: test_isolated
   script:
     - cd fuglu
-    - pip install --upgrade 'setuptools>=20.2.2'
     - nosetests --rednose tests/isolated --with-isolation
 
 unittests_py3:
   stage: test
   script:
     - cd fuglu
-    - pip3 install --upgrade 'setuptools>=20.2.2'
     - nosetests-3.4 --rednose tests/unit
 
 isolated_py3:
   stage: test_isolated
   script:
     - cd fuglu
-    - pip3 install --upgrade 'setuptools>=20.2.2'
     - nosetests-3.4 --rednose tests/isolated  --with-isolation
 
 integrationtests:
@@ -39,7 +35,6 @@ integrationtests:
   script:
     - /usr/local/bin/start-services.sh
     - cd fuglu
-    - pip install --upgrade 'setuptools>=20.2.2'
     - nosetests --rednose tests/integration
 
 integrationtests_py3:
@@ -47,7 +42,6 @@ integrationtests_py3:
   script:
     - /usr/local/bin/start-services.sh
     - cd fuglu
-    - pip3 install --upgrade 'setuptools>=20.2.2'
     - nosetests-3.4 --rednose tests/integration
 
 
@@ -57,7 +51,6 @@ buildfuglu:
   stage: build
   script:
     - cd fuglu
-    - pip install --upgrade 'setuptools>=20.2.2'
     - python setup.py build_py -d /tmp/build install --force
     - rename '.dist' '' /etc/fuglu/*.dist
     - mkdir -p /var/log/fuglu
@@ -68,7 +61,6 @@ buildfuglu_py3:
   stage: build
   script:
     - cd fuglu
-    - pip3 install --upgrade 'setuptools>=20.2.2'
     - python3 setup.py build_py -d /tmp/build install --force
     - rename '.dist' '' /etc/fuglu/*.dist
     - mkdir -p /var/log/fuglu

@@ -81,10 +81,22 @@ def check_version_status(lint=False):
         8: "there is a known high-risk security issue with this version - upgrade as soon as possible!",
     }
 
-    version_obj = pkg_resources.parse_version(FUGLU_VERSION)._version
+    try:
+        version_obj = pkg_resources.parse_version(FUGLU_VERSION)._version
+        if not isinstance(version_obj, pkg_resources.extern.packaging.version._Version):
+            version_obj = None
+    except AttributeError:
+        # Older versions of setuptools (< 20.2.2) return a tuple.
+        # Accessing "_version" will raise an attribute error.
+        version_obj = None
+    except Exception as e:
+        # Skip test for other problems...
+        logging.getLogger("fuglu.check_version_status").warning(str(e))
+        version_obj = None
 
-    if not isinstance(version_obj, pkg_resources.extern.packaging.version._Version):
-        logging.warn("Version string %s could not be parsed to pkg_resources version object", FUGLU_VERSION)
+    if version_obj is None:
+        logging.getLogger("fuglu.check_version_status")\
+            .warning("Version string %s could not be parsed to pkg_resources version object", FUGLU_VERSION)
         return
 
     (major, minor, micro) = version_obj.release
