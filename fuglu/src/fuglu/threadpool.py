@@ -28,12 +28,13 @@ from fuglu.scansession import SessionHandler
 
 class ThreadPool(threading.Thread):
 
-    def __init__(self, controller, minthreads=1, maxthreads=20, queuesize=100):
+    def __init__(self, controller, minthreads=1, maxthreads=20, queuesize=100, freeworkers=0):
         self.workers = []
         self.queuesize = queuesize
         self.tasks = queue.Queue(queuesize)
         self.minthreads = minthreads
         self.maxthreads = maxthreads
+        self.freeworkers = freeworkers
         assert self.minthreads > 0
         assert self.maxthreads > self.minthreads
 
@@ -132,7 +133,7 @@ class ThreadPool(threading.Thread):
             numthreads = len(curthreads)
 
             # check the minimum boundary
-            requiredminthreads = self.minthreads
+            requiredminthreads = max(self.minthreads, self.freeworkers)
             if numthreads < requiredminthreads:
                 diff = requiredminthreads - numthreads
                 self._add_worker(diff)
@@ -153,15 +154,33 @@ class ThreadPool(threading.Thread):
             # increase
             workload = float(queuesize) / float(numthreads)
 
-            if workload > 1.0 and numthreads < self.maxthreads:
-                self._add_worker()
-                numthreads += 1
-                changed = True
+            if numthreads < self.maxthreads:
+                if workload > 1.0:
+                    self._add_worker()
+                    numthreads += 1
+                    changed = True
+                elif self.freeworkers > 0:
+                    # try to enforce a minimum of free workers
+                    idle_workers = [worker for worker in self.workers if worker.workerstate == 'waiting for task']
+                    self.logger.debug("length idle workers for adding check_ %u" % len(idle_workers))
+                    if len(idle_workers) < self.freeworkers:
+                        self._add_worker()
+                        numthreads += 1
+                        changed = True
+                    else:
+                        self.logger.debug("not adding worker because free workers already above threshold %u..."
+                                          "(current idle workers: %u)" % (self.freeworkers, len(idle_workers)))
 
             if workload < 1.0 and numthreads > self.minthreads:
-                self._remove_worker()
-                numthreads -= 1
-                changed = True
+                # remove idle workers if possible
+                idle_workers = [worker for worker in self.workers if worker.workerstate == 'waiting for task']
+                if len(idle_workers) > self.freeworkers:
+                    self._remove_worker(elements=[idle_workers[-1]])
+                    numthreads -= 1
+                    changed = True
+                else:
+                    self.logger.debug("not removing worker because free workers left below threshold %u..."
+                                      "(current idle workers: %u)" % (self.freeworkers, len(idle_workers)))
 
             # log current stats
             if changed or time.time() - self.laststats > self.statinverval:
@@ -174,11 +193,22 @@ class ThreadPool(threading.Thread):
 
         self.logger.info('Threadpool shut down')
 
-    def _remove_worker(self, num=1):
+    def _remove_worker(self, num=1, elements=[]):
         self.logger.debug('Removing %s workerthread(s)' % num)
-        for bla in range(0, num):
-            worker = self.workers.pop(0)
-            worker.stayalive = False
+
+        if elements:
+            # remove given list of workers
+            for element in elements:
+                element.stayalive = False
+                try:
+                    self.workers.remove(element)
+                except ValueError:
+                    self.logger.warning("Could not remove worker element from list")
+        else:
+            # remove given number of workers
+            for bla in range(0, num):
+                worker = self.workers.pop(0)
+                worker.stayalive = False
 
     def _add_worker(self, num=1):
         self.logger.debug('Adding %s workerthread(s)' % num)
