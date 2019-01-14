@@ -153,7 +153,7 @@ class logConfig(object):
         not pickle the instance.
         """
         if self._lint or self._foreground:
-            logConfig._configure4screen(self._level)
+            logConfig._configure4screen(self._level, timeinformat=self._foreground)
         elif self._configFile != "none":
             if not os.path.exists(self._configFile):
                 raise FileNotFoundError("Logging config file %s does not exist!" % self._configFile)
@@ -163,7 +163,7 @@ class logConfig(object):
             raise Exception("Not implemented!")
 
     @staticmethod
-    def _configure4screen(outputlevel):
+    def _configure4screen(outputlevel, timeinformat=False):
         """
         Configure for stdout (output is on the screen)
         """
@@ -171,8 +171,11 @@ class logConfig(object):
         root.setLevel(logging.NOTSET)
         console = logging.StreamHandler(sys.stdout)
         console.setLevel(outputlevel)
-        # set a format which is simpler for console use
-        formatter = logging.Formatter('[%(process)-5d] %(name)-25s: %(levelname)-s, %(message)s')
+        if timeinformat:
+            formatter = logging.Formatter('[%(process)-5d] %(asctime)s :  %(name)-25s: %(levelname)-s, %(message)s')
+        else:
+            # set a format which is simpler for console use
+            formatter = logging.Formatter('[%(process)-5d] %(name)-25s: %(levelname)-s, %(message)s')
         # tell the handler to use this format
         console.setFormatter(formatter)
         # add the handler to the root logger
