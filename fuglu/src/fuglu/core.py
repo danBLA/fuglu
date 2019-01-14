@@ -636,7 +636,7 @@ class MainController(object):
             minthreads = self.config.getint('performance', 'minthreads')
             maxthreads = self.config.getint('performance', 'maxthreads')
             minfreethreads = self.config.getint('performance', 'minfreethreads')
-        except configparser.NoSectionError:
+        except (configparser.NoSectionError, configparser.NoOptionError):
             self.logger.warning('Performance section not configured, using default thread numbers')
             minthreads = 1
             maxthreads = 3
@@ -1016,11 +1016,17 @@ class MainController(object):
         print("%s plugins reported errors." % perrors)
 
         if "milter" in self.config.get('main', 'incomingport') \
-                and self.config.get('performance', 'backend') != 'process' \
-                and self.config.getint('performance', 'minfreethreads') < 1:
-            print(fc.strcolor('\nMilter enabled with "thread" backend but "minfreethreads < 1"', 'yellow'))
-            print("To keep milter responsive it is recommended to set minfreethreads >= 1\n"
-                  "to make fuglu more resonsive.\n")
+                and self.config.get('performance', 'backend') != 'process':
+
+            try:
+                minfreethreads = self.config.getint('performance', 'minfreethreads')
+                if minfreethreads < 1:
+                    print(fc.strcolor('\nMilter enabled with "thread" backend but "minfreethreads < 1"', 'yellow'))
+                    print("To keep milter responsive it is recommended to set minfreethreads >= 1\n"
+                          "to make fuglu more resonsive.\n")
+            except (configparser.NoSectionError, configparser.NoOptionError):
+                print(fc.strcolor('\nMilter enabled with "thread" backend but "minfreethreads is not defined!"', 'yellow'))
+                print("To keep fuglu-milter responsive it is recommended to set minfreethreads >= 1\n")
 
         if self.config.getboolean('main', 'versioncheck'):
             check_version_status(lint=True)
