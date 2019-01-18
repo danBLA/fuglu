@@ -356,6 +356,11 @@ class MainController(object):
                 'section': 'performance',
                 'description': 'maximum scanner threads',
             },
+            'minfreethreads': {
+                'default': "0",
+                'section': 'performance',
+                'description': 'minimum free scanner threads',
+            },
             'backend': {
                 'default': "thread",
                 'section': 'performance',
@@ -630,13 +635,17 @@ class MainController(object):
         try:
             minthreads = self.config.getint('performance', 'minthreads')
             maxthreads = self.config.getint('performance', 'maxthreads')
-        except configparser.NoSectionError:
+            minfreethreads = self.config.getint('performance', 'minfreethreads')
+        except (configparser.NoSectionError, configparser.NoOptionError):
             self.logger.warning('Performance section not configured, using default thread numbers')
             minthreads = 1
             maxthreads = 3
+            minfreethreads = 0
 
         queuesize = maxthreads * 10
-        return ThreadPool(self,minthreads, maxthreads, queuesize)
+        return ThreadPool(self,
+                          minthreads=minthreads, maxthreads=maxthreads,
+                          queuesize=queuesize, freeworkers=minfreethreads)
 
     def _start_processpool(self):
         numprocs = self.config.getint('performance','initialprocs')
@@ -781,15 +790,15 @@ class MainController(object):
             if self.threadpool is not None:
                 minthreads = self.config.getint('performance', 'minthreads')
                 maxthreads = self.config.getint('performance', 'maxthreads')
+                minfreethreads = self.config.getint('performance', 'minfreethreads')
 
-                # threadpool changes?
-                if self.threadpool.minthreads != minthreads or self.threadpool.maxthreads != maxthreads:
-                    self.logger.info('Threadpool config changed, initialising new threadpool')
-                    currentthreadpool = self.threadpool
-                    self.threadpool = self._start_threadpool()
-                    currentthreadpool.shutdown(self.threadpool)
-                else:
-                    self.logger.info('Keep existing threadpool')
+                if minthreads > maxthreads:
+                    minthreads, maxthreads = maxthreads, minthreads
+
+                self.threadpool.minthreads = minthreads
+                self.threadpool.maxthreads = maxthreads
+                self.threadpool.minfreethreads = minfreethreads
+                self.logger.info('Keep existing threadpool')
             else:
                 self.logger.info('Create new threadpool')
                 self.threadpool = self._start_threadpool()
@@ -1005,6 +1014,19 @@ class MainController(object):
                 errors += 1
                 print(fc.strcolor("ERROR", "red"))
         print("%s plugins reported errors." % perrors)
+
+        if "milter" in self.config.get('main', 'incomingport') \
+                and self.config.get('performance', 'backend') != 'process':
+
+            try:
+                minfreethreads = self.config.getint('performance', 'minfreethreads')
+                if minfreethreads < 1:
+                    print(fc.strcolor('\nMilter enabled with "thread" backend but "minfreethreads < 1"', 'yellow'))
+                    print("To keep milter responsive it is recommended to set minfreethreads >= 1\n"
+                          "to make fuglu more resonsive.\n")
+            except (configparser.NoSectionError, configparser.NoOptionError):
+                print(fc.strcolor('\nMilter enabled with "thread" backend but "minfreethreads is not defined!"', 'yellow'))
+                print("To keep fuglu-milter responsive it is recommended to set minfreethreads >= 1\n")
 
         if self.config.getboolean('main', 'versioncheck'):
             check_version_status(lint=True)

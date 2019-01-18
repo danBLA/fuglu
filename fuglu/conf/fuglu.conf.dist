@@ -158,6 +158,9 @@ minthreads=2
 #maximum scanner threads
 maxthreads=40
 
+#minimum number of free scanner threads to keep while adjusting number of threads automatically
+minfreethreads=0
+
 #Method for parallelism, either 'thread' or 'process' 
 backend=thread
 
