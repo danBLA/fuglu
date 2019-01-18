@@ -22,12 +22,13 @@ requires: pydns (or alternatively dnspython if only dkim is used)
 requires: pysrs
 """
 
-from fuglu.shared import ScannerPlugin, apply_template, DUNNO, FileList, string_to_actioncode, get_default_cache
+from fuglu.shared import ScannerPlugin, apply_template, DUNNO, FileList, string_to_actioncode, get_default_cache, extract_domain
 from fuglu.extensions.sql import get_session, SQL_EXTENSION_ENABLED
 from fuglu.extensions.dnsquery import DNSQUERY_EXTENSION_ENABLED
 import logging
 import os
 import re
+from email.utils import getaddresses
 
 DKIMPY_AVAILABLE = False
 PYSPF_AVAILABLE = False
@@ -72,7 +73,7 @@ except ImportError:
     SRS=None
 
 
-def extract_from_domain(suspect, get_address_part=True):
+def _extract_from_domain(suspect, get_address_part=True):
     msgrep = suspect.get_message_rep()
     from_headers = msgrep.get_all("From", [])
     if len(from_headers) != 1:
@@ -91,6 +92,52 @@ def extract_from_domain(suspect, get_address_part=True):
         return None
     domain = domain_match.group()
     return domain
+
+
+
+def extract_from_domains(msg, header='From', get_display_part=False):
+    """
+    Returns a list of all domains found in From header
+    :param msg: the message object
+    :param header: name of header to extract, defaults to From
+    :param get_display_part: set to True to search and extract domains found in display part, not the actual addresses
+    :return: list of domain names or None in case of errors
+    """
+    from_headers = msg.get_all(header, [])
+    if len(from_headers) != 1:
+        return None
+    from_headers = [str(h) for h in from_headers]
+    from_doms = []
+    for item in getaddresses(from_headers):
+        if get_display_part:
+            domain_match = re.search("(?<=@)[\w.-]+", item[0])
+            if domain_match is None:
+                continue
+            from_doms.append(domain_match.group())
+        else:
+            from_doms.append(extract_domain(item[1]))
+        
+    from_addrs = list(set(from_doms))
+    return from_addrs
+
+
+
+def extract_from_domain(msg, header='From', get_display_part=False):
+    """
+    Returns the most significant domain found in From header.
+    Usually this means the last domain that can be found.
+    :param msg: the message object
+    :param header: name of header to extract, defaults to From
+    :param get_display_part: set to True to search and extract domains found in display part, not the actual addresses
+    :return: string with domain name or None if nothing found
+    """
+    from_doms = extract_from_domains(msg, header, get_display_part)
+    if from_doms:
+        from_doms = from_doms[-1]
+    else:
+        from_doms = None
+    return from_doms
+
 
 
 class DKIMVerifyPlugin(ScannerPlugin):
@@ -555,17 +602,11 @@ class SpearPhishPlugin(ScannerPlugin):
         if envelope_sender_domain == envelope_recipient_domain:
             return DUNNO  # we only check the message if the env_sender_domain differs. If it's the same it will be caught by other means (like SPF)
         
-        header_from_domains = []
-        header_from_domain = extract_from_domain(suspect)
-        if header_from_domain is None:
-            self.logger.warn("%s: Could not extract header from domain for spearphish check" % suspect.id)
-            return DUNNO
-        else:
-            header_from_domains.append(header_from_domain)
-            self.logger.debug('%s: checking domain %s (source: From header address part)' % (suspect.id, header_from_domain))
+        header_from_domains = extract_from_domains(suspect)
+        self.logger.debug('%s: checking domain %s (source: From header address part)' % (suspect.id, ','.join(header_from_domains)))
         
         if self.config.getboolean(self.section, 'check_display_part'):
-            display_from_domain = extract_from_domain(suspect, False)
+            display_from_domain = extract_from_domain(suspect, get_display_part=True)
             if display_from_domain is not None and display_from_domain not in header_from_domains:
                 header_from_domains.append(display_from_domain)
                 self.logger.debug('%s: checking domain %s (source: From header display part)' % (suspect.id, display_from_domain))
