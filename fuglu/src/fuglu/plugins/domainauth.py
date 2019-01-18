@@ -73,32 +73,11 @@ except ImportError:
     SRS=None
 
 
-def _extract_from_domain(suspect, get_address_part=True):
-    msgrep = suspect.get_message_rep()
-    from_headers = msgrep.get_all("From", [])
-    if len(from_headers) != 1:
-        return None
-
-    from_header = str(from_headers[0])
-    parts = from_header.rsplit(None, 1)
-    check_part = parts[-1]
-    if len(parts) == 2 and not get_address_part:
-        check_part = parts[0]
-    elif not get_address_part:
-        return None # no display part found
-    
-    domain_match = re.search("(?<=@)[\w.-]+", check_part)
-    if domain_match is None:
-        return None
-    domain = domain_match.group()
-    return domain
-
-
 
 def extract_from_domains(msg, header='From', get_display_part=False):
     """
     Returns a list of all domains found in From header
-    :param msg: the message object
+    :param msg: message rep object
     :param header: name of header to extract, defaults to From
     :param get_display_part: set to True to search and extract domains found in display part, not the actual addresses
     :return: list of domain names or None in case of errors
@@ -126,7 +105,7 @@ def extract_from_domain(msg, header='From', get_display_part=False):
     """
     Returns the most significant domain found in From header.
     Usually this means the last domain that can be found.
-    :param msg: the message object
+    :param msg: message rep object
     :param header: name of header to extract, defaults to From
     :param get_display_part: set to True to search and extract domains found in display part, not the actual addresses
     :return: string with domain name or None if nothing found
@@ -277,7 +256,7 @@ known issues:
             return DUNNO
 
         message = suspect.get_source()
-        domain = extract_from_domain(suspect)
+        domain = extract_from_domain(suspect.get_message_rep())
         addvalues = dict(header_from_domain=domain)
         selector = apply_template(
             self.config.get(self.section, 'selector'), suspect, addvalues)
@@ -437,7 +416,7 @@ This plugin depends on tags written by SPFPlugin and DKIMVerifyPlugin, so they m
         checkdomains = self.filelist.get_list()
 
         envelope_sender_domain = suspect.from_domain.lower()
-        header_from_domain = extract_from_domain(suspect)
+        header_from_domain = extract_from_domain(suspect.get_message_rep())
         if header_from_domain is None:
             return
 
@@ -602,11 +581,12 @@ class SpearPhishPlugin(ScannerPlugin):
         if envelope_sender_domain == envelope_recipient_domain:
             return DUNNO  # we only check the message if the env_sender_domain differs. If it's the same it will be caught by other means (like SPF)
         
-        header_from_domains = extract_from_domains(suspect)
+        msgrep = suspect.get_message_rep()
+        header_from_domains = extract_from_domains(msgrep)
         self.logger.debug('%s: checking domain %s (source: From header address part)' % (suspect.id, ','.join(header_from_domains)))
         
         if self.config.getboolean(self.section, 'check_display_part'):
-            display_from_domain = extract_from_domain(suspect, get_display_part=True)
+            display_from_domain = extract_from_domain(msgrep, get_display_part=True)
             if display_from_domain is not None and display_from_domain not in header_from_domains:
                 header_from_domains.append(display_from_domain)
                 self.logger.debug('%s: checking domain %s (source: From header display part)' % (suspect.id, display_from_domain))
