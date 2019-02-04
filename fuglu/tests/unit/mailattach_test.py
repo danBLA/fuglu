@@ -1005,3 +1005,88 @@ class ConversionTest(unittest.TestCase):
                 except (UnicodeEncodeError, UnicodeDecodeError):
                     print('%s failed to convert alternative part to string' % suspect.id)
         print(textparts)
+
+
+class IsAttachmentTest(unittest.TestCase):
+    """Tests for mail attachments with Content-Disposition header equals 'attachment'"""
+
+    def test_zero(self):
+        """Test zero attachments"""
+        mailfile = join(TESTDATADIR, "helloworld.eml")
+        suspect = Suspect("from@fuglu.unittest", "to@fuglu.unittest", mailfile)
+        m_attach_mgr = suspect.att_mgr
+
+        afnames = sorted(["unnamed.txt"])
+        isattach = {"unnamed.txt": False}
+
+        # list has to be sorted according to filename in order to be able to match
+        # target list in Python2 and 3
+        full_att_list = sorted(m_attach_mgr.get_objectlist(), key=lambda obj: obj.filename)
+
+        for att, afname in zip(full_att_list, afnames):
+            print("{filename} is attachment: {isa}".format(
+                filename=att.filename,
+                isa=att.is_attachment
+            ))
+            self.assertEqual(afname, att.filename)
+            self.assertEqual(isattach[afname], att.is_attachment)
+
+        # or in short filter all non-attachment objects
+        filtered_list = list(filter(lambda x: x.is_attachment, m_attach_mgr.get_objectlist()))
+        self.assertEqual(0, len(filtered_list))
+
+    def test_single(self):
+        """Test one attachment"""
+        mailfile = join(TESTDATADIR, "nestedarchive.eml")
+        suspect = Suspect("from@fuglu.unittest", "to@fuglu.unittest", mailfile)
+        m_attach_mgr = suspect.att_mgr
+
+        afnames = sorted(["nestedarchive.tar.gz", "unnamed.txt"])
+        isattach = {"nestedarchive.tar.gz": True,
+                    "unnamed.txt": False
+                    }
+
+        # list has to be sorted according to filename in order to be able to match
+        # target list in Python2 and 3
+        full_att_list = sorted(m_attach_mgr.get_objectlist(), key=lambda obj: obj.filename)
+
+        for att, afname in zip(full_att_list, afnames):
+            print("{filename} is attachment: {isa}".format(
+                filename=att.filename,
+                isa=att.is_attachment
+            ))
+            self.assertEqual(afname, att.filename)
+            self.assertEqual(isattach[afname], att.is_attachment)
+
+        # or in short filter all non-attachment objects
+        filtered_list = list(filter(lambda x: x.is_attachment, m_attach_mgr.get_objectlist()))
+        self.assertEqual(1, len(filtered_list))
+        self.assertEqual("nestedarchive.tar.gz", filtered_list[0].filename)
+
+    def test_double(self):
+        """Test a real and an inline attachment"""
+        mailfile = join(TESTDATADIR, "6mbzipattachment.eml")
+        suspect = Suspect("from@fuglu.unittest", "to@fuglu.unittest", mailfile)
+        m_attach_mgr = suspect.att_mgr
+
+        afnames = sorted(["6mbile.zip", "unnamed.txt"])
+        isattach = {"6mbile.zip": True,
+                    "unnamed.txt": False
+                    }
+
+        # list has to be sorted according to filename in order to be able to match
+        # target list in Python2 and 3
+        full_att_list = sorted(m_attach_mgr.get_objectlist(), key=lambda obj: obj.filename)
+
+        for att, afname in zip(full_att_list, afnames):
+            print("{filename} is attachment: {isa}".format(
+                filename=att.filename,
+                isa=att.is_attachment
+            ))
+            self.assertEqual(afname, att.filename)
+            self.assertEqual(isattach[afname], att.is_attachment)
+
+        # or in short filter all non-attachment objects
+        filtered_list = list(filter(lambda x: x.is_attachment, m_attach_mgr.get_objectlist()))
+        self.assertEqual(1, len(filtered_list))
+        self.assertEqual("6mbile.zip", filtered_list[0].filename)
