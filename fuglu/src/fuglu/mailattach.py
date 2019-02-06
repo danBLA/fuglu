@@ -51,7 +51,8 @@ class Mailattachment(Cachelimits):
                        }
 
     def __init__(self, buffer, filename, mgr, filesize=None, in_obj=None, contenttype_mime=None, maintype_mime=None,
-                 subtype_mime=None, ismultipart_mime=None, content_charset_mime=None):
+                 subtype_mime=None, ismultipart_mime=None, content_charset_mime=None, is_attachment=False,
+                 is_inline=False):
         """
         Constructor
 
@@ -66,6 +67,8 @@ class Mailattachment(Cachelimits):
             subtype_mime (str): The sub-contenttype as defined in the mail attachment, only available for direct mail attachments
             ismultipart_mime (str): multipart as defined in the mail attachment, only available for direct mail attachments
             content_charset_mime (str): The characterset as defined in the mail attachment, only available for direct mail attachments
+            is_attachment (bool): True for direct mail attachments with Content-disposition=attachment
+            is_inline (bool): True for inline mail attachments with Content-disposition=inline
         """
         super(Mailattachment, self).__init__()
         self.filename = force_uString(filename)
@@ -79,11 +82,14 @@ class Mailattachment(Cachelimits):
 
         # use weak reference to avoid cyclic dependency
         self.in_obj = weakref.ref(in_obj) if in_obj is not None else None
-        self.contenttype_mime     = contenttype_mime
-        self.maintype_mime        = maintype_mime
-        self.subtype_mime         = subtype_mime
-        self.ismultipart_mime     = ismultipart_mime
+
+        self.contenttype_mime = contenttype_mime
+        self.maintype_mime = maintype_mime
+        self.subtype_mime = subtype_mime
+        self.ismultipart_mime = ismultipart_mime
         self.content_charset_mime = content_charset_mime
+        self.is_attachment = is_attachment
+        self.is_inline = is_inline
 
         # use weak reference to avoid cyclic dependency
         self._mgr = weakref.ref(mgr) if mgr is not None else None # keep only weak reference
@@ -490,7 +496,8 @@ class Mailattachment(Cachelimits):
                         else:
                             noextractinfo.append(fname, u"archivehandle", u"(no info)")
                     return None
-                obj = Mailattachment(buffer, fname, self._mgr(), filesize=filesize, in_obj=self)
+                obj = Mailattachment(buffer, fname, self._mgr(), filesize=filesize, in_obj=self,
+                                     is_attachment=self.is_attachment, is_inline=self.is_inline)
 
                 # This object caching is outside the caching decorator used in other parts of this
                 # file (not for this function anyway...).
@@ -741,7 +748,8 @@ class Mailattachment_mgr(object):
             # process part, extract information needed to create Mailattachment
             (att_name, buffer, attsize,
              contenttype_mime, maintype_mime, subtype_mime,
-             ismultipart_mime, content_charset_mime) = Mailattachment_mgr.process_msg_part(part)
+             ismultipart_mime, content_charset_mime,
+             isattachment, isinline) = Mailattachment_mgr.process_msg_part(part)
 
             if self.use_caching(attsize):
                 # cache the object if a cachelimit is defined
@@ -750,7 +758,8 @@ class Mailattachment_mgr(object):
                                                            contenttype_mime=contenttype_mime,
                                                            maintype_mime=maintype_mime, subtype_mime=subtype_mime,
                                                            ismultipart_mime=ismultipart_mime,
-                                                           content_charset_mime=content_charset_mime)
+                                                           content_charset_mime=content_charset_mime,
+                                                           is_attachment=isattachment, is_inline=isinline)
             else:
                 # No caching of the object
                 newatt_file_dict[counter] = None
@@ -789,11 +798,14 @@ class Mailattachment_mgr(object):
                 #-----------------#
 
                 # process part, extract information needed to create Mailattachment
-                (att_name, buffer, attsize, contenttype_mime, maintype_mime, subtype_mime,
-                 ismultipart_mime, content_charset_mime) = Mailattachment_mgr.process_msg_part(part)
+                (att_name, buffer, attsize,contenttype_mime,
+                 maintype_mime, subtype_mime, ismultipart_mime,
+                 content_charset_mime, isattachment, isinline
+                 ) = Mailattachment_mgr.process_msg_part(part)
                 att = Mailattachment(buffer, att_name, self, filesize=attsize, contenttype_mime=contenttype_mime,
                                      maintype_mime=maintype_mime, subtype_mime=subtype_mime,
-                                     ismultipart_mime=ismultipart_mime, content_charset_mime=content_charset_mime)
+                                     ismultipart_mime=ismultipart_mime, content_charset_mime=content_charset_mime,
+                                     is_attachment=isattachment, is_inline=isinline)
                 yield att
 
     @staticmethod
@@ -815,14 +827,52 @@ class Mailattachment_mgr(object):
         -   subtype_mime         (string) : content subtype
         -   ismultipart_mime     (bool)   : multipart
         -   content_charset_mime (string) : charset for content
+        -   isattachment         (bool)   : True if this is a direct mail attachment,
+                                            not inline (Content-Disposition=inline)
+        -   isinline             (bool)   : True if this is an inline mail attachment,
+                                            not attachment (Content-Disposition=attachment)
 
         """
-        contenttype_mime     = part.get_content_type()
-        maintype_mime        = part.get_content_maintype()
-        subtype_mime         = part.get_content_subtype()
-        ismultipart_mime     = part.is_multipart()
+        contenttype_mime = part.get_content_type()
+        maintype_mime = part.get_content_maintype()
+        subtype_mime = part.get_content_subtype()
+        ismultipart_mime = part.is_multipart()
         content_charset_mime = part.get_content_charset()
-        att_name             = part.get_filename(None)
+        att_name = part.get_filename(None)
+
+        # any error all parts are marked as attachment
+        isattachment = True
+        isinline = False
+
+        content_disposition = "attachment"
+        try:
+            content_disposition = part.get_content_disposition()
+        except AttributeError:
+            content_disposition = part.get("Content-Disposition", None)
+            if content_disposition is not None:
+                try:
+                    content_disposition = content_disposition.lower()
+                except Exception as e:
+                    logging.getLogger("fuglu.Mailattachment_mgr.process_msg_part") \
+                        .error("error extracting attachment info using Content-Disposition header : %s" % str(e))
+                    logging.getLogger("fuglu.Mailattachment_mgr.process_msg_part").exception(e)
+
+        if content_disposition is None:
+            isattachment = False
+            isinline = False
+        else:
+            try:
+                if "attachment" in content_disposition:
+                    isattachment = True
+                    isinline = False
+                elif "inline" in content_disposition:
+                    isattachment = False
+                    isinline = True
+            except AttributeError as e:
+                logging.getLogger("fuglu.Mailattachment_mgr.process_msg_part") \
+                    .error("error extracting attachment "
+                           "info using Content-Disposition header as string: %s" % str(e))
+                logging.getLogger("fuglu.Mailattachment_mgr.process_msg_part").exception(e)
 
         if att_name:
             # some filenames are encoded, try to decode
@@ -863,7 +913,10 @@ class Mailattachment_mgr(object):
         except Exception:
             attsize = None
         return (att_name, buffer, attsize,
-                contenttype_mime, maintype_mime, subtype_mime, ismultipart_mime, content_charset_mime)
+                contenttype_mime, maintype_mime,
+                subtype_mime, ismultipart_mime,
+                content_charset_mime, isattachment,
+                isinline)
 
     @smart_cached_memberfunc(inputs=['att_file_dict'])
     def get_fileslist(self,level=0,maxsize_extract=None):
