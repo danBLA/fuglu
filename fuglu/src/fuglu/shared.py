@@ -1327,16 +1327,56 @@ class SuspectFilter(object):
         # use regex replace, make sure returned object is unicode string
         return force_uString(re.sub(self.stripre, '', content))
 
-    def get_decoded_textparts(self, suspect):
-        if not isinstance(suspect,Suspect):
+    def get_decoded_textparts(self, suspect, attachment=None, inline=None):
+        """
+        Get all text parts of suspect as a list. Text parts can be limited by the attachment, inline
+        keywords which checks the Content-Disposition header:
+
+        attachment: True/False/None
+            None: Ignore
+            True: attachment or header not present
+            False: no attachment
+
+        inline: True/False/None
+            None: Ignore
+            True: inline attachment
+            False: no inline attachment or header present, so attached textparts are included
+
+        Args:
+            suspect (Suspect): Suspect object
+            attachment (bool, NoneType): filter for attachments
+            inline (bool, NoneType): filter for inline attachments
+
+        The input should be a Suspect. Due to backward compatibility email.message.Message is still supported
+        and passed to the deprecated routine which will however NOT handle the additional keyword parameters
+        for filtering attachments and inline attachments.
+
+        Returns:
+            list: List containing decoded text parts
+
+        """
+        if not isinstance(suspect, Suspect):
             self.logger.warning("\"get_decoded_textparts\" called with object other than Suspect which is deprecated "
                                 "and will be removed in near future...")
+            if attachment is not None or inline is not None:
+                raise DeprecationWarning
             return self.get_decoded_textparts_deprecated(suspect)
 
         textparts = []
         for attObj in suspect.att_mgr.get_objectlist():
+            # filter for attachment attribute
+            if attachment is not None and attachment != attObj.is_attachment:
+                # skip if we ask for attachments but the object is not an attachment
+                # skip if we ask for non-attachments but the object is an attachment (or no Content-Disposition header)
+                continue
+
+            if inline is not None and inline != attObj.is_inline:
+                # skip if we ask for inline but the object is not inline
+                # skip if we ask for non-inline but the object is inline (or no Content-Disposition header)
+                continue
+
             if attObj.content_fname_check(maintype="text",ismultipart=False) \
-                    or attObj.content_fname_check(maintype='multipart',subtype='mixed'):
+                    or attObj.content_fname_check(maintype='multipart', subtype='mixed'):
                 textparts.append(attObj.decoded_buffer_text)
         return textparts
 
