@@ -566,6 +566,71 @@ class=3DMsoNormal><o:p> </o:p></p></div></body></html>"""
         textpartslist2 = self.candidate.get_decoded_textparts(suspect)
         self.assertNotEqual(id(textpartslist[0]),id(textpartslist2[0]),"with no caching there should be different objects returned")
 
+    def test_textparts_noattachments(self):
+        """Extract text parts which are not attachements"""
+        suspect = Suspect('sender@unittests.fuglu.org',
+                          'recipient@unittests.fuglu.org', TESTDATADIR + '/lorem_attached.eml')
+
+        # no attached textparts
+        textpartslist = self.candidate.get_decoded_textparts(suspect, attachment=False)
+        print(textpartslist)
+        # <html>\r\n
+        #    <head>\r\n
+        #        <meta http-equiv="content-type" content="text/html; charset=UTF-8">\r\n
+        #    </head>\r\n
+        #    <body text="#000000" bgcolor="#FFFFFF">\r\n
+        #        <p>body text<br>\r\n
+        #        </p>\r\n
+        #    </body>\r\n
+        # </html>\r\n
+        self.assertEqual(1, len(textpartslist))
+        self.assertTrue("body text<br>" in textpartslist[0])
+
+    def test_textparts_attachments(self):
+        """Extract text parts which are attachements"""
+        suspect = Suspect('sender@unittests.fuglu.org',
+                          'recipient@unittests.fuglu.org', TESTDATADIR + '/lorem_attached.eml')
+
+        # only attached textparts
+        textpartslist = self.candidate.get_decoded_textparts(suspect, attachment=True)
+        print(textpartslist)
+        self.assertEqual(1, len(textpartslist))
+        self.assertTrue("Lorem ipsum" in textpartslist[0])
+
+    def test_textparts_no_attachments(self):
+        """Extract text parts which are not attachements"""
+        suspect = Suspect('sender@unittests.fuglu.org',
+                          'recipient@unittests.fuglu.org', TESTDATADIR + '/lorem_inline.eml')
+
+        # no attached textparts
+        textpartslist = self.candidate.get_decoded_textparts(suspect, attachment=False)
+        print(textpartslist)
+        self.assertEqual(2, len(textpartslist))
+        self.assertTrue("body text<br>" in textpartslist[0] or "body text<br>" in textpartslist[1])
+        self.assertTrue("Lorem ipsum" in textpartslist[0] or "Lorem ipsum" in textpartslist[1])
+
+    def test_textparts_only_attachments(self):
+        """Extract text parts which are attachements"""
+        suspect = Suspect('sender@unittests.fuglu.org',
+                          'recipient@unittests.fuglu.org', TESTDATADIR + '/lorem_inline.eml')
+
+        # no attached textparts
+        textpartslist = self.candidate.get_decoded_textparts(suspect, attachment=True)
+        print(textpartslist)
+        self.assertEqual(0, len(textpartslist))
+
+    def test_textparts_inline(self):
+        """Extract text parts which are inline. Note the difference to test_textparts_no_attachments."""
+        suspect = Suspect('sender@unittests.fuglu.org',
+                          'recipient@unittests.fuglu.org', TESTDATADIR + '/lorem_inline.eml')
+
+        # no attached textparts
+        textpartslist = self.candidate.get_decoded_textparts(suspect, inline=True)
+        print(textpartslist)
+        self.assertEqual(1, len(textpartslist))
+        self.assertTrue("Lorem ipsum" in textpartslist[0])
+
+
 class ActionCodeTestCase(unittest.TestCase):
 
     def test_defaultcodes(self):

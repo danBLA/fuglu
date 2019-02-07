@@ -1,0 +1,42 @@
+From: fuglu <test@fuglu.org>
+Subject: lorem attached
+Message-ID: <d555cd69-dfc6-2123-5fec-601d21d9c761@fuglu.org>
+Date: Thu, 7 Feb 2019 12:04:53 +0100
+MIME-Version: 1.0
+Content-Type: multipart/mixed;
+ boundary="------------AEF2C9CDE2984A7A796ECDE5"
+Content-Language: en-US
+
+This is a multi-part message in MIME format.
+--------------AEF2C9CDE2984A7A796ECDE5
+Content-Type: text/html; charset=utf-8
+Content-Transfer-Encoding: 7bit
+
+<html>
+  <head>
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+  </head>
+  <body text="#000000" bgcolor="#FFFFFF">
+    <p>body text<br>
+    </p>
+  </body>
+</html>
+
+--------------AEF2C9CDE2984A7A796ECDE5
+Content-Type: text/html;
+ name="lorem.html"
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment;
+ filename="lorem.html"
+
+PCFET0NUWVBFIGh0bWw+DQo8aHRtbCBsYW5nPSJlbiI+DQo8aGVhZD4NCiAgPG1ldGEgY2hh
+cnNldD0iVVRGLTgiPg0KICA8bWV0YSBuYW1lPSJ2aWV3cG9ydCIgY29udGVudD0id2lkdGg9
+ZGV2aWNlLXdpZHRoLCBpbml0aWFsLXNjYWxlPTEuMCI+DQogIDxtZXRhIGh0dHAtZXF1aXY9
+IlgtVUEtQ29tcGF0aWJsZSIgY29udGVudD0iaWU9ZWRnZSI+DQogIDx0aXRsZT5Eb2N1bWVu
+dDwvdGl0bGU+DQo8L2hlYWQ+DQo8Ym9keT4NCiAgPGg0PkxvcmVtIElwc3VtPC9oND4NCiAg
+TG9yZW0gaXBzdW0gZG9sb3Igc2l0IGFtZXQgY29uc2VjdGV0dXIgYWRpcGlzaWNpbmcgZWxp
+dC4gRmFjaWxpcyBlb3MsIGV4ZXJjaXRhdGlvbmVtIHNlZCB0ZW5ldHVyIGZ1Z2EgZG9sb3Ig
+ZG9sb3J1bSBjb3Jwb3JpcywgY3VtcXVlIHJhdGlvbmUgcmVwZWxsYXQgcXVvZCBtaW5pbWEg
+aWQgYXJjaGl0ZWN0byBlaXVzIGNvbnNlY3RldHVyIG1vbGxpdGlhIHBlcmZlcmVuZGlzIGFs
+aWFzIGV0Pw0KPC9ib2R5Pg0KPC9odG1sPg==
+--------------AEF2C9CDE2984A7A796ECDE5--
