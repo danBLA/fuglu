@@ -224,7 +224,8 @@ class Suspect(object):
     with a suspect and may modify the tags or even the message content itself.
     """
 
-    def __init__(self, from_address, recipients, tempfile, att_cachelimit=None, smtp_options=set()):
+    def __init__(self, from_address, recipients, tempfile, att_cachelimit=None, smtp_options=set(),
+                 sasl_login=None, sasl_sender=None, sasl_method=None, queue_id=None):
         self.source = None
         """holds the message source if set directly"""
 
@@ -299,6 +300,29 @@ class Suspect(object):
         # smtp_otpions #
         # ------------ #
         self.smtp_options = smtp_options
+
+        # ------------------------ #
+        # SASL authentication info #
+        # (milter mode only)       #
+        # ------------------------ #
+        self.sasl_login = sasl_login
+        self.sasl_sender = sasl_sender
+        self.sasl_method = sasl_method
+        if self.sasl_login:
+            logging.getLogger('suspect').debug("SASL login: %s" % self.sasl_login)
+        if self.sasl_sender:
+            logging.getLogger('suspect').debug("SASL sender: %s" % self.sasl_sender)
+        if self.sasl_method:
+            logging.getLogger('suspect').debug("SASL method: %s" % self.sasl_method)
+
+        # ------------------ #
+        # queue id           #
+        # (milter mode only) #
+        # ------------------ #
+        self.queue_id = queue_id
+        if self.queue_id:
+            logging.getLogger('suspect').debug("queue id: %s" % self.queue_id)
+
 
     def orig_from_address_changed(self):
         return self.original_from_address != self.from_address

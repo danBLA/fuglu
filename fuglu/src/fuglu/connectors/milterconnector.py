@@ -116,7 +116,9 @@ class MilterHandler(ProtocolHandler):
                                 % (temp_filename, str(from_address), str(recipients)))
             return None
 
-        suspect = Suspect(from_address, recipients, temp_filename, att_cachelimit=self._att_mgr_cachesize)
+        suspect = Suspect(from_address, recipients, temp_filename, att_cachelimit=self._att_mgr_cachesize,
+                          sasl_login=sess.sasl_login, sasl_sender=sess.sasl_sender, sasl_method=sess.sasl_method,
+                          queue_id=sess.queueid)
 
         logging.getLogger('fuglu.MilterHandler.queueid').info(
             '"%s" "%s"' % (suspect.id, sess.queueid if sess.queueid else "NOQUEUE"))
@@ -487,6 +489,10 @@ class MilterSession(lm.MilterProtocol):
         self.original_headers = []
         self.be_verbose = False
         self.queueid = None
+        # SASL authentication
+        self.sasl_login = None
+        self.sasl_sender = None
+        self.sasl_method = None
 
     def get_cleaned_from_address(self):
         """Return from_address, without <> qualification or other MAIL FROM parameters"""
@@ -587,11 +593,28 @@ class MilterSession(lm.MilterProtocol):
         if self.be_verbose:
             self.logger.debug(msg)
 
-    def store_queueid(self, command_dict):
-        if not self.queueid and command_dict:
-            queueid = command_dict.get(b'i', None)
-            if queueid:
-                self.queueid = force_uString(queueid)
+    def store_info_from_dict(self, command_dict):
+        """Extract and store additional info passed by dict"""
+        if command_dict:
+            if not self.queueid:
+                queueid = command_dict.get(b'i', None)
+                if queueid:
+                    self.queueid = force_uString(queueid)
+
+            if not self.sasl_login:
+                sasl_login = command_dict.get(b'auth_authen', None)
+                if sasl_login:
+                    self.sasl_login = force_uString(sasl_login)
+
+            if not self.sasl_sender:
+                sasl_sender = command_dict.get(b'auth_author', None)
+                if sasl_sender:
+                    self.sasl_sender = force_uString(sasl_sender)
+
+            if not self.sasl_method:
+                sasl_method = command_dict.get(b'auth_type', None)
+                if sasl_method:
+                    self.sasl_method = force_uString(sasl_method)
 
     @staticmethod
     def dict_unicode(command_dict):
@@ -604,7 +627,7 @@ class MilterSession(lm.MilterProtocol):
     def connect(self, hostname, family, ip, port, command_dict):
         self.log('Connect from %s:%d (%s) with family: %s, dict: %s' % (ip, port,
                                                               hostname, family, str(command_dict)))
-        self.store_queueid(command_dict)
+        self.store_info_from_dict(command_dict)
         if family not in (b'4', b'6'):  # we don't handle unix socket
             self.logger.error('Return temporary fail since family is: %s' % force_uString(family))
             self.logger.error(u'command dict is: %s' % MilterSession.dict_unicode(command_dict))
@@ -626,7 +649,7 @@ class MilterSession(lm.MilterProtocol):
     def mailFrom(self, from_address, command_dict):
         # store exactly what was received
         self.log('FROM_ADDRESS: %s, dict: %s' % (from_address, MilterSession.dict_unicode(command_dict)))
-        self.store_queueid(command_dict)
+        self.store_info_from_dict(command_dict)
         self.from_address = from_address
         return lm.CONTINUE
 
@@ -634,14 +657,14 @@ class MilterSession(lm.MilterProtocol):
     def rcpt(self, recipient, command_dict):
         # store exactly what was received
         self.log('RECIPIENT: %s, dict: %s' % (recipient, MilterSession.dict_unicode(command_dict)))
-        self.store_queueid(command_dict)
+        self.store_info_from_dict(command_dict)
         self.recipients.append(recipient)
         return lm.CONTINUE
 
     @lm.noReply
     def header(self, key, val, command_dict):
         self.log('HEADER, KEY: %s, VAL: %s, dict: %s' % (key, val, MilterSession.dict_unicode(command_dict)))
-        self.store_queueid(command_dict)
+        self.store_info_from_dict(command_dict)
         self.tempfile.write(key+b": "+val+b"\n")
         # backup original headers
         self.original_headers.append((key, val))
@@ -650,25 +673,25 @@ class MilterSession(lm.MilterProtocol):
     @lm.noReply
     def eoh(self, command_dict):
         self.log('EOH, dict: %s' % MilterSession.dict_unicode(command_dict))
-        self.store_queueid(command_dict)
+        self.store_info_from_dict(command_dict)
         self.tempfile.write(b"\n")
         return lm.CONTINUE
 
     def data(self, command_dict):
         self.log('DATA, dict: %s' % MilterSession.dict_unicode(command_dict))
-        self.store_queueid(command_dict)
+        self.store_info_from_dict(command_dict)
         return lm.CONTINUE
 
     @lm.noReply
     def body(self, chunk, command_dict):
         self.log('BODY chunk: %d, dict: %s' % (len(chunk), MilterSession.dict_unicode(command_dict)))
-        self.store_queueid(command_dict)
+        self.store_info_from_dict(command_dict)
         self.tempfile.write(chunk)
         return lm.CONTINUE
 
     def eob(self, command_dict):
         self.log('EOB dict: %s' % MilterSession.dict_unicode(command_dict))
-        self.store_queueid(command_dict)
+        self.store_info_from_dict(command_dict)
         try:
             self.tempfile = None
         except Exception as e:
