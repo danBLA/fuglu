@@ -22,10 +22,11 @@ class RedisKeepAlive(StrictRedis):
     """
 
     def __init__(self, *args, **kwargs):
-        super(RedisKeepAlive, self).__init__(*args, **kwargs)
 
         # check if pinginterval is given in kwargs
         self._pinginterval = kwargs.pop("pinginterval", 0)
+
+        super(RedisKeepAlive, self).__init__(*args, **kwargs)
 
         # start a thread which will ping the server to keep
         if self._pinginterval > 0:
