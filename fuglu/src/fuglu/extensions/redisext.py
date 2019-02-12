@@ -22,10 +22,12 @@ class RedisKeepAlive(StrictRedis):
     """
 
     def __init__(self, *args, **kwargs):
-        super(RedisKeepAlive, self).__init__(*args, **kwargs)
 
         # check if pinginterval is given in kwargs
         self._pinginterval = kwargs.pop("pinginterval", 0)
+        self._noisy = False
+
+        super(RedisKeepAlive, self).__init__(*args, **kwargs)
 
         # start a thread which will ping the server to keep
         if self._pinginterval > 0:
@@ -36,6 +38,9 @@ class RedisKeepAlive(StrictRedis):
     def ping_and_wait(self):
         """Send a ping to the Redis server to keep connection alive"""
         while True:
+            if self._noisy:
+                import logging
+                logging.getLogger("fuglu.RedisKeepAlive").debug("Sending ping to Redis Server")
             self.ping()
             sleep(self._pinginterval)
 
