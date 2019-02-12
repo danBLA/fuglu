@@ -3,6 +3,7 @@ import unittest
 import sys
 import email
 from os.path import join
+from os.path import basename
 from fuglu.mailattach import Mailattachment_mgr, Mailattachment, NoExtractInfo
 from fuglu.shared import Suspect, create_filehash, SuspectFilter
 from unittestsetup import TESTDATADIR
@@ -12,6 +13,11 @@ try:
     from html.parser import HTMLParser
 except ImportError:
     from HTMLParser import HTMLParser
+from email.mime.application import MIMEApplication
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.utils import COMMASPACE, formatdate
+from email.header import Header
 
 
 class MailattachmentMgrTest(unittest.TestCase):
@@ -1124,6 +1130,64 @@ class IsAttachmentTest(unittest.TestCase):
         # or in short filter all non-attachment objects
         filtered_list = list(filter(lambda x: x.is_attachment, m_attach_mgr.get_objectlist(None)))
         self.assertEqual(7, len(filtered_list))
+
+    def test_single_unicode(self):
+        """For bugfix where get_content_disposition returns a Header type (found with Py-3.4)"""
+
+        msg = MIMEMultipart()
+        msg['From'] = "sender@fuglu.org"
+        msg['To'] = COMMASPACE.join("receiver@fuglu.org")
+        msg['Date'] = formatdate(localtime=True)
+        msg['Subject'] = "whatever..."
+
+        msg.attach(MIMEText("This us some text..."))
+
+        files = [join(TESTDATADIR, "test.zip")]
+
+        for f in files or []:
+            with open(f, "rb") as fil:
+                part = MIMEApplication(
+                    fil.read(),
+                    Name=basename(f)
+                )
+            if sys.version_info > (3,):
+                hdr = Header('attachment', header_name="Content-Disposition", continuation_ws=' ')
+                part["Content-Disposition"] = hdr
+            else:
+                part.add_header("Content-Disposition", "attachment", filename=basename(f))
+            msg.attach(part)
+
+        suspect = Suspect("from@fuglu.unittest", "to@fuglu.unittest", "/dev/null")
+        suspect.set_message_rep(msg)
+        m_attach_mgr = suspect.att_mgr
+
+        afnames = sorted(["test.zip", "unnamed.txt", "test.txt"])
+        isattach = {"test.zip": True,
+                    "test.txt": True,
+                    "unnamed.txt": False
+                    }
+
+        # list has to be sorted according to filename in order to be able to match
+        # target list in Python2 and 3
+        full_att_list = sorted(m_attach_mgr.get_objectlist(level=1, include_parents=True), key=lambda obj: obj.filename)
+
+        self.assertEqual(len(afnames), len(full_att_list), "[%s] not equal [%s]"
+                         % (",".join([att.filename for att in full_att_list]), ",".join(afnames)))
+
+        for att, afname in zip(full_att_list, afnames):
+            print("{filename} is attachment: {isa}".format(
+                filename=att.filename,
+                isa=att.is_attachment
+            ))
+            self.assertEqual(afname, att.filename)
+            self.assertEqual(isattach[afname], att.is_attachment)
+
+        # or in short filter all non-attachment objects
+        filtered_list = list(filter(lambda x: x.is_attachment, m_attach_mgr.get_objectlist()))
+        self.assertEqual(1, len(filtered_list))
+        self.assertEqual("test.zip", filtered_list[0].filename)
+
+
 
 
 class IsInlineTest(unittest.TestCase):
