@@ -849,13 +849,27 @@ class Mailattachment_mgr(object):
             content_disposition = part.get_content_disposition()
         except AttributeError:
             content_disposition = part.get("Content-Disposition", None)
+            # here it is possible we get a Header object back
+
+
             if content_disposition is not None:
+                try:
+                    # include here to prevent cyclic import
+                    from fuglu.shared import Suspect
+                    content_disposition = Suspect.decode_msg_header(content_disposition)
+                except Exception as e:
+                    logging.getLogger("fuglu.Mailattachment_mgr.process_msg_part") \
+                        .error("error extracting attachment info using Content-Disposition header : %s" % str(e))
+                    logging.getLogger("fuglu.Mailattachment_mgr.process_msg_part").exception(e)
+                    content_disposition = "attachment"
+
                 try:
                     content_disposition = content_disposition.lower()
                 except Exception as e:
                     logging.getLogger("fuglu.Mailattachment_mgr.process_msg_part") \
                         .error("error extracting attachment info using Content-Disposition header : %s" % str(e))
                     logging.getLogger("fuglu.Mailattachment_mgr.process_msg_part").exception(e)
+                    content_disposition = "attachment"
 
         if content_disposition is None:
             isattachment = False
