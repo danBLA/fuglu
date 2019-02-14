@@ -903,7 +903,7 @@ class Mailattachment_mgr(object):
             else:
                 exts = mimetypes.guess_all_extensions(ct)
                 # reply is randomly sorted list, get consistent result
-                if len(exts)>0:
+                if len(exts) > 0:
                     exts.sort()
                     ext = exts[0]
                 else:
@@ -920,12 +920,20 @@ class Mailattachment_mgr(object):
                 else:
                     att_name = 'unnamed.%s' % ext
 
-        buffer = part.get_payload(decode=True) # Py2: string, Py3: bytes
+        try:
+            buffer = part.get_payload(decode=True)  # Py2: string, Py3: bytes
+        except Exception as e:
+            logging.getLogger("fuglu.process_msg_part").exception(e)
+            logging.getLogger("fuglu.process_msg_part").warning("Could not get payload for %s, "
+                                                                "continue without decoding" % att_name)
+            buffer = part.get_payload(decode=False)
+
         # try to get size from buffer length
         try:
             attsize = len(buffer)
         except Exception:
             attsize = None
+
         return (att_name, buffer, attsize,
                 contenttype_mime, maintype_mime,
                 subtype_mime, ismultipart_mime,
