@@ -477,17 +477,42 @@ class MilterSession(lm.MilterProtocol):
         self.config = config
         self.logger = logging.getLogger('fuglu.miltersession')
 
-        self.recipients = []
-        self.from_address = None
+        # connection
         self.heloname = None
         self.addr = None
         self.rdns = None
+
+        self.recipients = []
+        self.from_address = None
+
         self._tempfile = None
         self._exit_incomingmail = False
         self._tempfile = None
         self.tempfilename = None
         self.original_headers = []
         self.be_verbose = False
+        # postfix queue id
+        self.queueid = None
+        # SASL authentication
+        self.sasl_login = None
+        self.sasl_sender = None
+        self.sasl_method = None
+
+    def reset_connection(self):
+        """Reset all variables except to prepare for a second mail through the same connection.
+        keep helo (heloname), ip address (addr) and hostname (rdns)"""
+        self.recipients = []
+        self.original_headers = []
+        self.tempfile = None
+        if self.tempfilename and os.path.exists(self.tempfilename):
+            try:
+                os.remove(self.tempfilename)
+                self.logger.info("Abort -> removed temp file: %s" % self.tempfilename)
+            except OSError:
+                self.logger.error("Could not remove tmp file: %s" % self.tempfilename)
+                pass
+        self.tempfilename = None
+        # postfix queue id
         self.queueid = None
         # SASL authentication
         self.sasl_login = None
@@ -729,17 +754,7 @@ class MilterSession(lm.MilterProtocol):
 
     def abort(self):
         self.logger.debug('Abort has been called')
-        self.recipients = []
-        self.original_headers = []
-        self.tempfile = None
-        if self.tempfilename and os.path.exists(self.tempfilename):
-            try:
-                os.remove(self.tempfilename)
-                self.logger.info("Abort -> removed temp file: %s" % self.tempfilename)
-            except OSError:
-                self.logger.error("Could not remove tmp file: %s" % self.tempfilename)
-                pass
-        self.tempfilename = None
+        self.reset_connection()
 
 
 class MilterServer(BasicTCPServer):

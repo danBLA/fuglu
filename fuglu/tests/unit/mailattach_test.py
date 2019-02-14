@@ -1221,3 +1221,57 @@ class IsInlineTest(unittest.TestCase):
         self.assertEqual(1, len(filtered_list))
         self.assertEqual("unnamed.txt", filtered_list[0].filename)
 
+
+class BrokenMIMETest(unittest.TestCase):
+    """From a bug report, test a broken mail where mail inds in the middle
+    of a base64 encoded picture without closing MIME header"""
+
+    def test_correct(self):
+        """test the full ma"""
+        mailfile = join(TESTDATADIR, "inline_image.eml")
+        suspect = Suspect("from@fuglu.unittest", "to@fuglu.unittest", mailfile)
+        m_attach_mgr = suspect.att_mgr
+
+        afnames = sorted(["test.png", "unnamed.htm"])
+        isinline = {"test.png": True,
+                    "unnamed.htm": False
+                    }
+
+        # list has to be sorted according to filename in order to be able to match
+        # target list in Python2 and 3
+        full_att_list = sorted(m_attach_mgr.get_objectlist(), key=lambda obj: obj.filename)
+
+        for att, afname in zip(full_att_list, afnames):
+            print("{filename} is inline: {isa}, buffer length: {blen}, decoded buffer length: {dblen}".format(
+                filename=att.filename,
+                isa=att.is_inline,
+                blen=len(att.buffer),
+                dblen=len(att.decoded_buffer_text)
+            ))
+            self.assertEqual(afname, att.filename)
+            self.assertEqual(isinline[afname], att.is_inline)
+
+    def test_broken(self):
+        """Test a real and an inline attachment"""
+        mailfile = join(TESTDATADIR, "inline_image_broken.eml")
+        suspect = Suspect("from@fuglu.unittest", "to@fuglu.unittest", mailfile)
+        m_attach_mgr = suspect.att_mgr
+
+        afnames = sorted(["test.png", "unnamed.htm"])
+        isinline = {"test.png": True,
+                    "unnamed.htm": False
+                    }
+
+        # list has to be sorted according to filename in order to be able to match
+        # target list in Python2 and 3
+        full_att_list = sorted(m_attach_mgr.get_objectlist(), key=lambda obj: obj.filename)
+
+        for att, afname in zip(full_att_list, afnames):
+            print("{filename} is inline: {isa}, buffer length: {blen}, decoded buffer length: {dblen}".format(
+                filename=att.filename,
+                isa=att.is_inline,
+                blen=len(att.buffer),
+                dblen=len(att.decoded_buffer_text)
+            ))
+            self.assertEqual(afname, att.filename)
+            self.assertEqual(isinline[afname], att.is_inline)
