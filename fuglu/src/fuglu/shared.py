@@ -69,6 +69,7 @@ except ImportError:
 import datetime
 from string import Template
 from email.header import Header, decode_header
+from email.utils import getaddresses
 
 # constants
 
@@ -232,6 +233,10 @@ class Suspect(object):
         self._msgrep = None
         """holds a copy of the message representation"""
 
+        self.id = self._generate_id()
+
+        self.logger = logging.getLogger('fuglu.Suspect')
+
         # tags set by plugins
         self.tags = {}
         self.tags['virus'] = {}
@@ -257,13 +262,14 @@ class Suspect(object):
         # basic email validitiy check - nothing more than necessary for our internal assumptions
         for rec in self.recipients:
             if rec is None:
+                self.logger.warning("%s: Recipient address can not be None" % self.id)
                 raise ValueError("Recipient address can not be None")
             if not Addrcheck().valid(rec):
+                self.logger.warning("%s: Invalid recipient address: %s" % (self.id, rec))
                 raise ValueError("Invalid recipient address: %s" % rec)
 
         # additional basic information
         self.timestamp = time.time()
-        self.id = self._generate_id()
 
         # headers which are prepended before re-injecting the message
         self.addheaders = {}
@@ -272,6 +278,7 @@ class Suspect(object):
             self.from_address = u''
 
         if self.from_address != u'' and not Addrcheck().valid(self.from_address):
+            self.logger.warning("%s: Invalid sender address: %s" % (self.id, self.from_address))
             raise ValueError("invalid sender address: %s" % self.from_address)
 
         self.clientinfo = None
@@ -309,11 +316,11 @@ class Suspect(object):
         self.sasl_sender = sasl_sender
         self.sasl_method = sasl_method
         if self.sasl_login:
-            logging.getLogger('suspect').debug("SASL login: %s" % self.sasl_login)
+            self.logger.debug("%s: SASL login: %s" % (self.id, self.sasl_login))
         if self.sasl_sender:
-            logging.getLogger('suspect').debug("SASL sender: %s" % self.sasl_sender)
+            self.logger.debug("%s: SASL sender: %s" % (self.id, self.sasl_sender))
         if self.sasl_method:
-            logging.getLogger('suspect').debug("SASL method: %s" % self.sasl_method)
+            self.logger.debug("%s: SASL method: %s" % (self.id, self.sasl_method))
 
         # ------------------ #
         # queue id           #
@@ -321,7 +328,7 @@ class Suspect(object):
         # ------------------ #
         self.queue_id = queue_id
         if self.queue_id:
-            logging.getLogger('suspect').debug("queue id: %s" % self.queue_id)
+            self.logger.debug("%s: queue id: %s" % (self.id, self.queue_id))
 
 
     def orig_from_address_changed(self):
@@ -591,6 +598,48 @@ class Suspect(object):
         hdrline = u"%s: %s\r\n" % (u_key, hdr.encode())
         src = force_bString(hdrline) + b_source
         return src
+
+    def parse_from_type_header(self, header='From', validate_mail=True):
+        """
+
+        Args:
+            header (str): name of header to extract, defaults to From
+            validate_mail (bool): base checks for valid mail
+
+        Returns:
+            [(displayname,email), ... ]
+                - displayname (str) : display name
+                - email (str) : email address
+
+        """
+
+        from_headers = self.get_message_rep().get_all(header, [])
+
+        # allow multiple headers
+        if len(from_headers) < 1:
+            return []
+
+        from_headers = [Suspect.decode_msg_header(h) for h in from_headers]
+        from_addresses = []
+        for display, mailaddress in getaddresses(from_headers):
+            isvalid = True
+
+            # validate email
+            if validate_mail:
+                try:
+                    isvalid = True
+                    if not mailaddress or (not Addrcheck().valid(mailaddress)):
+                        isvalid = False
+                except Exception as e:
+                    self.logger.error("%s: Parsing error %s" % (self.id, str(e)))
+                    self.logger.exception(e)
+
+            if isvalid:
+                from_addresses.append((display, mailaddress))
+            else:
+                self.logger.error("%s, Mail %s is not valid, display name is %s" % (self.id, mailaddress, display))
+
+        return from_addresses
 
     def add_header(self, key, value, immediate=False):
         """adds a header to the message. by default, headers will added when re-injecting the message back to postfix
