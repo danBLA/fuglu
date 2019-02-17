@@ -295,7 +295,7 @@ class SuspectTestCase(unittest.TestCase):
         #  =?UTF-8?B?RlVHTFU=?=" <fuglu_from@evil1.unittests.fuglu.org>
 
         found_mail_list = suspect.parse_from_type_header()
-        self.assertEqual([('this is from: FUGLU', 'fuglu_from@evil1.unittests.fuglu.org')], found_mail_list)
+        self.assertEqual([(u'this is from: FUGLU', u'fuglu_from@evil1.unittests.fuglu.org')], found_mail_list)
 
 
 class SuspectFilterTestCase(unittest.TestCase):
