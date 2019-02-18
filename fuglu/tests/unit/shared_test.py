@@ -281,6 +281,35 @@ class SuspectTestCase(unittest.TestCase):
 
         self.assertEqual(expected, out)
 
+    def test_multiline_from(self):
+        """Test parsing of from header, encoded and split on two lines"""
+
+        file = os.path.join(TESTDATADIR, "from_subject_2lines.eml")
+        suspect = Suspect('sender@fuglu.org', 'recipient@fuglu.org', file)
+        source = force_uString(suspect.get_source())
+        print(source)
+
+        # From mail header, encoded and split on two lines
+        #
+        # From: "=?UTF-8?B?dGhpcyBpcyBmcm9tOiA=?=
+        #  =?UTF-8?B?RlVHTFU=?=" <fuglu_from@evil1.unittests.fuglu.org>
+
+        found_mail_list = suspect.parse_from_type_header()
+        if sys.version_info < (3,):
+            self.assertEqual(1, len(found_mail_list))
+            modlist = []
+            for i,j in found_mail_list:
+                # remove spaces in display name because it is not consistent within Python2
+                # and therefore not suited for testing
+                i = i.replace(' ','')
+                modlist.append((i,j))
+
+            self.assertEqual([(u'this is from: FUGLU'.replace(' ', ''),
+                               u'fuglu_from@evil1.unittests.fuglu.org')], modlist)
+        else:
+            self.assertEqual([(u'this is from: FUGLU', u'fuglu_from@evil1.unittests.fuglu.org')], found_mail_list)
+
+
 class SuspectFilterTestCase(unittest.TestCase):
 
     """Test Suspectfilter"""
@@ -872,3 +901,4 @@ class StaticFunctionTests(unittest.TestCase):
             except AttributeError:
                 # python 2.6
                 self.assertTrue(expected in source2)
+

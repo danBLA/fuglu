@@ -22,13 +22,13 @@ requires: pydns (or alternatively dnspython if only dkim is used)
 requires: pysrs
 """
 
-from fuglu.shared import ScannerPlugin, apply_template, DUNNO, FileList, string_to_actioncode, get_default_cache, extract_domain
+from fuglu.shared import (ScannerPlugin, apply_template, DUNNO, FileList, string_to_actioncode, get_default_cache,
+                          extract_domain, Suspect)
 from fuglu.extensions.sql import get_session, SQL_EXTENSION_ENABLED
 from fuglu.extensions.dnsquery import DNSQUERY_EXTENSION_ENABLED
 import logging
 import os
 import re
-from email.utils import getaddresses
 
 DKIMPY_AVAILABLE = False
 PYSPF_AVAILABLE = False
@@ -74,43 +74,47 @@ except ImportError:
 
 
 
-def extract_from_domains(msg, header='From', get_display_part=False):
+def extract_from_domains(suspect, header='From', get_display_part=False):
     """
     Returns a list of all domains found in From header
-    :param msg: message rep object
+    :param suspect: Suspect
     :param header: name of header to extract, defaults to From
     :param get_display_part: set to True to search and extract domains found in display part, not the actual addresses
     :return: list of domain names or None in case of errors
     """
-    from_headers = msg.get_all(header, [])
-    if len(from_headers) != 1:
+
+    from_addresses = suspect.parse_from_type_header(header=header, validate_mail=True)
+    if len(from_addresses) < 1:
         return None
-    from_headers = [str(h) for h in from_headers]
+    
     from_doms = []
-    for item in getaddresses(from_headers):
+    for item in from_addresses:
         if get_display_part:
             domain_match = re.search("(?<=@)[\w.-]+", item[0])
             if domain_match is None:
                 continue
             from_doms.append(domain_match.group())
         else:
-            from_doms.append(extract_domain(item[1]))
-        
+            try:
+                from_doms.append(extract_domain(item[1]))
+            except Exception as e:
+                logging.getLogger("fuglu.extract_from_domains").exception(e)
+
     from_addrs = list(set(from_doms))
     return from_addrs
 
 
 
-def extract_from_domain(msg, header='From', get_display_part=False):
+def extract_from_domain(suspect, header='From', get_display_part=False):
     """
     Returns the most significant domain found in From header.
     Usually this means the last domain that can be found.
-    :param msg: message rep object
+    :param suspect: Suspect object
     :param header: name of header to extract, defaults to From
     :param get_display_part: set to True to search and extract domains found in display part, not the actual addresses
     :return: string with domain name or None if nothing found
     """
-    from_doms = extract_from_domains(msg, header, get_display_part)
+    from_doms = extract_from_domains(suspect, header, get_display_part)
     if from_doms:
         from_doms = from_doms[-1]
     else:
@@ -256,7 +260,7 @@ known issues:
             return DUNNO
 
         message = suspect.get_source()
-        domain = extract_from_domain(suspect.get_message_rep())
+        domain = extract_from_domain(suspect)
         addvalues = dict(header_from_domain=domain)
         selector = apply_template(
             self.config.get(self.section, 'selector'), suspect, addvalues)
@@ -416,7 +420,7 @@ This plugin depends on tags written by SPFPlugin and DKIMVerifyPlugin, so they m
         checkdomains = self.filelist.get_list()
 
         envelope_sender_domain = suspect.from_domain.lower()
-        header_from_domain = extract_from_domain(suspect.get_message_rep())
+        header_from_domain = extract_from_domain(suspect)
         if header_from_domain is None:
             return
 
@@ -582,11 +586,11 @@ class SpearPhishPlugin(ScannerPlugin):
             return DUNNO  # we only check the message if the env_sender_domain differs. If it's the same it will be caught by other means (like SPF)
         
         msgrep = suspect.get_message_rep()
-        header_from_domains = extract_from_domains(msgrep)
+        header_from_domains = extract_from_domains(suspect)
         self.logger.debug('%s: checking domain %s (source: From header address part)' % (suspect.id, ','.join(header_from_domains)))
         
         if self.config.getboolean(self.section, 'check_display_part'):
-            display_from_domain = extract_from_domain(msgrep, get_display_part=True)
+            display_from_domain = extract_from_domain(suspect, get_display_part=True)
             if display_from_domain is not None and display_from_domain not in header_from_domains:
                 header_from_domains.append(display_from_domain)
                 self.logger.debug('%s: checking domain %s (source: From header display part)' % (suspect.id, display_from_domain))

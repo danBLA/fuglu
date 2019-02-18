@@ -1,0 +1,17 @@
+Date: Fri, 15 Feb 2019 09:07:32 +0100
+Subject: =?UTF-8?B?RXhhbXBsZQ==?=
+ =?UTF-8?B?IHRleHQ=?=
+From: "=?UTF-8?B?dGhpcyBpcyBmcm9tOiA=?=
+ =?UTF-8?B?RlVHTFU=?=" <fuglu_from@evil1.unittests.fuglu.org> 
+To: receiver@fuglu.org 
+Message-Id: <xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx@fuglu.org>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="----=_MIME_BOUNDARY_000_12140"
+
+------=_MIME_BOUNDARY_000_12140
+Content-Type: text/plain
+
+blablabla
+
+some <tagged>text</tagged>
+------=_MIME_BOUNDARY_000_12140--

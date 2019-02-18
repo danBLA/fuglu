@@ -3,6 +3,7 @@ import unittestsetup
 
 from fuglu.shared import Suspect, DUNNO, REJECT
 from fuglu.plugins.domainauth import SPFPlugin, SpearPhishPlugin
+from fuglu.stringencode import force_uString
 try:
     from configparser import RawConfigParser
 except ImportError:
@@ -118,6 +119,22 @@ some <tagged>text</tagged>
             suspect = self._make_dummy_suspect(envelope_sender_domain='example.com', recipient_domain=domain,
                                                header_from_domain=domain)
             self.assertEqual(candidate.examine(suspect), DUNNO, 'spearphish should have been ignored - not in config file' )
+
+    def test_multiline(self):
+        """Check a multiline from header"""
+        shouldcheck = ['evil1.unittests.fuglu.org', 'evil2.unittests.fuglu.org']
+        config = self._make_config(checkdomains=shouldcheck, virusaction='REJECT', rejectmessage='spearphish')
+        candidate = SpearPhishPlugin(None)
+        candidate.config = config
+
+        domain = 'evil1.unittests.fuglu.org'
+        envelope_sender_domain = 'example.com'
+        recipient_domain = domain
+        file = os.path.join(unittestsetup.TESTDATADIR, "from_subject_2lines.eml")
+        suspect = Suspect('sender@%s' % envelope_sender_domain, 'recipient@%s' % recipient_domain, file)
+
+        response = candidate.examine(suspect)
+        self.assertEqual(response, (REJECT, 'spearphish'), ' spearphish should have been detected')
 
     def test_check_all_domains(self):
         """Test if all domains are checked if an empty file is configured"""
