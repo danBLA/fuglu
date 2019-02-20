@@ -1275,3 +1275,32 @@ class BrokenMIMETest(unittest.TestCase):
             ))
             self.assertEqual(afname, att.filename)
             self.assertEqual(isinline[afname], att.is_inline)
+
+class SuspectIsArchivedTest(unittest.TestCase):
+    def test_is_archived(self):
+        """Test "in_archive" property of objects"""
+
+        tempfile = join(TESTDATADIR, "nestedarchive.eml")
+
+        suspect = Suspect('sender@unittests.fuglu.org',
+                          'recipient@unittests.fuglu.org', tempfile)
+
+        m_attach_mgr = suspect.att_mgr
+
+        direct_attachments = m_attach_mgr.get_fileslist()
+        print("Filenames, Level  [0:0] : [%s]" % ", ".join(direct_attachments))
+
+        print("\n")
+        print("--------------------------------------------")
+        print("- Extract objects until there's no archive -")
+        print("--------------------------------------------")
+        full_att_list = m_attach_mgr.get_objectlist(None, include_parents=True)
+        for att in full_att_list:
+            print("{filename} in archive: {inarchive}".format(filename=att.filename,
+                                                              inarchive=att.in_archive))
+
+            # direct attachments are obviously not inside an archive
+            if att.filename in direct_attachments:
+                self.assertFalse(att.in_archive)
+            else:
+                self.assertTrue(att.in_archive)
