@@ -577,6 +577,11 @@ class Mailattachment(Cachelimits):
             return self.archive_handle.namelist()
 
     @smart_cached_property(inputs=["in_obj"])
+    def in_archive(self):
+        """Return if this object is in an archive"""
+        return True if self.parent_archives else False
+
+    @smart_cached_property(inputs=["in_obj"])
     def parent_archives(self):
         """
         (Cached Property-Getter)
