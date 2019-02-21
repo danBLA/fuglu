@@ -42,7 +42,7 @@ def buildmsgsource(suspect):
         val = suspect.addheaders[key]
         #self.logger.debug('Adding header %s : %s'%(key,val))
         hdr = Header(val, header_name=key, continuation_ws=' ')
-        newheaders += "%s: %s\n" % (key, hdr.encode())
+        newheaders += "%s: %s\r\n" % (key, hdr.encode())
 
     # the original message should be in bytes, make sure the header added
     # is an encoded string as well
