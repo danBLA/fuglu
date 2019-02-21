@@ -67,7 +67,7 @@ class AllpluginTestCase(unittest.TestCase):
         self.tempfiles.append(tempfilename)
         suspect = Suspect(
             'sender@unittests.fuglu.org', 'recipient@unittests.fuglu.org', tempfilename)
-        pluglist = sesshandler.run_prependers(suspect)
+        pluglist, applist = sesshandler.run_prependers(suspect)
         self.assertFalse(
             len(pluglist) == 0, "Viruscheck will fail, pluginlist empty after run_prependers")
         sesshandler.run_plugins(suspect, pluglist)
