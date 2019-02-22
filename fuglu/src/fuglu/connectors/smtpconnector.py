@@ -42,7 +42,7 @@ def buildmsgsource(suspect):
         val = suspect.addheaders[key]
         #self.logger.debug('Adding header %s : %s'%(key,val))
         hdr = Header(val, header_name=key, continuation_ws=' ')
-        newheaders += "%s: %s\n" % (key, hdr.encode())
+        newheaders += "%s: %s\r\n" % (key, hdr.encode())
 
     # the original message should be in bytes, make sure the header added
     # is an encoded string as well
@@ -263,18 +263,30 @@ class SMTPSession(object):
         self.socket.send(force_bString("220 fuglu scanner ready \r\n"))
 
         while True:
-            rawdata = b''
-            data = ''
             completeLine = 0
+            collect_lumps = []
             while not completeLine:
 
                 lump = self.socket.recv(1024)
 
                 if len(lump):
-                    rawdata += lump
+                    # collect the lumps into a list
+                    collect_lumps.append(lump)
 
-                    if (len(rawdata) >= 2) and rawdata[-2:] == force_bString('\r\n'):
+                    # check for \r\n in the last two characters sent...
+                    if len(lump) > 1:
+                        if lump[-2:] == b'\r\n':
+                            completeLine = 1
+                    elif (len(collect_lumps) > 0 and (lump[-1:] == b'\n' and collect_lumps[-1][-1:] == b'\r')):
                         completeLine = 1
+
+                    if completeLine == 1:
+
+                        # if line is complete, concatenate the bytes string
+                        # this is MUCH FASTER than doing something like
+                        # rawdata += lump
+                        # outside the completeLine if-condition for every lump
+                        rawdata = b"".join(collect_lumps)
 
                         if self.state != SMTPSession.ST_DATA:
 

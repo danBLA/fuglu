@@ -269,7 +269,7 @@ class SessionHandler(TrackTimings):
                 except Exception as e:
                     self.logger.warning(message_prefix+u'Could not get incoming port: %s' % str(e))
 
-                pluglist = self.run_prependers(suspect)
+                pluglist, applist = self.run_prependers(suspect)
 
                 starttime = time.time()
                 self.run_plugins(suspect, pluglist)
@@ -348,7 +348,7 @@ class SessionHandler(TrackTimings):
                 if not message_is_deferred:
                     self.stats.increasecounters(suspect)
                     self.tracktime("Increase-Counters")
-                    self.run_appenders(suspect, result)
+                    self.run_appenders(suspect, result, applist)
                 else:
                     self.logger.warning("DEFERRED %s" % suspect.id)
 
@@ -605,6 +605,8 @@ class SessionHandler(TrackTimings):
     def run_prependers(self, suspect):
         """Run prependers on suspect"""
         plugcopy = self.plugins[:]
+        appcopy = self.appenders[:]
+        
         self.tracktime("Before-Prependers")
         for plugin in self.prependers:
             try:
@@ -612,12 +614,17 @@ class SessionHandler(TrackTimings):
                 self.set_workerstate(
                     "%s : Running Prepender %s" % (suspect, plugin))
                 starttime = time.time()
-                result = plugin.pluginlist(suspect, plugcopy)
+                
+                out_plugins = plugin.pluginlist(suspect, plugcopy)
+                out_appenders = plugin.appenderlist(suspect, appcopy)
+                
                 plugintime = time.time() - starttime
                 suspect.tags['scantimes'].append((plugin.section, plugintime))
-                if result is not None:
+                
+                # Plugins
+                if out_plugins is not None:
                     plugcopyset = set(plugcopy)
-                    resultset = set(result)
+                    resultset = set(out_plugins)
                     removed = list(plugcopyset - resultset)
                     added = list(resultset - plugcopyset)
                     if len(removed) > 0:
@@ -626,7 +633,21 @@ class SessionHandler(TrackTimings):
                     if len(added) > 0:
                         self.logger.debug(
                             'Prepender %s added plugins: %s' % (plugin, list(map(str, added))))
-                    plugcopy = result
+                    plugcopy = out_plugins
+                    
+                # Appenders
+                if out_appenders is not None:
+                    appcopyset = set(appcopy)
+                    resultset = set(out_appenders)
+                    removed = list(appcopyset - resultset)
+                    added = list(resultset - appcopyset)
+                    if len(removed) > 0:
+                        self.logger.debug(
+                            'Prepender %s removed appender: %s' % (plugin, list(map(str, removed))))
+                    if len(added) > 0:
+                        self.logger.debug(
+                            'Prepender %s added appender: %s' % (plugin, list(map(str, added))))
+                    appcopy = out_appenders
 
             except Exception:
                 CrashStore.store_exception()
@@ -635,15 +656,15 @@ class SessionHandler(TrackTimings):
                     'Prepender plugin %s failed: %s' % (str(plugin), exc))
             finally:
                 self.tracktime(str(plugin), prepender=True)
-        return plugcopy
+        return plugcopy, appcopy
 
-    def run_appenders(self, suspect, finaldecision):
+    def run_appenders(self, suspect, finaldecision, applist):
         """Run appenders on suspect"""
         if suspect.get_tag('noappenders'):
             return
 
         self.tracktime("Before-Appenders")
-        for plugin in self.appenders:
+        for plugin in applist:
             try:
                 self.logger.debug('Running appender %s' % plugin)
                 suspect.debug('Running appender %s' % plugin)

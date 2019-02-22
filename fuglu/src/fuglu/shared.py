@@ -1193,9 +1193,11 @@ class PrependerPlugin(BasicPlugin):
 
     def pluginlist(self, suspect, pluginlist):
         """return the modified pluginlist or None for no change"""
-        self._logger().warning('Unimplemented pluginlist() method')
         return None
 
+    def appenderlist(self, suspect, appenderlist):
+        """return the modified appenderlist or None for no change"""
+        return None
 
 class AppenderPlugin(BasicPlugin):
 
