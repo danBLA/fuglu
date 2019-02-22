@@ -84,21 +84,24 @@ e.g. put this in /etc/fuglu/skipplugins.regex:
         filter = SuspectFilter(filterfile)
         return filter.lint()
 
+
 class AppenderSkipper(PrependerPlugin):
 
-    """Skips appende rplugins based on standard filter file
-This can be used for example to skip spam filters on outgoing messages.
-e.g. put this in /etc/fuglu/skipplugins.regex:
+    """
+    Skips appender plugins based on standard filter file
+    
+    This can be used for example to skip appenders on outgoing messages.
+    e.g. put this in /etc/fuglu/skipappenders.regex:
 
-@incomingport    1099    SAPlugin
-"""
+    @incomingport    1099    PluginTime
+    """
 
     def __init__(self, config, section=None):
         PrependerPlugin.__init__(self, config, section)
         self.filter = None
         self.requiredvars = {
             'filterfile': {
-                'default': '/etc/fuglu/skipplugins.regex',
+                'default': '/etc/fuglu/skipappenders.regex',
             }
         }
         self.logger = self._logger()
@@ -107,7 +110,7 @@ e.g. put this in /etc/fuglu/skipplugins.regex:
         return "Appender Plugin Skipper"
 
     def appenderlist(self, suspect, pluginlist):
-        """Removes scannerplugins based on filter file"""
+        """Removes appender plugins based on filter file"""
         if not self._initfilter():
             return None
 
