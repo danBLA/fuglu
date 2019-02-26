@@ -561,8 +561,8 @@ class Suspect(object):
             # if input is bytes (Py3) we end here
             header_unicode = force_uString(header)
             headerstring = u"".join([force_uString(x[0], encodingGuess=x[1]) for x in decode_header(header_unicode)])
-        except Exception:
-            pass
+        except Exception as e:
+            headerstring = header
         return force_uString(headerstring)
 
     @staticmethod
