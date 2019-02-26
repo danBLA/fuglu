@@ -561,8 +561,8 @@ class Suspect(object):
             # if input is bytes (Py3) we end here
             header_unicode = force_uString(header)
             headerstring = u"".join([force_uString(x[0], encodingGuess=x[1]) for x in decode_header(header_unicode)])
-        except Exception:
-            pass
+        except Exception as e:
+            headerstring = header
         return force_uString(headerstring)
 
     @staticmethod
@@ -619,21 +619,12 @@ class Suspect(object):
         if len(from_headers) < 1:
             return []
 
-        from_headers = [Suspect.decode_msg_header(h) for h in from_headers]
-        if sys.version_info < (3,):
-            # Python 2 has problems to decode multiple lines
-            from_headers = [h.replace('\r\n', '') for h in from_headers]
-
         from_addresses = []
-        for display, mailaddress in getaddresses(from_headers):
+        for display, mailaddress in getaddresses(force_uString(from_headers)):
             isvalid = True
 
-            if sys.version_info < (3,):
-                # Python 2 has problems to decode multiple lines
-                for display, mailaddress in getaddresses(from_headers):
-                    displaylist = display.split()
-                    if len(displaylist) > 1:
-                        display = u"".join([Suspect.decode_msg_header(h) for h in displaylist])
+            # display name eventually needs decoding
+            display = Suspect.decode_msg_header(display)
 
             # validate email
             if validate_mail:

@@ -295,6 +295,17 @@ class SuspectTestCase(unittest.TestCase):
         #  =?UTF-8?B?RlVHTFU=?=" <fuglu_from@evil1.unittests.fuglu.org>
 
         found_mail_list = suspect.parse_from_type_header()
+        self.assertEqual([(u'this is from: FUGLU', u'fuglu_from@evil1.unittests.fuglu.org')], found_mail_list)
+
+    def test_unicode_from_encoding(self):
+        """Test parsing of from header with unicode in display name"""
+
+        file = os.path.join(TESTDATADIR, "unicode_from_to.eml")
+        suspect = Suspect('sender@fuglu.org', 'recipient@fuglu.org', file)
+        source = force_uString(suspect.get_source())
+        print(source)
+
+        found_mail_list = suspect.parse_from_type_header()
         if sys.version_info < (3,):
             self.assertEqual(1, len(found_mail_list))
             modlist = []
@@ -304,10 +315,36 @@ class SuspectTestCase(unittest.TestCase):
                 i = i.replace(' ','')
                 modlist.append((i,j))
 
-            self.assertEqual([(u'this is from: FUGLU'.replace(' ', ''),
-                               u'fuglu_from@evil1.unittests.fuglu.org')], modlist)
+            self.assertEqual([(u'sänder'.replace(' ', ''),
+                               u'sender@unittests.fuglu.org')], modlist)
         else:
-            self.assertEqual([(u'this is from: FUGLU', u'fuglu_from@evil1.unittests.fuglu.org')], found_mail_list)
+            self.assertEqual([(u'sänder', u'sender@unittests.fuglu.org')], found_mail_list)
+
+    def test_unicode_to_noencoding(self):
+        """Test parsing of to header with unicode in display name but no encoding"""
+
+        file = os.path.join(TESTDATADIR, "unicode_from_to.eml")
+        suspect = Suspect('sender@fuglu.org', 'recipient@fuglu.org', file)
+        source = force_uString(suspect.get_source())
+        print(source)
+
+        found_mail_list = suspect.parse_from_type_header(header="To")
+        print(found_mail_list)
+        # display name will not be correct, but mail address should be correclty detected
+        self.assertEqual(u'recipient@unittests.fuglu.org', found_mail_list[0][1])
+
+    def test_unicode_to_noencoding_comma(self):
+        """Test parsing of to header with unicode in display name but no encoding"""
+
+        file = os.path.join(TESTDATADIR, "unicode_from_to.eml")
+        suspect = Suspect('sender@fuglu.org', 'recipient@fuglu.org', file)
+        source = force_uString(suspect.get_source())
+        print(source)
+
+        found_mail_list = suspect.parse_from_type_header(header="Reply-To")
+        print(found_mail_list)
+        # display name will not be correct, but mail address should be correctly detected
+        self.assertEqual(u'recipient@unittests.fuglu.org', found_mail_list[0][1])
 
 
 class SuspectFilterTestCase(unittest.TestCase):
