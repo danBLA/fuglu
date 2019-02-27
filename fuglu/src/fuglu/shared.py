@@ -620,8 +620,33 @@ class Suspect(object):
             return []
 
         from_addresses = []
-        for display, mailaddress in getaddresses(force_uString(from_headers)):
+        # replace \r\n by placeholders to allow getaddresses to properly distinguish between mail and display part
+        #
+        # This seems to be a stable way to overcome issues with encoded and multiline headers, see below
+        #
+        # Example: encoded display part without quotes
+        # =?iso-8859-1?q?alpha=2C_beta?= <alpha.beta@fuglu.org>
+        # If decode header:
+        # alpha, beta <alpha.beta@fuglu.org>
+        # and getaddresses returns
+        # [(,alpha), (beta, alpha.beta@fuglu.org)]
+        # -> this example works correctly if getaddresses is applied first and then decode_header
+        #
+        # Example: multiline
+        # "=?iso-8859-1?q?alpha=2C?=\r\n =?iso-8859-1?q?beta?=" <alpha.beta@fuglu.org>
+        # calling getaddresses returns only the first part
+        # [('', '=?iso-8859-1?q?alpha=2C?=')]
+        # -> calling decode header and then getaddresses works for this case
+        #    (because the display name is surrounded by ", otherwise there's no way
+        from_headers = [h.replace('\r', '{{CR}}').replace('\n', '{{LF}}') for h in force_uString(from_headers)]
+        for display, mailaddress in getaddresses(from_headers):
             isvalid = True
+
+            # after the split, put back the original CR/LF
+            if display:
+                display = display.replace('{{CR}}', '\r').replace('{{LF}}', '\n')
+            if mailaddress:
+                mailaddress = mailaddress.replace('{{CR}}', '\r').replace('{{LF}}', '\n')
 
             # display name eventually needs decoding
             display = Suspect.decode_msg_header(display)
