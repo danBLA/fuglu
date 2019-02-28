@@ -223,5 +223,61 @@ Tags:
     
     def lint(self):
         allok = self.check_config() and self.lint_eicar()
+        networkmode = self.config.getboolean(self.section, 'networkmode')
+        if not networkmode:
+            allok = allok and self.lint_file()
         return allok
 
+    def lint_file(self):
+        import tempfile
+        (handle, tempfilename) = tempfile.mkstemp(prefix='fuglu', dir=self.config.get('main', 'tempdir'))
+        tempfilename = tempfilename
+
+        stream = """Date: Mon, 08 Sep 2008 17:33:54 +0200
+To: oli@unittests.fuglu.org
+From: oli@unittests.fuglu.org
+Subject: test eicar attachment
+X-Mailer: swaks v20061116.0 jetmore.org/john/code/#swaks
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="----=_MIME_BOUNDARY_000_12140"
+
+------=_MIME_BOUNDARY_000_12140
+Content-Type: text/plain
+
+Eicar test
+------=_MIME_BOUNDARY_000_12140
+Content-Type: application/octet-stream
+Content-Transfer-Encoding: BASE64
+Content-Disposition: attachment
+
+UEsDBAoAAAAAAGQ7WyUjS4psRgAAAEYAAAAJAAAAZWljYXIuY29tWDVPIVAlQEFQWzRcUFpYNTQo
+UF4pN0NDKTd9JEVJQ0FSLVNUQU5EQVJELUFOVElWSVJVUy1URVNULUZJTEUhJEgrSCoNClBLAQIU
+AAoAAAAAAGQ7WyUjS4psRgAAAEYAAAAJAAAAAAAAAAEAIAD/gQAAAABlaWNhci5jb21QSwUGAAAA
+AAEAAQA3AAAAbQAAAAAA
+
+------=_MIME_BOUNDARY_000_12140--"""
+        with os.fdopen(handle, 'w+b') as fd:
+            fd.write(force_bString(stream))
+
+        try:
+            viruses = self.scan_file(tempfilename)
+        except Exception as e:
+            print(e)
+            return False
+
+        try:
+            os.remove(tempfilename)
+        except Exception:
+            pass
+
+        try:
+            for fname, virus in iter(viruses.items()):
+                print("F-Prot AV (file mode): Found virus: %s in %s" % (virus, fname))
+                if "EICAR" in virus:
+                    return True
+        except Exception as e:
+            print(e)
+            return False
+
+        print("Couldn't find EICAR in tmp file: %s" % fname)
+        return False
