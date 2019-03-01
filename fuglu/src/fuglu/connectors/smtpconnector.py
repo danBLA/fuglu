@@ -277,7 +277,12 @@ class SMTPSession(object):
                     if len(lump) > 1:
                         if lump[-2:] == b'\r\n':
                             completeLine = 1
-                    elif (len(collect_lumps) > 0 and (lump[-1:] == b'\n' and collect_lumps[-1][-1:] == b'\r')):
+                    elif (len(collect_lumps) > 1 and (lump[-1:] == b'\n' and collect_lumps[-2][-1:] == b'\r')):
+                        # we reach here if the \r\n has been split:
+                        # collect_lumps[-2] = b"....\r"
+                        # lump = b"\n"
+                        #
+                        # Note the "-2" in collect_lumps because the current lump has been added already
                         completeLine = 1
 
                     if completeLine == 1:

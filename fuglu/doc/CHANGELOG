@@ -1,6 +1,6 @@
 -- Fuglu 0.10.0, WIP
  * require setuptools
- * performance improvements
+ * performance improvements (smtpconnector)
  * improved header parsing and decoding
  * Milter mode:
    * handle multiple suspects in one session
@@ -8,12 +8,26 @@
  * F-Prot plugin: lint file mode
  * RSpamd: new plugin (imported from fuglu-extra-plugins)
  * Fuzor: new plugin (imported from fuglu-extra-plugins)
+ * AppenderSkipper: new plugin
+ * Threading backend: force configurable number of free worker threads
 
 Developers:
- * Use objgraph for debugging
+ * More Python 3 fixes
+ * Use objgraph for debugging (fuglu_control)
  * Attachment manager: more attachment properties
  * New redis extension: provides keepalive redis connections
-
+ * Milter: access to queue id and SASL info
+ * Docker dev environment
+ * static prepend_header_to_source routine in Suspect (conversion, encoding, prepend)
+ * static decode_msg_header routine in Suspect (decoding and conversion to string)
+ * static parse_from_type_header routine in Suspect (returns list of (display name, mail))
+ * improved archive error handling in mailattach
+ * improved getting payload for corrupted mail
+ * MailAttachment
+   * location for attachment (in archive tree if file is archive)
+   * md5 and sha1 checksum
+   * Content-Disposition: inline/attachment
+   * in_archive property useful for recursive extraction
 
 -- Fuglu 0.9.0, 2018-10-25
  * ClamAV plugin: Fix sending large files to ClamAV which caused timeouts
