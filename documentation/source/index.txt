@@ -16,6 +16,7 @@ Contents:
    configuration-index
    operation-index
    plugins-index
+   plugins-fuzor
    help-index
    isp-config
    api

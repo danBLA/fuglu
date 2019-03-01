@@ -889,7 +889,7 @@ class Suspect(object):
         In after-queue mode this information is extracted from the message Received: headers and therefore probably not 100% reliable
         all information is returned as-is, this means for example, that non-fcrdns client will show 'unknown' as reverse dns value.
 
-        if no config object is passed, the first parseable Received header is used. otherwise, the config is used to determine the correct boundary MTA (trustedhostregex / boundarydistance)
+        if no config object is passed, the first parseable Received header is used. otherwise, the config is used to determine the correct boundary MTA (trustedhostsregex / boundarydistance)
         """
         if self.clientinfo is not None:
             return self.clientinfo

@@ -3,7 +3,6 @@ import unittestsetup
 
 from fuglu.shared import Suspect, DUNNO, REJECT
 from fuglu.plugins.domainauth import SPFPlugin, SpearPhishPlugin
-from fuglu.stringencode import force_uString
 try:
     from configparser import RawConfigParser
 except ImportError:
