@@ -185,9 +185,8 @@ redispw=
         fuzorplugin = FuzorCheck(config)
         self.assertTrue(fuzorplugin.lint())
 
-
         logger.debug("Read file content")
-        with open(TESTDATADIR + '/fuzor_base64.eml') as f:
+        with open(TESTDATADIR + '/fuzor_html.eml') as f:
             filecontent = f.read()
 
         logger.debug("Create suspect")
@@ -200,8 +199,10 @@ redispw=
         tag = suspect.get_tag('SAPlugin.tempheader')
         self.assertIsNone(tag, "No header should have been added since hash should not have been found")
 
-        mailhash = "df1d303855f0bf85d5a7e74c5a00f97166496b3a"
-        fuzorplugin.backend.redis.set(mailhash, 1, px=50)
+        mailhash = FuzorDigest(suspect.get_message_rep())
+        mailhash_expected = "df1d303855f0bf85d5a7e74c5a00f97166496b3a"
+        self.assertEqual(mailhash, mailhash_expected, 'generated mail hash is different than expected hash')
+        #fuzorplugin.backend.redis.set(mailhash, 1, px=50)
         fuzorplugin.examine(suspect)
         time.sleep(50*1.0e-3) # sleep for 50ms to make sure key has expired
         tag = suspect.get_tag('SAPlugin.tempheader')
