@@ -561,8 +561,8 @@ class Suspect(object):
             # if input is bytes (Py3) we end here
             header_unicode = force_uString(header)
             headerstring = u"".join([force_uString(x[0], encodingGuess=x[1]) for x in decode_header(header_unicode)])
-        except Exception:
-            pass
+        except Exception as e:
+            headerstring = header
         return force_uString(headerstring)
 
     @staticmethod
@@ -619,21 +619,37 @@ class Suspect(object):
         if len(from_headers) < 1:
             return []
 
-        from_headers = [Suspect.decode_msg_header(h) for h in from_headers]
-        if sys.version_info < (3,):
-            # Python 2 has problems to decode multiple lines
-            from_headers = [h.replace('\r\n', '') for h in from_headers]
-
         from_addresses = []
+        # replace \r\n by placeholders to allow getaddresses to properly distinguish between mail and display part
+        #
+        # This seems to be a stable way to overcome issues with encoded and multiline headers, see below
+        #
+        # Example: encoded display part without quotes
+        # =?iso-8859-1?q?alpha=2C_beta?= <alpha.beta@fuglu.org>
+        # If decode header:
+        # alpha, beta <alpha.beta@fuglu.org>
+        # and getaddresses returns
+        # [(,alpha), (beta, alpha.beta@fuglu.org)]
+        # -> this example works correctly if getaddresses is applied first and then decode_header
+        #
+        # Example: multiline
+        # "=?iso-8859-1?q?alpha=2C?=\r\n =?iso-8859-1?q?beta?=" <alpha.beta@fuglu.org>
+        # calling getaddresses returns only the first part
+        # [('', '=?iso-8859-1?q?alpha=2C?=')]
+        # -> calling decode header and then getaddresses works for this case
+        #    (because the display name is surrounded by ", otherwise there's no way
+        from_headers = [h.replace('\r', '{{CR}}').replace('\n', '{{LF}}') for h in force_uString(from_headers)]
         for display, mailaddress in getaddresses(from_headers):
             isvalid = True
 
-            if sys.version_info < (3,):
-                # Python 2 has problems to decode multiple lines
-                for display, mailaddress in getaddresses(from_headers):
-                    displaylist = display.split()
-                    if len(displaylist) > 1:
-                        display = u"".join([Suspect.decode_msg_header(h) for h in displaylist])
+            # after the split, put back the original CR/LF
+            if display:
+                display = display.replace('{{CR}}', '\r').replace('{{LF}}', '\n')
+            if mailaddress:
+                mailaddress = mailaddress.replace('{{CR}}', '\r').replace('{{LF}}', '\n')
+
+            # display name eventually needs decoding
+            display = Suspect.decode_msg_header(display)
 
             # validate email
             if validate_mail:
