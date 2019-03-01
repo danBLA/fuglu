@@ -1,5 +1,9 @@
 image: danbla/fuglutestenv
 
+services:
+   - name: redis:latest
+     alias: tmpRedisDB
+
 stages:
   - build
   - test_isolated
@@ -45,7 +49,7 @@ integrationtests_py3:
     - nosetests-3.4 --rednose tests/integration
 
 
-# define RSYNC_TARGET in gitlab -> project domainmagic -> settings -> variables
+# define RSYNC_TARGET in gitlab -> project fuglu -> settings -> variables
 
 buildfuglu:
   stage: build
