@@ -1,3 +1,20 @@
+-- Fuglu 0.10.0, WIP
+ * require setuptools
+ * performance improvements
+ * improved header parsing and decoding
+ * Milter mode:
+   * handle multiple suspects in one session
+   * significant stability improvements
+ * F-Prot plugin: lint file mode
+ * RSpamd: new plugin (imported from fuglu-extra-plugins)
+ * Fuzor: new plugin (imported from fuglu-extra-plugins)
+
+Developers:
+ * Use objgraph for debugging
+ * Attachment manager: more attachment properties
+ * New redis extension: provides keepalive redis connections
+
+
 -- Fuglu 0.9.0, 2018-10-25
  * ClamAV plugin: Fix sending large files to ClamAV which caused timeouts
  * Attachment plugin: Improve file type detection of unnamed attachments
