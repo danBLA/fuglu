@@ -9,6 +9,7 @@ try:
 except:
     STATUS = "redis not installed"
     ENABLED = False
+    StrictRedis = object
 
 
 class RedisKeepAlive(StrictRedis):
