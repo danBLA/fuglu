@@ -270,13 +270,13 @@ Tags:
             self.logger.error('Cannot check sql blacklist, SQLALCHEMY extension is not available')
             return DUNNO
 
+        dbsession = get_session(self.config.get(self.section, 'sql_blacklist_dbconnectstring'))
+        conf_sql = self.config.get(self.section, 'sql_blacklist_sql')
         try:
-            dbsession = get_session(self.config.get(self.section, 'sql_blacklist_dbconnectstring'))
-            conf_sql = self.config.get(self.section, 'sql_blacklist_sql')
             sql, params = self._replace_sql_params(suspect, conf_sql)
             resultproxy = dbsession.execute(sql, params)
         except Exception as e:
-            self.logger.error('Could not read blacklist from DB: %s' % e)
+            self.logger.error('Could not read blacklist from DB connection %s: %s' % (dbsession, str(e)))
             suspect.debug('Blacklist check failed: %s' % e)
             return DUNNO
 
@@ -716,11 +716,11 @@ Tags:
         spamsize = len(messagecontent)
 
         s = socket.create_connection((host, port), timeout)
-        s.sendall('%s SPAMC/1.2' % command)
-        s.sendall("\r\n")
-        s.sendall("Content-length: %s" % spamsize)
-        s.sendall("\r\n")
-        s.sendall("\r\n")
+        s.sendall(command.encode() + b' SPAMC/1.2')
+        s.sendall(b"\r\n")
+        s.sendall(b"Content-length: " + str(spamsize).encode())
+        s.sendall(b"\r\n")
+        s.sendall(b"\r\n")
         s.sendall(messagecontent)
         s.shutdown(socket.SHUT_WR)
         socketfile = s.makefile("rb")

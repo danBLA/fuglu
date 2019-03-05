@@ -211,9 +211,7 @@ Tags:
         try:
             s = socket.create_connection((host, port), socktimeout)
         except socket.error:
-            raise Exception('Could not reach fpscand using network (%s, %s)' % (
-                self.config.get(self.section, 'host'), self.config.getint(self.section, 'port')))
-
+            raise Exception('Could not reach fpscand using network (%s, %s)' % (host, port))
         return s
     
     

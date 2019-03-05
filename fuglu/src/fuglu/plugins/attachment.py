@@ -668,9 +668,9 @@ The other common template variables are available as well.
                     archivecontentmaxsize = self.config.getint(self.section, 'archivecontentmaxsize')
                     try:
                         archiveextractlevel = self.config.getint(self.section, 'archiveextractlevel')
-                        if archiveextractlevel < 0:
+                        if archiveextractlevel < 0: # value must be greater or equals 0
                             archiveextractlevel = None
-                    except:
+                    except Exception:
                         archiveextractlevel = None
                         
                     try:

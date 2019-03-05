@@ -262,16 +262,14 @@ known issues:
         message = suspect.get_source()
         domain = extract_from_domain(suspect)
         addvalues = dict(header_from_domain=domain)
-        selector = apply_template(
-            self.config.get(self.section, 'selector'), suspect, addvalues)
+        selector = apply_template(self.config.get(self.section, 'selector'), suspect, addvalues)
 
         if domain is None:
             self.logger.error(
                 "%s: Failed to extract From-header domain for DKIM signing" % suspect.id)
             return DUNNO
 
-        privkeyfile = apply_template(
-            self.config.get(self.section, 'privatekeyfile'), suspect, addvalues)
+        privkeyfile = apply_template(self.config.get(self.section, 'privatekeyfile'), suspect, addvalues)
         if not os.path.isfile(privkeyfile):
             self.logger.error("%s: DKIM signing failed for domain %s, private key not found: %s" %
                                  (suspect.id, domain, privkeyfile))
@@ -444,8 +442,7 @@ This plugin depends on tags written by SPFPlugin and DKIMVerifyPlugin, so they m
 
         values = dict(
             header_from_domain=header_from_domain)
-        message = apply_template(
-            self.config.get(self.section, 'rejectmessage'), suspect, values)
+        message = apply_template(self.config.get(self.section, 'rejectmessage'), suspect, values)
         return actioncode, message
 
     def flag_as_spam(self, suspect):

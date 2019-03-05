@@ -173,7 +173,7 @@ class ProcManager(object):
         # join the workers
         try:
             join_timeout = self.config.getfloat('performance', 'join_timeout')
-        except:
+        except Exception:
             if newmanager:
                 join_timeout = 120.0
             else:

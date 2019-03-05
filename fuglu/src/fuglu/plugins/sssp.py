@@ -289,7 +289,7 @@ Prerequisites: Requires a running sophos daemon with dynamic interface (SAVDI)
                 filename = force_uString(parts[0][1])
                 try:
                     filename = tmpdirsyntax.findall(filename)[0][1]
-                except:
+                except IndexError:
                     pass
                 dr[filename] = virus
 
@@ -324,8 +324,7 @@ Prerequisites: Requires a running sophos daemon with dynamic interface (SAVDI)
             try:
                 s.connect(sock)
             except socket.error:
-                raise Exception(
-                    'Could not reach SSSP server using unix socket %s' % sock)
+                raise Exception('Could not reach SSSP server using unix socket %s' % sock)
         else:
             host = self.config.get(self.section, 'host')
             port = self.config.getint(self.section, 'port')
@@ -333,16 +332,14 @@ Prerequisites: Requires a running sophos daemon with dynamic interface (SAVDI)
             try:
                 s = socket.create_connection((host, port), timeout)
             except socket.error:
-                raise Exception(
-                    'Could not reach SSSP server using network (%s, %s)' % (host, port))
+                raise Exception('Could not reach SSSP server using network (%s, %s)' % (host, port))
 
         return s
     
     
     def lint(self):
         viract = self.config.get(self.section, 'virusaction')
-        print("Virusaction: %s" % actioncode_to_string(
-            string_to_actioncode(viract, self.config)))
+        print("Virusaction: %s" % actioncode_to_string(string_to_actioncode(viract, self.config)))
         allok = self.check_config() and self.lint_eicar()
         return allok
 

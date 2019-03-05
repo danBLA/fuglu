@@ -107,8 +107,7 @@ Prerequisites: requires an ICAP capable antivirus engine somewhere in your netwo
             except Exception as e:
                 self.logger.warning("Error encountered while contacting ICAP server (try %s of %s): %s" % (
                     i + 1, self.config.getint(self.section, 'retries'), str(e)))
-        self.logger.error("ICAP scan failed after %s retries" %
-                          self.config.getint(self.section, 'retries'))
+        self.logger.error("ICAP scan failed after %s retries" % self.config.getint(self.section, 'retries'))
         
         return self._problemcode()
     
@@ -223,16 +222,14 @@ Prerequisites: requires an ICAP capable antivirus engine somewhere in your netwo
             try:
                 s = socket.create_connection((host, port), timeout)
             except socket.error:
-                raise Exception(
-                    'Could not reach ICAP server using network (%s, %s)' % (host, port))
+                raise Exception('Could not reach ICAP server using network (%s, %s)' % (host, port))
 
         return s
     
     
     def lint(self):
         viract = self.config.get(self.section, 'virusaction')
-        print("Virusaction: %s" % actioncode_to_string(
-            string_to_actioncode(viract, self.config)))
+        print("Virusaction: %s" % actioncode_to_string(string_to_actioncode(viract, self.config)))
         allok = self.check_config() and self.lint_eicar()
         return allok
 

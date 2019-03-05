@@ -387,7 +387,7 @@ class Archive_gz(Archive_int):
                             # If input is io.BytesIO then the name attribute
                             # stores an empty string, set generic
                             self._archivename = "generic.gz"
-                    except:
+                    except Exception:
                         # any error, set generic
                         self._archivename = "generic.gz"
         else:
@@ -420,7 +420,7 @@ class Archive_gz(Archive_int):
                             # If input is io.BytesIO then the name attribute
                             # stores an empty string, set generic
                             self._archivename = "generic.gz"
-                    except:
+                    except Exception:
                         # any error, set generic
                         self._archivename = "generic.gz"
 
