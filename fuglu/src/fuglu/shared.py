@@ -888,8 +888,14 @@ class Suspect(object):
             clientinfo = self.client_info_from_rcvd()
 
         else:
-            clientinfo = self.client_info_from_rcvd(config.get(
-                'environment', 'trustedhostsregex'), config.getint('environment', 'boundarydistance'))
+            try:
+                trustedhostsregex = config.get('environment', 'trustedhostsregex')
+                boundarydistance = config.getint('environment', 'boundarydistance')
+            except (configparser.NoOptionError, configparser.NoSectionError):
+                trustedhostsregex = ''
+                boundarydistance = 0
+            
+            clientinfo = self.client_info_from_rcvd(trustedhostsregex, boundarydistance)
         self.clientinfo = clientinfo
         return clientinfo
 
