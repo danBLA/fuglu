@@ -72,13 +72,13 @@ class RSpamdPlugin(ScannerPlugin):
             },
 
             'scanoriginal': {
-                'default': '1',
+                'default': 'True',
                 'description': "should we scan the original message as retreived from postfix or scan the current state \nin fuglu (which might have been altered by previous plugins)\nonly set this to disabled if you have a custom plugin that adds special headers to the message that will be \nused in rspamd rules",
             },
 
             'forwardoriginal': {
-                'default': '0',
-                'description': """forward the original message or replace the content as returned by spamassassin\nif this is set to True/1/Yes , no spamassassin headers will be visible in the final message.\n"original" in this case means "as passed to spamassassin", eg. if 'scanoriginal' is set to 0 above this will forward the\nmessage as retreived from previous plugins """,
+                'default': 'False',
+                'description': """forward the original message or add spam report\nif this is enabled, no rspamd spam report headers will be visible in the final message.\n"original" in this case means "as passed to rspamd", eg. if 'scanoriginal' above is disabled this will forward the\nmessage as retreived from previous plugins """,
             },
 
             'highspamlevel': {

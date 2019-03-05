@@ -65,7 +65,7 @@ Tags:
             },
 
             'pipelining': {
-                'default': '0',
+                'default': 'False',
                 'description': "*EXPERIMENTAL*: Perform multiple scans over the same connection. May improve performance on busy systems.",
             },
 
@@ -94,7 +94,7 @@ Tags:
             },
             
             'clamscanfallback': {
-                'default': '0',
+                'default': 'False',
                 'description': "*EXPERIMENTAL*: fallback to clamscan if clamd is unavailable. YMMV, each scan can take 5-20 seconds and massively increase load on a busy system.",
             },
             

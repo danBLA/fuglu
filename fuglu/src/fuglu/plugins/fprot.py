@@ -53,8 +53,8 @@ Tags:
                 'description': "network timeout",
             },
             'networkmode': {
-                'default': '0',
-                'description': "set to 1 to always send data over network instead of just passing the file name when possible. if fpscand runs on a different host than fuglu, you must set this to 1",
+                'default': 'False',
+                'description': "Always send data over network instead of just passing the file name when possible. If fpscand runs on a different host than fuglu, you must enable this.",
             },
             'scanoptions': {
                 'default': '',
