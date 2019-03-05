@@ -44,21 +44,11 @@ except ImportError:
     from HTMLParser import HTMLParser
 
 HAVE_BEAUTIFULSOUP = False
-BS_VERSION = 0
 try:
     import bs4 as BeautifulSoup
     HAVE_BEAUTIFULSOUP = True
-    BS_VERSION = 4
 except ImportError:
     pass
-
-if not HAVE_BEAUTIFULSOUP:
-    try:
-        import BeautifulSoup
-        HAVE_BEAUTIFULSOUP = True
-        BS_VERSION = 3
-    except ImportError:
-        pass
 
 import email
 import re
@@ -1363,29 +1353,15 @@ class SuspectFilter(object):
         content = content.replace("\n", " ")
 
         if HAVE_BEAUTIFULSOUP and use_bfs:
-            if BS_VERSION >= 4:
-                soup = BeautifulSoup.BeautifulSoup(content, "lxml")
-            else:
-                soup = BeautifulSoup.BeautifulSoup(content)
+            soup = BeautifulSoup.BeautifulSoup(content, "lxml")
             for r in remove_tags:
                 [x.extract() for x in soup.findAll(r)]
 
-            if BS_VERSION >= 4:
-                stripped = soup.get_text()
-                if replace_nbsp:
-                    stripped = stripped.replace(u'\xa0', u' ')
-                return force_uString(stripped)
-            else:
-                stripped = ''.join(
-                    # Can retain unicode check since BS < 4 is Py2 only
-                    [e for e in soup.recursiveChildGenerator() \
-                        if isinstance(e, unicode) \
-                        and not isinstance(e, BeautifulSoup.Declaration) \
-                        and not isinstance(e, BeautifulSoup.ProcessingInstruction) \
-                        and not isinstance(e, BeautifulSoup.Comment)])
-                if replace_nbsp:
-                    stripped = stripped.replace(u'\xa0', u' ')
-                return stripped
+            
+            stripped = soup.get_text()
+            if replace_nbsp:
+                stripped = stripped.replace(u'\xa0', u' ')
+            return force_uString(stripped)
 
         # no BeautifulSoup available, let's try a modified version of pyzor's
         # html stripper
