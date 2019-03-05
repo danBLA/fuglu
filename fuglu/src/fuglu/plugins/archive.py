@@ -75,7 +75,7 @@ Note: The first rule to match in a message is the only rule that will be applied
                 'description': 'filename template for the archived messages',
             },
             'storeoriginal': {
-                'default': '1',
+                'default': 'True',
                 'description': "if true/1/yes: store original message\nif false/0/no: store message probably altered by previous plugins, eg with spamassassin headers",
             },
             'chown': {

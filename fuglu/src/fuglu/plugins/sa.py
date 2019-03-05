@@ -95,13 +95,13 @@ Tags:
             },
 
             'scanoriginal': {
-                'default': '1',
+                'default': 'True',
                 'description': "should we scan the original message as retreived from postfix or scan the current state \nin fuglu (which might have been altered by previous plugins)\nonly set this to disabled if you have a custom plugin that adds special headers to the message that will be \nused in spamassassin rules",
             },
 
             'forwardoriginal': {
-                'default': '0',
-                'description': """forward the original message or replace the content as returned by spamassassin\nif this is set to True/1/Yes , no spamassassin headers will be visible in the final message.\n"original" in this case means "as passed to spamassassin", eg. if 'scanoriginal' is set to 0 above this will forward the\nmessage as retreived from previous plugins """,
+                'default': 'False',
+                'description': """forward the original message or replace the content as returned by spamassassin\nif this is enabled, no spamassassin headers will be visible in the final message.\n"original" in this case means "as passed to spamassassin", eg. if 'scanoriginal' above is disabled this will forward the\nmessage as retreived from previous plugins """,
             },
 
             'spamheader': {
@@ -113,7 +113,7 @@ Tags:
                 'description': 'tells fuglu what spamassassin prepends to its headers. Set this according to your spamassassin config especially if you forwardoriginal=0 and strip_oversize=1',
             },
             'peruserconfig': {
-                'default': '1',
+                'default': 'True',
                 'description': 'enable user_prefs in SA. This hands the recipient address over the spamd connection which allows SA to search for configuration overrides',
             },
 
@@ -143,7 +143,7 @@ Tags:
             },
 
             'check_sql_blacklist': {
-                'default': '0',
+                'default': 'False',
                 'description': "consult spamassassins(or any other) sql blacklist for messages that are too big for spam checks\nrequires the sql extension to be enabled",
             },
 
@@ -270,13 +270,14 @@ Tags:
             self.logger.error('Cannot check sql blacklist, SQLALCHEMY extension is not available')
             return DUNNO
 
+        dbconnectionstring = self.config.get(self.section, 'sql_blacklist_dbconnectstring')
+        conf_sql = self.config.get(self.section, 'sql_blacklist_sql')
         try:
-            dbsession = get_session(self.config.get(self.section, 'sql_blacklist_dbconnectstring'))
-            conf_sql = self.config.get(self.section, 'sql_blacklist_sql')
+            dbsession = get_session(dbconnectionstring)
             sql, params = self._replace_sql_params(suspect, conf_sql)
             resultproxy = dbsession.execute(sql, params)
         except Exception as e:
-            self.logger.error('Could not read blacklist from DB: %s' % e)
+            self.logger.error('Could not read blacklist from DB connection %s: %s' % (dbconnectionstring, str(e)))
             suspect.debug('Blacklist check failed: %s' % e)
             return DUNNO
 
@@ -716,11 +717,11 @@ Tags:
         spamsize = len(messagecontent)
 
         s = socket.create_connection((host, port), timeout)
-        s.sendall('%s SPAMC/1.2' % command)
-        s.sendall("\r\n")
-        s.sendall("Content-length: %s" % spamsize)
-        s.sendall("\r\n")
-        s.sendall("\r\n")
+        s.sendall(command.encode() + b' SPAMC/1.2')
+        s.sendall(b"\r\n")
+        s.sendall(b"Content-length: " + str(spamsize).encode())
+        s.sendall(b"\r\n")
+        s.sendall(b"\r\n")
         s.sendall(messagecontent)
         s.shutdown(socket.SHUT_WR)
         socketfile = s.makefile("rb")

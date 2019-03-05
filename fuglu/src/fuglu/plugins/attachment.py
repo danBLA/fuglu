@@ -350,7 +350,7 @@ The other common template variables are available as well.
             },
 
             'sendbounce': {
-                'default': '1',
+                'default': 'True',
                 'description': 'inform the sender about blocked attachments.\nIf a previous plugin tagged the message as spam or infected, no bounce will be sent to prevent backscatter',
             },
 
@@ -376,12 +376,12 @@ The other common template variables are available as well.
             },
 
             'checkarchivenames': {
-                'default': '0',
+                'default': 'False',
                 'description': "enable scanning of filenames within archives (zip,rar). This does not actually extract the files, it just looks at the filenames found in the archive."
             },
 
             'checkarchivecontent': {
-                'default': '0',
+                'default': 'False',
                 'description': 'extract compressed archives(zip,rar) and check file content type with libmagics\nnote that the files will be extracted into memory - tune archivecontentmaxsize  accordingly.\nfuglu does not extract archives within the archive(recursion)',
             },
 
@@ -668,9 +668,9 @@ The other common template variables are available as well.
                     archivecontentmaxsize = self.config.getint(self.section, 'archivecontentmaxsize')
                     try:
                         archiveextractlevel = self.config.getint(self.section, 'archiveextractlevel')
-                        if archiveextractlevel < 0:
+                        if archiveextractlevel < 0: # value must be greater or equals 0
                             archiveextractlevel = None
-                    except:
+                    except Exception:
                         archiveextractlevel = None
                         
                     try:

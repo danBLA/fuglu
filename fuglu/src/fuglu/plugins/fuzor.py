@@ -16,11 +16,10 @@
 #
 #
 from fuglu.shared import ScannerPlugin, AppenderPlugin, SuspectFilter, DUNNO
-from fuglu.extensions.redisext import RedisKeepAlive
+from fuglu.extensions.redisext import RedisKeepAlive, redis, ENABLED as REDIS_ENABLED
 import hashlib
 import re
 import sys
-import redis
 import logging
 import socket
 
@@ -73,6 +72,11 @@ class FuzorMixin(object):
 
     def lint(self):
         ok = self.check_config()
+        
+        if not REDIS_ENABLED:
+            print('ERROR: redis extension not available. This plugin will do nothing.')
+            ok = False
+        
         if ok:
             try:
                 self._init_backend()
@@ -114,6 +118,9 @@ class FuzorMixin(object):
     
     
     def report(self, suspect):
+        if not REDIS_ENABLED:
+            return DUNNO
+        
         maxsize = self.config.getint(self.section, 'maxsize')
         if suspect.size > maxsize:
             self.logger.debug('%s Size Skip, %s > %s' % (suspect.id, suspect.size, maxsize))
@@ -153,6 +160,9 @@ class FuzorReport(ScannerPlugin, FuzorMixin):
     
     
     def examine(self, suspect):
+        if not REDIS_ENABLED:
+            return DUNNO
+        
         self.report(suspect)
         return DUNNO
 
@@ -175,6 +185,9 @@ class FuzorReportAppender(AppenderPlugin, FuzorMixin):
     
     
     def process(self, suspect, decision):
+        if not REDIS_ENABLED:
+            return DUNNO
+        
         self.report(suspect)
 
 
@@ -213,6 +226,9 @@ class FuzorCheck(ScannerPlugin, FuzorMixin):
     
     
     def examine(self, suspect):
+        if not REDIS_ENABLED:
+            return DUNNO
+        
         # self.logger.info("%s: FUZOR START"%suspect.id)
         # start=time.time()
         if suspect.size > self.config.getint(self.section, 'maxsize'):

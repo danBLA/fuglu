@@ -36,8 +36,7 @@ from fuglu.connectors.ncconnector import NCServer
 from fuglu.connectors.smtpconnector import SMTPServer
 from fuglu.debug import ControlServer, CrashStore
 from fuglu.funkyconsole import FunkyConsole
-from fuglu.shared import (BS_VERSION, HAVE_BEAUTIFULSOUP, Suspect,
-                          default_template_values)
+from fuglu.shared import (HAVE_BEAUTIFULSOUP, Suspect, default_template_values)
 from fuglu.stats import StatsThread
 from fuglu.stringencode import force_bString, force_uString
 from fuglu.threadpool import ThreadPool
@@ -902,14 +901,14 @@ class MainController(object):
                   " Optional dependency, required if you want to enable any database lookups")
 
         if HAVE_BEAUTIFULSOUP:
-            print(fc.strcolor('BeautifulSoup: V%s installed' % BS_VERSION, 'green'))
-            if BS_VERSION == 4:
-                try:
-                    from lxml import etree
-                    if etree.LXML_VERSION <= (2,2):
-                        print(fc.strcolor('WARNING: your lxml version is prone to segfaults. An update is recommended.', 'red'))
-                except ImportError:
-                    print(fc.strcolor('ERROR: missing lxml as required dependency for BeautifulSoup', 'yellow'))
+            import bs4 as BeautifulSoup
+            print(fc.strcolor('BeautifulSoup: Version %s installed' % BeautifulSoup.__version__, 'green'))
+            try:
+                from lxml import etree
+                if etree.LXML_VERSION <= (2,2):
+                    print(fc.strcolor('WARNING: your lxml version is prone to segfaults. An update is recommended.', 'red'))
+            except ImportError:
+                print(fc.strcolor('ERROR: missing lxml as required dependency for BeautifulSoup', 'yellow'))
         else:
             print(fc.strcolor('BeautifulSoup: not installed', 'yellow') +
                   " Optional dependency, this improves accuracy for stripped body searches in filters - not required with a default config")

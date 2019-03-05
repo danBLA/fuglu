@@ -26,21 +26,11 @@ except ImportError:
     import configparser as ConfigParser
 
 HAVE_BEAUTIFULSOUP = False
-BS_VERSION = 0
 try:
     import bs4 as BeautifulSoup
     HAVE_BEAUTIFULSOUP = True
-    BS_VERSION = 4
 except ImportError:
     pass
-
-if not HAVE_BEAUTIFULSOUP:
-    try:
-        import BeautifulSoup
-        HAVE_BEAUTIFULSOUP = True
-        BS_VERSION = 3
-    except ImportError:
-        pass
 
 def setup_module():
     root = logging.getLogger()
@@ -55,7 +45,6 @@ def setup_module():
 class FuzorDigestTest(unittest.TestCase):
     def setUp(self):
         self.assertTrue(HAVE_BEAUTIFULSOUP)
-        self.assertEqual(4,BS_VERSION,)
         
         # Python 2.6 does not support assertIsNone
         if not hasattr(self, 'assertIsNone'):
