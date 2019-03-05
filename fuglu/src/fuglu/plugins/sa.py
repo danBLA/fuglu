@@ -270,13 +270,14 @@ Tags:
             self.logger.error('Cannot check sql blacklist, SQLALCHEMY extension is not available')
             return DUNNO
 
-        dbsession = get_session(self.config.get(self.section, 'sql_blacklist_dbconnectstring'))
+        dbconnectionstring = self.config.get(self.section, 'sql_blacklist_dbconnectstring')
         conf_sql = self.config.get(self.section, 'sql_blacklist_sql')
         try:
+            dbsession = get_session(dbconnectionstring)
             sql, params = self._replace_sql_params(suspect, conf_sql)
             resultproxy = dbsession.execute(sql, params)
         except Exception as e:
-            self.logger.error('Could not read blacklist from DB connection %s: %s' % (dbsession, str(e)))
+            self.logger.error('Could not read blacklist from DB connection %s: %s' % (dbconnectionstring, str(e)))
             suspect.debug('Blacklist check failed: %s' % e)
             return DUNNO
 
