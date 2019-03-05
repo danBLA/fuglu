@@ -1345,6 +1345,13 @@ class SuspectFilter(object):
 
         if remove_tags is None:
             remove_tags = ['script', 'style']
+        
+        # try to generate string if we receive a header.
+        if isinstance(content, Header):
+            try:
+                content = content.encode()
+            except Exception as e:
+                self.logger.debug('failed to encode header -> %s' % str(e))
 
         # make sure inputs are unicode, convert if needed
         content = force_uString(content)
