@@ -162,7 +162,7 @@ class RSpamdPlugin(ScannerPlugin):
         else:
             clientinfoheaders = {}
             
-        msgrep = suspect.getMessageRep()
+        msgrep = suspect.get_message_rep()
         subj=msgrep['X-Spam-Prev-Subject']
         if subj is None:
             subj=msgrep['Subject']
