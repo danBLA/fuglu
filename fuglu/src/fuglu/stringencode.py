@@ -71,41 +71,43 @@ def try_decoding(b_inputstring,encodingGuess="utf-8"):
     """
     if b_inputstring is None:
         return None
-
+    
     # make sure encoding is not None or empty
     if not encodingGuess:
         encodingGuess = "utf-8"
-
+    
     logger = logging.getLogger("fuglu.stringencode.try_decoding")
     u_outputstring = None
     try:
         u_outputstring = b_inputstring.decode(encodingGuess,"strict")
     except (UnicodeDecodeError, LookupError):
-        logger.warning("found non %s encoding or encoding not found, try to detect encoding" % encodingGuess)
-
+        # if we get here we will also print either the chardet or trial&error decoding message anyway
+        #logger.debug("found non %s encoding or encoding not found, try to detect encoding" % encodingGuess)
+        pass
+    
     if u_outputstring is None:
         if CHARDET_AVAILABLE:
             encoding = chardet.detect(b_inputstring)['encoding']
-            logger.warning("chardet -> encoding estimated as %s" % encoding)
+            logger.info("chardet -> encoding estimated as %s" % encoding)
             try:
                 u_outputstring = b_inputstring.decode(encoding, "strict")
             except (UnicodeDecodeError, LookupError):
-                logger.warning("encoding found by chardet (%s) does not work" % encoding)
+                logger.info("encoding found by chardet (%s) does not work" % encoding)
         else:
-            logger.warning("module chardet not available -> skip autodetect")
-
+            logger.debug("module chardet not available -> skip autodetect")
+    
     if u_outputstring is None:
         trialerrorencoding = EncodingTrialError.test_all(b_inputstring, returnimmediately=True)
-        logger.warning("trial&error -> encoding estimated as %s" % trialerrorencoding)
+        logger.info("trial&error -> encoding estimated as %s" % trialerrorencoding)
         if trialerrorencoding:
             try:
                 u_outputstring = b_inputstring.decode(trialerrorencoding, "strict")
             except (UnicodeDecodeError, LookupError):
-                logger.warning("encoding found by trial & error (%s) does not work" % encoding)
-
+                logger.info("encoding found by trial & error (%s) does not work" % trialerrorencoding)
+    
     if u_outputstring is None:
         raise UnicodeDecodeError
-
+    
     return u_outputstring
 
 

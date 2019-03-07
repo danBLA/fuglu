@@ -45,17 +45,17 @@ This plugin enables the fuglu_debug functionality. Make sure fuglu listens on th
             },
 
             'nobounce': {
-                'default': '1',
+                'default': 'True',
                 'description': 'debugged message can not be bounced',
             },
 
             'noreinject': {
-                'default': '1',
+                'default': 'True',
                 'description': "don't re-inject debugged messages back to postfix",
             },
 
             'noappender': {
-                'default': '1',
+                'default': 'True',
                 'description': "don't run appender plugins for debugged messages",
             },
         }

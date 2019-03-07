@@ -6,9 +6,11 @@ try:
     from redis import StrictRedis
     STATUS = "redis installed, version: {}".format(redis.__version__)
     ENABLED = True
-except:
+except ImportError:
     STATUS = "redis not installed"
     ENABLED = False
+    StrictRedis = object
+    redis = None
 
 
 class RedisKeepAlive(StrictRedis):

@@ -66,7 +66,7 @@ eg. put this in /etc/fuglu/pluginfraction.regex:
             return True
 
         filename = self.config.get(self.section, 'filterfile')
-        if filename == None or filename == "":
+        if filename is None or filename == "":
             return False
 
         if not os.path.exists(filename):

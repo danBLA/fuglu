@@ -466,9 +466,10 @@ SQL Example for mysql:
         if not SQL_EXTENSION_ENABLED:
             print("Vacation requires the fuglu sql extension to be enabled")
             return False
-
+        
+        dbconnectstring = self.config.get(self.section, 'dbconnectstring')
         try:
-            dbsession = get_session(self.config.get(self.section, 'dbconnectstring'))
+            dbsession = get_session(dbconnectstring)
             bind = dbsession.get_bind(Vacation)
             bind.connect()
             now = datetime.now()
@@ -477,7 +478,7 @@ SQL Example for mysql:
             for vac in allvacs:
                 print(vac)
         except Exception as e:
-            print("Database error: %s" % str(e))
+            print("Error connecting to database %s: %s" % (dbconnectstring, str(e)))
             return False
 
         return True
