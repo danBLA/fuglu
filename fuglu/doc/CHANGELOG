@@ -28,6 +28,7 @@ Developers:
    * md5 and sha1 checksum
    * Content-Disposition: inline/attachment
    * in_archive property useful for recursive extraction
+   * parts with decode errors get contenttype: application/unknown
 
 -- Fuglu 0.9.0, 2018-10-25
  * ClamAV plugin: Fix sending large files to ClamAV which caused timeouts

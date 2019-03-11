@@ -944,8 +944,8 @@ class Mailattachment_mgr(object):
                 self.logger.warning("Could not get payload for %s, "
                                     "Defect(s): %s, "
                                     "continue without decoding"
-                                    % (att_name, ",".join(str(defect) for defect in part.defects)))
-                defects.extend([str(defect) for defect in part.defects])
+                                    % (att_name, ",".join(defect.__doc__ for defect in part.defects)))
+                defects.extend([defect.__doc__ for defect in part.defects])
         except Exception as e:
             self.logger.warning("Could not get payload for %s, "
                                 "Reason: %s, "

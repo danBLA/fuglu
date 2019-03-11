@@ -1305,3 +1305,63 @@ class SuspectIsArchivedTest(unittest.TestCase):
                 self.assertFalse(att.in_archive)
             else:
                 self.assertTrue(att.in_archive)
+
+
+class ProblematicCase(unittest.TestCase):
+    """Mails for which parts of the content can note be extracted should have contenttype: application/unknown"""
+
+    def test_bad_base64(self):
+        """Test bad base64 decoding for mail with missing char in base64 encoded inline image"""
+
+        if sys.version_info < (3, 3):
+            print("Test only valid for Python 3.3 and newer, older Python doesn't know the email"
+                  "defects needed for these tests...")
+            return
+
+        tempfile = join(TESTDATADIR, "inline_image_broken2.eml")
+
+        suspect = Suspect('sender@unittests.fuglu.org',
+                          'recipient@unittests.fuglu.org', tempfile)
+
+        m_attach_mgr = suspect.att_mgr
+
+        direct_attachments = m_attach_mgr.get_fileslist()
+        print("Filenames, Level  [0:0] : [%s]" % ", ".join(direct_attachments))
+
+        full_att_list = m_attach_mgr.get_objectlist(None, include_parents=True)
+        # get filelist
+        filenames = [f.filename for f in full_att_list]
+        # make sure corrupted attachment is found
+        self.assertTrue("test.png" in filenames, "test.png not in list %s" % ",".join(filenames))
+        for att in full_att_list:
+            if att.filename == "test.png":
+                print(att.defects)
+                self.assertEqual("application/unknown", att.contenttype)
+
+    def test_bad_base64_2(self):
+        """Test mail with base64 encoded inline attachment where message ends in base64, without final MIME boundary"""
+
+        if sys.version_info < (3, 3):
+            print("Test only valid for Python 3.3 and newer, older Python doesn't know the email"
+                  "defects needed for these tests...")
+            return
+
+        tempfile = join(TESTDATADIR, "inline_image_broken.eml")
+
+        suspect = Suspect('sender@unittests.fuglu.org',
+                          'recipient@unittests.fuglu.org', tempfile)
+
+        m_attach_mgr = suspect.att_mgr
+
+        direct_attachments = m_attach_mgr.get_fileslist()
+        print("Filenames, Level  [0:0] : [%s]" % ", ".join(direct_attachments))
+
+        full_att_list = m_attach_mgr.get_objectlist(None, include_parents=True)
+        # get filelist
+        filenames = [f.filename for f in full_att_list]
+        # make sure corrupted attachment is found
+        self.assertTrue("test.png" in filenames, "test.png not in list %s" % ",".join(filenames))
+        for att in full_att_list:
+            if att.filename == "test.png":
+                print(att.defects)
+                self.assertEqual("application/unknown", att.contenttype)
