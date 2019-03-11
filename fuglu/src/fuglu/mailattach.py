@@ -52,7 +52,7 @@ class Mailattachment(Cachelimits):
 
     def __init__(self, buffer, filename, mgr, fugluid, filesize=None, in_obj=None, contenttype_mime=None,
                  maintype_mime=None, subtype_mime=None, ismultipart_mime=None, content_charset_mime=None,
-                 is_attachment=False, is_inline=False, defects=None):
+                 is_attachment=False, is_inline=False, defects=None, filename_generated=False):
         """
         Constructor
 
@@ -71,6 +71,7 @@ class Mailattachment(Cachelimits):
             is_attachment (bool): True for direct mail attachments with Content-disposition=attachment
             is_inline (bool): True for inline mail attachments with Content-disposition=inline
             defects (list): a list of strings describing problems during creation of the object (transfer-decode errors)
+            filename_generated (bool): True if name was not available from mail (auto generated name)
         """
         super(Mailattachment, self).__init__()
         self.filename = force_uString(filename)
@@ -79,6 +80,7 @@ class Mailattachment(Cachelimits):
         self._buffer_archobj = {}
         self.fugluid = fugluid
         self.defects = defects if defects else []  # make an empty list for None
+        self.filename_generated = filename_generated
 
         myclass = self.__class__.__name__
         loggername = "fuglu.%s" % myclass
@@ -768,7 +770,7 @@ class Mailattachment_mgr(object):
             (att_name, buffer, attsize,
              contenttype_mime, maintype_mime, subtype_mime,
              ismultipart_mime, content_charset_mime,
-             isattachment, isinline, defects) = self.process_msg_part(part)
+             isattachment, isinline, defects, att_name_generated) = self.process_msg_part(part)
 
             if self.use_caching(attsize):
                 # cache the object if a cachelimit is defined
@@ -779,7 +781,7 @@ class Mailattachment_mgr(object):
                                                            ismultipart_mime=ismultipart_mime,
                                                            content_charset_mime=content_charset_mime,
                                                            is_attachment=isattachment, is_inline=isinline,
-                                                           defects=defects)
+                                                           defects=defects, filename_generated=att_name_generated)
             else:
                 # No caching of the object
                 newatt_file_dict[counter] = None
@@ -821,12 +823,12 @@ class Mailattachment_mgr(object):
                 (att_name, buffer, attsize,contenttype_mime,
                  maintype_mime, subtype_mime, ismultipart_mime,
                  content_charset_mime, isattachment, isinline,
-                 defects) = self.process_msg_part(part)
+                 defects, att_name_generated) = self.process_msg_part(part)
                 att = Mailattachment(buffer, att_name, self, self.fugluid, filesize=attsize,
                                      contenttype_mime=contenttype_mime, maintype_mime=maintype_mime,
                                      subtype_mime=subtype_mime, ismultipart_mime=ismultipart_mime,
                                      content_charset_mime=content_charset_mime, is_attachment=isattachment,
-                                     is_inline=isinline, defects=defects)
+                                     is_inline=isinline, defects=defects, filename_generated=att_name_generated)
                 yield att
 
     def process_msg_part(self, part):
@@ -852,6 +854,7 @@ class Mailattachment_mgr(object):
         -   isinline             (bool)   : True if this is an inline mail attachment,
                                                not attachment (Content-Disposition=attachment)
         -   defects              (list)   : A list of strings containing errors during decoding
+        -   att_name_generated   (bool)   : True if name has been generated (not in mail)
 
         """
         contenttype_mime = part.get_content_type()
@@ -861,6 +864,7 @@ class Mailattachment_mgr(object):
         content_charset_mime = part.get_content_charset()
         att_name = part.get_filename(None)
         defects = []
+        att_name_generated = False
 
         # any error all parts are marked as attachment
         isattachment = True
@@ -915,6 +919,10 @@ class Mailattachment_mgr(object):
             except Exception:
                 pass
         else:
+            #  --
+            #  generate a filename
+            #  --
+            att_name_generated = True
             ct = part.get_content_type()
             if ct in MIMETYPE_EXT_OVERRIDES:
                 ext = MIMETYPE_EXT_OVERRIDES[ct]
@@ -963,7 +971,7 @@ class Mailattachment_mgr(object):
                 contenttype_mime, maintype_mime,
                 subtype_mime, ismultipart_mime,
                 content_charset_mime, isattachment,
-                isinline, defects)
+                isinline, defects, att_name_generated)
 
     @smart_cached_memberfunc(inputs=['att_file_dict'])
     def get_fileslist(self,level=0,maxsize_extract=None):

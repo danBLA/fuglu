@@ -605,6 +605,17 @@ The other common template variables are available as well.
         for attObj in suspect.att_mgr.get_objectlist():
             contenttype_mime = attObj.contenttype_mime
             att_name = attObj.filename
+            
+            if attObj.is_inline or attObj.is_attachment or not attObj.filename_generated:
+                # process all attachments marked as "inline", "attachment" or parts
+                # with filenames that are not auto-generated
+                pass
+            else:
+                self.logger.debug("Skip message object: %s (attachment: %s, inline: %s, auto-name: %s)" % (
+                    att_name, attObj.is_attachment, attObj.is_inline, attObj.filename_generated
+                ))
+                continue
+                
 
             att_name = self.asciionly(att_name)
 
