@@ -39,7 +39,7 @@ class MailattachmentMgrTest(unittest.TestCase):
             # Python 2.x
             with open(tempfile, 'r') as fh:
                 msgrep = email.message_from_file(fh)
-        m_attach_mgr = Mailattachment_mgr(msgrep)
+        m_attach_mgr = Mailattachment_mgr(msgrep, "test_fuglu_id")
         fnames_base_level = sorted(["nestedarchive.tar.gz", "unnamed.txt"])
         fnames_first_level = sorted(["level1.tar.gz", "level0.txt", "unnamed.txt"])
         fnames_second_level = sorted(["level2.tar.gz", "level1.txt", "level0.txt", "unnamed.txt"])
@@ -98,7 +98,7 @@ class MailattachmentMgrTest(unittest.TestCase):
             with open(tempfile, 'r') as fh:
                 msgrep = email.message_from_file(fh)
 
-        m_attach_mgr = Mailattachment_mgr(msgrep)
+        m_attach_mgr = Mailattachment_mgr(msgrep, "test_fuglu_id")
 
         # level 1 means the archive will be extracted once
         # the rarfile extractor will raise an exception because the
@@ -124,7 +124,7 @@ class MailAttachmentTest(unittest.TestCase):
         filename = "test.txt"
         mgr = None
 
-        self.mailattach = Mailattachment(buffer, filename, mgr)
+        self.mailattach = Mailattachment(buffer, filename, mgr, "test_fuglu_id")
 
     def test_fname_contains_check(self):
         """Test all the options to check filename"""
@@ -225,7 +225,7 @@ class MailAttachmentTest(unittest.TestCase):
         filename = "test.txt"
         mgr = None
 
-        self.mailattach = Mailattachment(buffer, filename, mgr)
+        self.mailattach = Mailattachment(buffer, filename, mgr, "test_fuglu_id")
 
         md5 = hashlib.md5(force_bString(self.mailattach.buffer)).hexdigest()
         self.assertEqual(md5, self.mailattach.get_checksum("md5"))
@@ -236,7 +236,7 @@ class MailAttachmentTest(unittest.TestCase):
         filename = "test.txt"
         mgr = None
 
-        self.mailattach = Mailattachment(buffer, filename, mgr)
+        self.mailattach = Mailattachment(buffer, filename, mgr, "test_fuglu_id")
 
         sha1 = hashlib.sha1(force_bString(self.mailattach.buffer)).hexdigest()
         self.assertEqual(sha1, self.mailattach.get_checksum("sha1"))
@@ -247,7 +247,7 @@ class MailAttachmentTest(unittest.TestCase):
         filename = "test.txt"
         mgr = None
 
-        self.mailattach = Mailattachment(buffer, filename, mgr)
+        self.mailattach = Mailattachment(buffer, filename, mgr, "test_fuglu_id")
 
         md5 = ""
         print(md5)
@@ -259,7 +259,7 @@ class MailAttachmentTest(unittest.TestCase):
         filename = "test.txt"
         mgr = None
 
-        self.mailattach = Mailattachment(buffer, filename, mgr)
+        self.mailattach = Mailattachment(buffer, filename, mgr, "test_fuglu_id")
 
         sha1 = ""
         print(sha1)
@@ -1275,6 +1275,7 @@ class BrokenMIMETest(unittest.TestCase):
             ))
             self.assertEqual(afname, att.filename)
             self.assertEqual(isinline[afname], att.is_inline)
+
 
 class SuspectIsArchivedTest(unittest.TestCase):
     def test_is_archived(self):

@@ -50,13 +50,14 @@ class Mailattachment(Cachelimits):
                        "sha1": lambda x: hashlib.sha1(x).hexdigest()
                        }
 
-    def __init__(self, buffer, filename, mgr, filesize=None, in_obj=None, contenttype_mime=None, maintype_mime=None,
-                 subtype_mime=None, ismultipart_mime=None, content_charset_mime=None, is_attachment=False,
-                 is_inline=False):
+    def __init__(self, buffer, filename, mgr, fugluid, filesize=None, in_obj=None, contenttype_mime=None,
+                 maintype_mime=None, subtype_mime=None, ismultipart_mime=None, content_charset_mime=None,
+                 is_attachment=False, is_inline=False, defects=None):
         """
         Constructor
 
         Args:
+            fugluid (): 
             buffer (bytes): buffer containing attachment source
             filename (str): filename of current attachment object
             filesize (int): file size in bytes
@@ -69,12 +70,15 @@ class Mailattachment(Cachelimits):
             content_charset_mime (str): The characterset as defined in the mail attachment, only available for direct mail attachments
             is_attachment (bool): True for direct mail attachments with Content-disposition=attachment
             is_inline (bool): True for inline mail attachments with Content-disposition=inline
+            defects (list): a list of strings describing problems during creation of the object (transfer-decode errors)
         """
         super(Mailattachment, self).__init__()
         self.filename = force_uString(filename)
         self.filesize = filesize
         self.buffer = force_bString(buffer)
         self._buffer_archobj = {}
+        self.fugluid = fugluid
+        self.defects = defects if defects else []  # make an empty list for None
 
         myclass = self.__class__.__name__
         loggername = "fuglu.%s" % myclass
@@ -249,7 +253,13 @@ class Mailattachment(Cachelimits):
         """
         contenttype_magic = None
         if self.buffer is not None and filetype_handler.available():
-            contenttype_magic = filetype_handler.get_buffertype(self.buffer)
+            if self.defects:
+                # if there are defects then the buffer was not decoded and it doesn't
+                # make sense to return a type by fielmagic. For example, if a base64
+                # encoded content can not be decoded filemagic will detect it as text
+                return "application/unknown"
+            else:
+                contenttype_magic = filetype_handler.get_buffertype(self.buffer)
         return contenttype_magic
 
     @smart_cached_property(inputs=['contenttype','filename'])
@@ -496,7 +506,7 @@ class Mailattachment(Cachelimits):
                         else:
                             noextractinfo.append(fname, u"archivehandle", u"(no info)")
                     return None
-                obj = Mailattachment(buffer, fname, self._mgr(), filesize=filesize, in_obj=self,
+                obj = Mailattachment(buffer, fname, self._mgr(), self.fugluid, filesize=filesize, in_obj=self,
                                      is_attachment=self.is_attachment, is_inline=self.is_inline)
 
                 # This object caching is outside the caching decorator used in other parts of this
@@ -554,7 +564,9 @@ class Mailattachment(Cachelimits):
             try:
                 handle = Archivehandle(self.archive_type, BytesIO(self.buffer),archivename=self.filename)
             except Exception as e:
-                self.logger.error("Problem creating Archivehandle for file: %s using archive handler %s (message: %s) -> ignore" % (self.filename, str(self.archive_type), force_uString(e)))
+                self.logger.error("%s, Problem creating Archivehandle for file: "
+                                  "%s using archive handler %s (message: %s) -> ignore"
+                                  % (self.fugluid, self.filename, str(self.archive_type), force_uString(e)))
 
         return handle
 
@@ -635,14 +647,17 @@ Content type : %s""" % (self.filename,u'(unknown)' if self.filesize is None else
 class Mailattachment_mgr(object):
     """Mail attachment manager"""
 
-    def __init__(self,msgrep,section=None,cachelimit=None):
+    def __init__(self, msgrep, fugluid, section=None, cachelimit=None):
         """
         Constructor, initialised by message.
 
         Args:
+            fugluid (): 
             msgrep (email.message.Message): Message to work with
+            fugluid (string): fugluid for logging
         """
         self._msgrep = msgrep
+        self.fugluid = fugluid
         if section is None:
             self.section = self.__class__.__name__
         else:
@@ -719,8 +734,7 @@ class Mailattachment_mgr(object):
                     yield message
 
             except Exception as e:
-                self.logger.info("hidden part extraction failed: %s"%str(e))
-
+                self.logger.info("%s, hidden part extraction failed: %s" % (self.fugluid, str(e)))
 
     @smart_cached_property(inputs=["_msgrep"])
     def att_file_dict(self):
@@ -754,17 +768,18 @@ class Mailattachment_mgr(object):
             (att_name, buffer, attsize,
              contenttype_mime, maintype_mime, subtype_mime,
              ismultipart_mime, content_charset_mime,
-             isattachment, isinline) = Mailattachment_mgr.process_msg_part(part)
+             isattachment, isinline, defects) = self.process_msg_part(part)
 
             if self.use_caching(attsize):
                 # cache the object if a cachelimit is defined
                 # and if size could be extracted and is within the limit
-                newatt_file_dict[counter] = Mailattachment(buffer, att_name, self, filesize=attsize,
+                newatt_file_dict[counter] = Mailattachment(buffer, att_name, self, self.fugluid, filesize=attsize,
                                                            contenttype_mime=contenttype_mime,
                                                            maintype_mime=maintype_mime, subtype_mime=subtype_mime,
                                                            ismultipart_mime=ismultipart_mime,
                                                            content_charset_mime=content_charset_mime,
-                                                           is_attachment=isattachment, is_inline=isinline)
+                                                           is_attachment=isattachment, is_inline=isinline,
+                                                           defects=defects)
             else:
                 # No caching of the object
                 newatt_file_dict[counter] = None
@@ -805,16 +820,16 @@ class Mailattachment_mgr(object):
                 # process part, extract information needed to create Mailattachment
                 (att_name, buffer, attsize,contenttype_mime,
                  maintype_mime, subtype_mime, ismultipart_mime,
-                 content_charset_mime, isattachment, isinline
-                 ) = Mailattachment_mgr.process_msg_part(part)
-                att = Mailattachment(buffer, att_name, self, filesize=attsize, contenttype_mime=contenttype_mime,
-                                     maintype_mime=maintype_mime, subtype_mime=subtype_mime,
-                                     ismultipart_mime=ismultipart_mime, content_charset_mime=content_charset_mime,
-                                     is_attachment=isattachment, is_inline=isinline)
+                 content_charset_mime, isattachment, isinline,
+                 defects) = self.process_msg_part(part)
+                att = Mailattachment(buffer, att_name, self, self.fugluid, filesize=attsize,
+                                     contenttype_mime=contenttype_mime, maintype_mime=maintype_mime,
+                                     subtype_mime=subtype_mime, ismultipart_mime=ismultipart_mime,
+                                     content_charset_mime=content_charset_mime, is_attachment=isattachment,
+                                     is_inline=isinline, defects=defects)
                 yield att
 
-    @staticmethod
-    def process_msg_part(part):
+    def process_msg_part(self, part):
         """
         Process message part, return tuple containing all information to create Mailattachment object
 
@@ -835,7 +850,8 @@ class Mailattachment_mgr(object):
         -   isattachment         (bool)   : True if this is a direct mail attachment,
                                             not inline (Content-Disposition=inline)
         -   isinline             (bool)   : True if this is an inline mail attachment,
-                                            not attachment (Content-Disposition=attachment)
+                                               not attachment (Content-Disposition=attachment)
+        -   defects              (list)   : A list of strings containing errors during decoding
 
         """
         contenttype_mime = part.get_content_type()
@@ -844,6 +860,7 @@ class Mailattachment_mgr(object):
         ismultipart_mime = part.is_multipart()
         content_charset_mime = part.get_content_charset()
         att_name = part.get_filename(None)
+        defects = []
 
         # any error all parts are marked as attachment
         isattachment = True
@@ -863,17 +880,14 @@ class Mailattachment_mgr(object):
                     from fuglu.shared import Suspect
                     content_disposition = Suspect.decode_msg_header(content_disposition)
                 except Exception as e:
-                    logging.getLogger("fuglu.Mailattachment_mgr.process_msg_part") \
-                        .error("error extracting attachment info using Content-Disposition header : %s" % str(e))
-                    logging.getLogger("fuglu.Mailattachment_mgr.process_msg_part").exception(e)
+                    self.logger.error("%s, error extracting attachment info using Content-Disposition header : %s"
+                                      % (self.fugluid, str(e)))
                     content_disposition = "attachment"
 
                 try:
                     content_disposition = content_disposition.lower()
                 except Exception as e:
-                    logging.getLogger("fuglu.Mailattachment_mgr.process_msg_part") \
-                        .error("error extracting attachment info using Content-Disposition header : %s" % str(e))
-                    logging.getLogger("fuglu.Mailattachment_mgr.process_msg_part").exception(e)
+                    self.logger.error("error extracting attachment info using Content-Disposition header : %s" % str(e))
                     content_disposition = "attachment"
 
         if content_disposition is None:
@@ -888,9 +902,8 @@ class Mailattachment_mgr(object):
                     isattachment = False
                     isinline = True
             except AttributeError as e:
-                logging.getLogger("fuglu.Mailattachment_mgr.process_msg_part") \
-                    .error("error extracting attachment "
-                           "info using Content-Disposition header as string: %s" % str(e))
+                self.logger.error("error extracting attachment info using "
+                                  "Content-Disposition header as string: %s" % str(e))
                 logging.getLogger("fuglu.Mailattachment_mgr.process_msg_part").exception(e)
 
         if att_name:
@@ -927,11 +940,18 @@ class Mailattachment_mgr(object):
 
         try:
             buffer = part.get_payload(decode=True)  # Py2: string, Py3: bytes
+            if part.defects:
+                self.logger.warning("Could not get payload for %s, "
+                                    "Defect(s): %s, "
+                                    "continue without decoding"
+                                    % (att_name, ",".join(str(defect) for defect in part.defects)))
+                defects.extend([str(defect) for defect in part.defects])
         except Exception as e:
-            logging.getLogger("fuglu.process_msg_part").exception(e)
-            logging.getLogger("fuglu.process_msg_part").warning("Could not get payload for %s, "
-                                                                "continue without decoding" % att_name)
+            self.logger.warning("Could not get payload for %s, "
+                                "Reason: %s, "
+                                "continue without decoding" % (str(e), att_name))
             buffer = part.get_payload(decode=False)
+            defects.append(str(e))
 
         # try to get size from buffer length
         try:
@@ -943,7 +963,7 @@ class Mailattachment_mgr(object):
                 contenttype_mime, maintype_mime,
                 subtype_mime, ismultipart_mime,
                 content_charset_mime, isattachment,
-                isinline)
+                isinline, defects)
 
     @smart_cached_memberfunc(inputs=['att_file_dict'])
     def get_fileslist(self,level=0,maxsize_extract=None):
