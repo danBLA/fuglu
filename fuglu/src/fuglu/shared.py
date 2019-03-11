@@ -330,7 +330,7 @@ class Suspect(object):
     @property
     def att_mgr(self):
         if self._att_mgr is None:
-            self._att_mgr = Mailattachment_mgr(self.get_message_rep(), cachelimit=self._att_cachelimit)
+            self._att_mgr = Mailattachment_mgr(self.get_message_rep(), self.id, cachelimit=self._att_cachelimit)
         return self._att_mgr
 
     @property

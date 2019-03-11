@@ -39,7 +39,7 @@ class MailattachmentMgrTest(unittest.TestCase):
             # Python 2.x
             with open(tempfile, 'r') as fh:
                 msgrep = email.message_from_file(fh)
-        m_attach_mgr = Mailattachment_mgr(msgrep)
+        m_attach_mgr = Mailattachment_mgr(msgrep, "test_fuglu_id")
         fnames_base_level = sorted(["nestedarchive.tar.gz", "unnamed.txt"])
         fnames_first_level = sorted(["level1.tar.gz", "level0.txt", "unnamed.txt"])
         fnames_second_level = sorted(["level2.tar.gz", "level1.txt", "level0.txt", "unnamed.txt"])
@@ -98,7 +98,7 @@ class MailattachmentMgrTest(unittest.TestCase):
             with open(tempfile, 'r') as fh:
                 msgrep = email.message_from_file(fh)
 
-        m_attach_mgr = Mailattachment_mgr(msgrep)
+        m_attach_mgr = Mailattachment_mgr(msgrep, "test_fuglu_id")
 
         # level 1 means the archive will be extracted once
         # the rarfile extractor will raise an exception because the
@@ -124,7 +124,7 @@ class MailAttachmentTest(unittest.TestCase):
         filename = "test.txt"
         mgr = None
 
-        self.mailattach = Mailattachment(buffer, filename, mgr)
+        self.mailattach = Mailattachment(buffer, filename, mgr, "test_fuglu_id")
 
     def test_fname_contains_check(self):
         """Test all the options to check filename"""
@@ -225,7 +225,7 @@ class MailAttachmentTest(unittest.TestCase):
         filename = "test.txt"
         mgr = None
 
-        self.mailattach = Mailattachment(buffer, filename, mgr)
+        self.mailattach = Mailattachment(buffer, filename, mgr, "test_fuglu_id")
 
         md5 = hashlib.md5(force_bString(self.mailattach.buffer)).hexdigest()
         self.assertEqual(md5, self.mailattach.get_checksum("md5"))
@@ -236,7 +236,7 @@ class MailAttachmentTest(unittest.TestCase):
         filename = "test.txt"
         mgr = None
 
-        self.mailattach = Mailattachment(buffer, filename, mgr)
+        self.mailattach = Mailattachment(buffer, filename, mgr, "test_fuglu_id")
 
         sha1 = hashlib.sha1(force_bString(self.mailattach.buffer)).hexdigest()
         self.assertEqual(sha1, self.mailattach.get_checksum("sha1"))
@@ -247,7 +247,7 @@ class MailAttachmentTest(unittest.TestCase):
         filename = "test.txt"
         mgr = None
 
-        self.mailattach = Mailattachment(buffer, filename, mgr)
+        self.mailattach = Mailattachment(buffer, filename, mgr, "test_fuglu_id")
 
         md5 = ""
         print(md5)
@@ -259,7 +259,7 @@ class MailAttachmentTest(unittest.TestCase):
         filename = "test.txt"
         mgr = None
 
-        self.mailattach = Mailattachment(buffer, filename, mgr)
+        self.mailattach = Mailattachment(buffer, filename, mgr, "test_fuglu_id")
 
         sha1 = ""
         print(sha1)
@@ -1276,6 +1276,7 @@ class BrokenMIMETest(unittest.TestCase):
             self.assertEqual(afname, att.filename)
             self.assertEqual(isinline[afname], att.is_inline)
 
+
 class SuspectIsArchivedTest(unittest.TestCase):
     def test_is_archived(self):
         """Test "in_archive" property of objects"""
@@ -1304,3 +1305,63 @@ class SuspectIsArchivedTest(unittest.TestCase):
                 self.assertFalse(att.in_archive)
             else:
                 self.assertTrue(att.in_archive)
+
+
+class ProblematicCase(unittest.TestCase):
+    """Mails for which parts of the content can note be extracted should have contenttype: application/unknown"""
+
+    def test_bad_base64(self):
+        """Test bad base64 decoding for mail with missing char in base64 encoded inline image"""
+
+        if sys.version_info < (3, 3):
+            print("Test only valid for Python 3.3 and newer, older Python doesn't know the email"
+                  "defects needed for these tests...")
+            return
+
+        tempfile = join(TESTDATADIR, "inline_image_broken2.eml")
+
+        suspect = Suspect('sender@unittests.fuglu.org',
+                          'recipient@unittests.fuglu.org', tempfile)
+
+        m_attach_mgr = suspect.att_mgr
+
+        direct_attachments = m_attach_mgr.get_fileslist()
+        print("Filenames, Level  [0:0] : [%s]" % ", ".join(direct_attachments))
+
+        full_att_list = m_attach_mgr.get_objectlist(None, include_parents=True)
+        # get filelist
+        filenames = [f.filename for f in full_att_list]
+        # make sure corrupted attachment is found
+        self.assertTrue("test.png" in filenames, "test.png not in list %s" % ",".join(filenames))
+        for att in full_att_list:
+            if att.filename == "test.png":
+                print(att.defects)
+                self.assertEqual("application/unknown", att.contenttype)
+
+    def test_bad_base64_2(self):
+        """Test mail with base64 encoded inline attachment where message ends in base64, without final MIME boundary"""
+
+        if sys.version_info < (3, 3):
+            print("Test only valid for Python 3.3 and newer, older Python doesn't know the email"
+                  "defects needed for these tests...")
+            return
+
+        tempfile = join(TESTDATADIR, "inline_image_broken.eml")
+
+        suspect = Suspect('sender@unittests.fuglu.org',
+                          'recipient@unittests.fuglu.org', tempfile)
+
+        m_attach_mgr = suspect.att_mgr
+
+        direct_attachments = m_attach_mgr.get_fileslist()
+        print("Filenames, Level  [0:0] : [%s]" % ", ".join(direct_attachments))
+
+        full_att_list = m_attach_mgr.get_objectlist(None, include_parents=True)
+        # get filelist
+        filenames = [f.filename for f in full_att_list]
+        # make sure corrupted attachment is found
+        self.assertTrue("test.png" in filenames, "test.png not in list %s" % ",".join(filenames))
+        for att in full_att_list:
+            if att.filename == "test.png":
+                print(att.defects)
+                self.assertEqual("application/unknown", att.contenttype)
