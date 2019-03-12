@@ -10,6 +10,7 @@
  * Fuzor: new plugin (imported from fuglu-extra-plugins)
  * AppenderSkipper: new plugin
  * Threading backend: force configurable number of free worker threads
+ * FileTypePlugin: process only message parts marked as "attachment", "inline" or with filename present
 
 Developers:
  * More Python 3 fixes
