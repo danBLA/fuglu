@@ -346,6 +346,19 @@ class SuspectTestCase(unittest.TestCase):
         # display name will not be correct, but mail address should be correctly detected
         self.assertEqual(u'recipient@unittests.fuglu.org', found_mail_list[0][1])
 
+    def test_from_header_doublebracket(self):
+        # start with hello world template
+        suspect = Suspect('sender@unittests.fuglu.org',
+                          'recipient@unittests.fuglu.org', TESTDATADIR + '/helloworld.eml')
+        msg = suspect.get_message_rep()
+        # delete existing From header
+        del msg["From"]
+        # add new From header
+        msg["From"] = "Sender <<sender@fuglu.org>>"
+        suspect.set_message_rep(msg)
+        sender_list = suspect.parse_from_type_header(header="From")
+        self.assertEqual([("Sender", "sender@fuglu.org")], sender_list)
+
 
 class SuspectFilterTestCase(unittest.TestCase):
 
