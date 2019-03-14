@@ -582,7 +582,7 @@ class Mailattachment(Cachelimits):
             - buffer: The file buffer containing the archive
 
         Returns:
-           (Archivehandle) : The handle to work with the archive
+           list : List containing filenames
 
         """
         if self.archive_handle is None:
