@@ -189,7 +189,7 @@ Below is a stripped down example of such a plugin. In a real setup you'd probabl
 		    suspect.set_tag("tagandsend",True)
 		    action=DUNNO
 		    tag="*** SPAM ***"
-		    msgrep=suspect.getMessageRep()
+		    msgrep=suspect.get_message_rep()
 		    oldsubj=msgrep.get("subject","")
 		    newsubj="%s%s"%(tag,oldsubj)
 		    del msgrep["subject"]
@@ -214,7 +214,7 @@ Below is a stripped down example of such a plugin. In a real setup you'd probabl
 		"""Log this message into a mysql database table"""
 		if suspect.get_tag('debug'):
 		    return
-		msgrep=suspect.getMessageRep()
+		msgrep=suspect.get_message_rep()
 		headers=re.split('(?:\n\n)|(?:\r\n\r\n)',suspect.getSource(maxbytes=1048576),1)[0]
 		subj=msgrep['X-Spam-Prev-Subject']
 		if subj==None:

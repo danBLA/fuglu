@@ -784,7 +784,7 @@ class SenderRewriteScheme(ScannerPlugin):
     
     
     def _update_to_hdr(self, suspect, to_address):
-        msgrep = suspect.getMessageRep()
+        msgrep = suspect.get_message_rep()
         old_hdr = msgrep.get('To')
         if old_hdr and '<' in old_hdr:
             start = old_hdr.find('<')

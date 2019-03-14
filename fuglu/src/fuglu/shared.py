@@ -1138,10 +1138,8 @@ class AVScannerPlugin(ScannerPlugin):
             virusaction = self.config.get(self.section, 'virusaction')
             actioncode = string_to_actioncode(virusaction, self.config)
             firstinfected, firstvirusname = list(viruses.items())[0]
-            values = dict(
-                infectedfile=firstinfected, virusname=firstvirusname)
-            message = apply_template(
-                self.config.get(self.section, 'rejectmessage'), suspect, values)
+            values = dict(infectedfile=firstinfected, virusname=firstvirusname)
+            message = apply_template(self.config.get(self.section, 'rejectmessage'), suspect, values)
         return actioncode, message
 
 
