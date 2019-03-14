@@ -275,7 +275,7 @@ class AttachmentPluginTestCase(unittest.TestCase):
                 open(conffile, 'w').write(
                     "deny largefile user does not like the largefile within a zip\ndeny 6mbfile user does not like the largefile within a zip")
                 self.rulescache._loadrules()
-                suspect = Suspect( 'sender@unittests.fuglu.org', user, tmpfile.name)
+                suspect = Suspect('sender@unittests.fuglu.org', user, tmpfile.name)
 
                 result = self.candidate.examine(suspect)
                 if type(result) is tuple:
@@ -393,3 +393,77 @@ class AttachmentPluginTestCase(unittest.TestCase):
         finally:
             tmpfile.close()
             os.remove(conffile)
+
+
+class TestOnlyAttachmentInline(unittest.TestCase):
+
+    """
+    From bug report. Message text parts (unnamed.txt) detected as dosexec
+    and the blocked.
+    """
+
+    def setUp(self):
+        self.tempdir = tempfile.mkdtemp('attachtest', 'fuglu')
+        self.template = '%s/blockedfile.tmpl' % self.tempdir
+        shutil.copy(
+            CONFDIR + '/templates/blockedfile.tmpl.dist', self.template)
+        shutil.copy(CONFDIR + '/rules/default-filenames.conf.dist',
+                    '%s/default-filenames.conf' % self.tempdir)
+        shutil.copy(CONFDIR + '/rules/default-filetypes.conf.dist',
+                    '%s/default-filetypes.conf' % self.tempdir)
+
+        # extend by the content we use for blocking in this test
+        with open('%s/default-filetypes.conf' % self.tempdir, "a+") as f:
+            f.write("\ndeny	     application\/x-dosexec	    No DOS executables")
+
+        config = RawConfigParser()
+        config.add_section('FiletypePlugin')
+        config.set('FiletypePlugin', 'template_blockedfile', self.template)
+        config.set('FiletypePlugin', 'rulesdir', self.tempdir)
+        config.set('FiletypePlugin', 'blockaction', 'DELETE')
+        config.set('FiletypePlugin', 'sendbounce', 'True')
+        config.set('FiletypePlugin', 'checkarchivenames', 'True')
+        config.set('FiletypePlugin', 'checkarchivecontent', 'True')
+        config.set('FiletypePlugin', 'archivecontentmaxsize', '7000000')
+        config.set('FiletypePlugin', 'archiveextractlevel', -1)
+        config.set('FiletypePlugin', 'enabledarchivetypes', '')
+
+        config.add_section('main')
+        config.set('main', 'disablebounces', '1')
+        self.candidate = FiletypePlugin(config)
+        self.rulescache = RulesCache(self.tempdir)
+        self.candidate.rulescache = self.rulescache
+
+    def tearDown(self):
+        os.remove('%s/default-filenames.conf' % self.tempdir)
+        os.remove('%s/default-filetypes.conf' % self.tempdir)
+        os.remove(self.template)
+        shutil.rmtree(self.tempdir)
+
+    def test_dosexec(self):
+        suspect = Suspect('sender@unittests.fuglu.org',
+                          'recipient@unittests.fuglu.org',
+                          TESTDATADIR+'/6mbrarattachment.eml')
+
+        attachmentmanager = suspect.att_mgr
+        objectlist = attachmentmanager.get_objectlist()
+        filenames = [obj.filename for obj in objectlist]
+
+        self.assertTrue("unnamed.txt" in filenames, "unnamed.txt not in list %s" % ",".join(filenames))
+        for obj in objectlist:
+            if obj.filename == "unnamed.txt":
+                contenttype = obj.contenttype
+                # this is a cached property -> patch the cached value for this test
+                obj._property_cache['contenttype']='application/x-dosexec'
+
+                # explicitly set to the blocking content
+                contenttype = obj.contenttype
+                self.assertEqual('application/x-dosexec', contenttype,
+                                 "-> check patching of dict for smart_cached_property")
+                print("content type: %s" % contenttype)
+                print("filename auto generated: %s" % obj.filename_generated)
+
+        result = self.candidate.examine(suspect)
+        if type(result) is tuple:
+            result, message = result
+        self.assertEqual(result, DUNNO, "no attachment should be blocked!")

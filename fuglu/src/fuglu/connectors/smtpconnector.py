@@ -434,7 +434,7 @@ class SMTPSession(object):
             start = address.find(':') + 1
         if start < 1:
             raise ValueError("Could not parse address %s" % address)
-        end = address.find('>')
+        end = address.rfind('>')
         if end < 0:
             end = len(address)
         retaddr = address[start:end]
