@@ -347,6 +347,7 @@ class SuspectTestCase(unittest.TestCase):
         self.assertEqual(u'recipient@unittests.fuglu.org', found_mail_list[0][1])
 
     def test_from_header_doublebracket(self):
+        """Test extraction of a from header with address given like <<address>>"""
         # start with hello world template
         suspect = Suspect('sender@unittests.fuglu.org',
                           'recipient@unittests.fuglu.org', TESTDATADIR + '/helloworld.eml')
@@ -359,6 +360,44 @@ class SuspectTestCase(unittest.TestCase):
         sender_list = suspect.parse_from_type_header(header="From")
         self.assertEqual([("Sender", "sender@fuglu.org")], sender_list)
 
+    def test_from_header_bad(self):
+        """Don't get confused by < in display name"""
+        suspect = Suspect('sender@unittests.fuglu.org',
+                          'recipient@unittests.fuglu.org', TESTDATADIR + '/helloworld.eml')
+        msg = suspect.get_message_rep()
+        # delete existing From header
+        del msg["From"]
+        # add new From header
+        msg["From"] = "Sender <noreply.abcd <sender@fuglu.org>"
+        suspect.set_message_rep(msg)
+        sender_list = suspect.parse_from_type_header(header="From")
+        self.assertEqual([("Sender noreply.abcd", "sender@fuglu.org")], sender_list)
+
+    def test_from_header_combine_and_multiple(self):
+        """Pushing bad entries to the display part should also work with 2 addresses"""
+        suspect = Suspect('sender@unittests.fuglu.org',
+                          'recipient@unittests.fuglu.org', TESTDATADIR + '/helloworld.eml')
+        msg = suspect.get_message_rep()
+        # delete existing From header
+        del msg["To"]
+        # add new From header
+        msg["To"] = "Palim <palim <sender@fuglu.org>, Sender <sender@fuglu.org"
+        suspect.set_message_rep(msg)
+        receiver_list = suspect.parse_from_type_header(header="To")
+        self.assertEqual([('Palim palim', 'sender@fuglu.org'), ('Sender', 'sender@fuglu.org')], receiver_list)
+
+    def test_from_header_combine_and_multiple_extended(self):
+        """Pushing bad entries to the display par """
+        suspect = Suspect('sender@unittests.fuglu.org',
+                          'recipient@unittests.fuglu.org', TESTDATADIR + '/helloworld.eml')
+        msg = suspect.get_message_rep()
+        # delete existing From header
+        del msg["To"]
+        # add new From header
+        msg["To"] = "Receiver <receiver[at]fuglu.org>, Palim <palim <sender@fuglu.org>, Sender <sender@fuglu.org"
+        suspect.set_message_rep(msg)
+        receiver_list = suspect.parse_from_type_header(header="To")
+        self.assertEqual([('Receiver receiver at fuglu.org Palim palim', 'sender@fuglu.org'), ('Sender', 'sender@fuglu.org')], receiver_list)
 
 class SuspectFilterTestCase(unittest.TestCase):
 

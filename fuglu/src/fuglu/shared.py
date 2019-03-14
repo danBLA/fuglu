@@ -647,6 +647,20 @@ class Suspect(object):
             if display or mailaddress:
                 from_addresses_raw.append((display, mailaddress))
 
+        # validate email
+        if validate_mail:
+            from_addresses_val = []
+            for displayname, mailaddress in from_addresses_raw:
+                if mailaddress and (not Addrcheck().valid(mailaddress)):
+                    if displayname:
+                        displayname += " "+mailaddress
+                    else:
+                        displayname = mailaddress
+                    mailaddress = ""
+                from_addresses_val.append((displayname, mailaddress))
+        else:
+            from_addresses_val = from_addresses_raw
+
         # --------- #
         # recombine #
         # --------- #
@@ -660,7 +674,7 @@ class Suspect(object):
         if recombine:
             from_addresses_recombined = []
             from collections import deque
-            entry_list = deque(from_addresses_raw)
+            entry_list = deque(from_addresses_val)
             try:
                 first = entry_list.popleft()
             except IndexError:
@@ -682,16 +696,16 @@ class Suspect(object):
                         second = None
 
                     if second:
+                        # combine display parts of the elements
                         display2, mailaddress2 = second
-                        if not display2 and mailaddress2:
-                            # if there's no display but a mail address,
-                            # combine the display of the first element with
-                            # the mail of the second
-                            from_addresses_recombined.append((display, mailaddress2))
-                            first = None
+                        if display:
+                            newdisplay = "{} {}".format(display, display2)
                         else:
-                            # otherwise make this the next element to be processed
-                            first = second
+                            newdisplay = display2
+                        first = (newdisplay.strip(), mailaddress2)
+                    else:
+                        # if there's no more element, add the current one to the list..
+                        from_addresses_recombined.append((display, mailaddress))
                 if not first:
                     try:
                         first = entry_list.popleft()
@@ -699,7 +713,7 @@ class Suspect(object):
                         # empty list
                         first = None
         else:
-            from_addresses_recombined = from_addresses_raw
+            from_addresses_recombined = from_addresses_val
 
         # validate email
         if validate_mail:
@@ -715,10 +729,10 @@ class Suspect(object):
 
 
                 if isvalid:
-                    from_addresses.append((display, mailaddress))
+                    from_addresses.append((displayname, mailaddress))
                 else:
-                    self.logger.error("%s, Mail %s is not valid, display name is %s, mail address is %s"
-                                      % (self.id, mailaddress, display, mailaddress))
+                    self.logger.error("%s, Mail \"%s\" is not valid, display name is \"%s\""
+                                      % (self.id, mailaddress, displayname))
         else:
             from_addresses = from_addresses_recombined
 
