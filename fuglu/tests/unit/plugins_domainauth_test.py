@@ -149,6 +149,23 @@ some <tagged>text</tagged>
             self.assertEqual(candidate.examine(suspect), (REJECT, 'spearphish'),
                              ' spearphish should have been detected')
 
+    def test_emptyfrom(self):
+        """Check with empty mail but address in display part"""
+        shouldcheck = ['evil1.unittests.fuglu.org', 'evil2.unittests.fuglu.org']
+        config = self._make_config(checkdomains=shouldcheck, virusaction='REJECT', rejectmessage='spearphish', check_display_part='True')
+        candidate = SpearPhishPlugin(None)
+        candidate.config = config
+
+        domain = 'evil1.unittests.fuglu.org'
+        envelope_sender_domain = 'example.com'
+        recipient_domain = domain
+        file = os.path.join(unittestsetup.TESTDATADIR, "empty_from_to.eml")
+        suspect = Suspect('sender@%s' % envelope_sender_domain, 'recipient@%s' % recipient_domain, file)
+
+        response = candidate.examine(suspect)
+        self.assertEqual(response, (REJECT, 'spearphish'), ' spearphish should have been detected')
+
+
 
     def test_specification(self):
         """Check if the plugin works as intended:

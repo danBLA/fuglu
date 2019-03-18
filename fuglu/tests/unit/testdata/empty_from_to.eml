@@ -1,0 +1,32 @@
+Return-Path: <aaaaaaa@aaaaaaaaa.aa>
+Delivered-To: a.aaaaa@aaaaaaaaaaaaaaaaaaaaa.aaa
+Received: from [ddd.ddd.dd.ddd] (unknown [ddd.dd.ddd.dd])
+	(Authenticated sender: aaaaaa.aaaaa@aaaaaaaaaaaaa.aa.aa)
+	by aaaaaa.aaaaaaa.aa.aa (Postfix) with ESMTPA id AAAAAAAAAAAA;
+	Mon, 18 Mar 2019 09:13:40 +0530 (IST)
+Content-Type: multipart/alternative; boundary="===============dddddddddd=="
+MIME-Version: 1.0
+Subject: aaaa dd,ddd aa dddd AAA aaaaaaa aaa aaaaaaaa
+To: me <>
+From: "me@evil1.unittests.fuglu.org" <>
+X-Intloopheader: 0
+Date: Mon, 18 Mar 2019 04:43:07 +0100
+Message-Id: <44N2D44kZSzlpxWj@aaaaa.aaaaa.aaaaaaaaa.ch>
+
+You will not see this in a MIME-aware mail reader.
+--===============dddddddddd==
+Content-Type: text/plain; charset="iso-8859-1"
+MIME-Version: 1.0
+Content-Transfer-Encoding: quoted-printable
+Content-Description: Mail message body
+
+aaa
+
+--===============dddddddddd==
+Content-Type: text/html; charset="iso-8859-1"
+MIME-Version: 1.0
+Content-Transfer-Encoding: quoted-printable
+Content-Description: Mail message body
+
+aaa
+--===============dddddddddd==--
