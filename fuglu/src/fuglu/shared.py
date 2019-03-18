@@ -589,12 +589,13 @@ class Suspect(object):
         src = force_bString(hdrline) + b_source
         return src
 
-    def parse_from_type_header(self, header='From', validate_mail=True):
+    def parse_from_type_header(self, header='From', validate_mail=True, recombine=True):
         """
 
         Args:
             header (str): name of header to extract, defaults to From
             validate_mail (bool): base checks for valid mail
+            recombine (bool): recombine displaypart with mailaddress
 
         Returns:
             [(displayname,email), ... ]
@@ -609,7 +610,7 @@ class Suspect(object):
         if len(from_headers) < 1:
             return []
 
-        from_addresses = []
+        from_addresses_raw = []
         # replace \r\n by placeholders to allow getaddresses to properly distinguish between mail and display part
         #
         # This seems to be a stable way to overcome issues with encoded and multiline headers, see below
@@ -641,8 +642,92 @@ class Suspect(object):
             # display name eventually needs decoding
             display = Suspect.decode_msg_header(display)
 
-            # validate email
-            if validate_mail:
+            # Add if there is a display name or mail address,
+            # ignore if both entries are empty
+            if display or mailaddress:
+                from_addresses_raw.append((display, mailaddress))
+
+        # validate email
+        if validate_mail:
+            from_addresses_val = []
+            for displayname, mailaddress in from_addresses_raw:
+                if mailaddress and (not Addrcheck().valid(mailaddress)):
+                    if displayname:
+                        displayname += " "+mailaddress
+                    else:
+                        displayname = mailaddress
+                    mailaddress = ""
+                from_addresses_val.append((displayname, mailaddress))
+        else:
+            from_addresses_val = from_addresses_raw
+
+        # --------- #
+        # recombine #
+        # --------- #
+        #
+        # if displaypart and mailaddress are not correctly extracted the might
+        # appear in separate tuples, for example:
+        # [('Sender', ''), ('', 'sender@fuglu.org')]
+        # Recombine tries to merge such entries merging if
+        # 1) element has display name but no mail address
+        # 2) next consecutive element has not display name but mail address
+        if recombine:
+            from_addresses_recombined = []
+            from collections import deque
+            entry_list = deque(from_addresses_val)
+            try:
+                first = entry_list.popleft()
+            except IndexError:
+                # empty list
+                first = None
+
+            # use a loop counter so we can check for an infinite loop
+            loopcounter = 0
+            while first:
+                # check if we're in an infinite loop
+                loopcounter += 1
+                if loopcounter > 2000:
+                    raise ValueError("More than 2000 loops in parsing from-type header!")
+                
+                display, mailaddress = first
+                if mailaddress:
+                    from_addresses_recombined.append((display, mailaddress))
+                    first = None
+                else:
+                    # if there's no mail address, check if the next element
+                    # has a mail address
+                    try:
+                        second = entry_list.popleft()
+                    except IndexError:
+                        # empty list
+                        second = None
+
+                    if second:
+                        # combine display parts of the elements
+                        display2, mailaddress2 = second
+                        if display:
+                            newdisplay = "{} {}".format(display, display2)
+                        else:
+                            newdisplay = display2
+                        first = (newdisplay.strip(), mailaddress2)
+                    else:
+                        # if there's no more element, add the current one to the list..
+                        from_addresses_recombined.append((display, mailaddress))
+                        # set first to None to stop the loop
+                        first = None
+                if not first:
+                    try:
+                        first = entry_list.popleft()
+                    except IndexError:
+                        # empty list
+                        first = None
+        else:
+            from_addresses_recombined = from_addresses_val
+
+        # validate email
+        if validate_mail:
+            from_addresses = []
+            for displayname, mailaddress in from_addresses_recombined:
                 try:
                     isvalid = True
                     if not mailaddress or (not Addrcheck().valid(mailaddress)):
@@ -651,10 +736,14 @@ class Suspect(object):
                     self.logger.error("%s: Parsing error %s" % (self.id, str(e)))
                     self.logger.exception(e)
 
-            if isvalid:
-                from_addresses.append((display, mailaddress))
-            else:
-                self.logger.error("%s, Mail %s is not valid, display name is %s" % (self.id, mailaddress, display))
+
+                if isvalid:
+                    from_addresses.append((displayname, mailaddress))
+                else:
+                    self.logger.error("%s, Mail \"%s\" is not valid, display name is \"%s\""
+                                      % (self.id, mailaddress, displayname))
+        else:
+            from_addresses = from_addresses_recombined
 
         return from_addresses
 

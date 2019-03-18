@@ -83,7 +83,9 @@ def extract_from_domains(suspect, header='From', get_display_part=False):
     :return: list of domain names or None in case of errors
     """
 
-    from_addresses = suspect.parse_from_type_header(header=header, validate_mail=True)
+    # checking display part there's no need checking for the validity of the associated
+    # mail address
+    from_addresses = suspect.parse_from_type_header(header=header, validate_mail=(not get_display_part))
     if len(from_addresses) < 1:
         return None
     
@@ -584,6 +586,8 @@ class SpearPhishPlugin(ScannerPlugin):
         
         msgrep = suspect.get_message_rep()
         header_from_domains = extract_from_domains(suspect)
+        if header_from_domains is None:
+            header_from_domains = []
         self.logger.debug('%s: checking domain %s (source: From header address part)' % (suspect.id, ','.join(header_from_domains)))
         
         if self.config.getboolean(self.section, 'check_display_part'):
