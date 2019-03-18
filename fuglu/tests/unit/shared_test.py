@@ -399,6 +399,37 @@ class SuspectTestCase(unittest.TestCase):
         receiver_list = suspect.parse_from_type_header(header="To")
         self.assertEqual([('Receiver receiver at fuglu.org Palim palim', 'sender@fuglu.org'), ('Sender', 'sender@fuglu.org')], receiver_list)
 
+    def test_empty_from_header(self):
+        """Test empty from header"""
+        suspect = Suspect('sender@unittests.fuglu.org',
+                          'recipient@unittests.fuglu.org', TESTDATADIR + '/helloworld.eml')
+        msg = suspect.get_message_rep()
+        # delete existing From header
+        del msg["From"]
+        # add new From header
+        msg["From"] = "Sender <>"
+        suspect.set_message_rep(msg)
+        sender_list = suspect.parse_from_type_header(header="From")
+
+        # in this case there's not valid address extracted
+        self.assertEqual([], sender_list)
+
+    def test_empty_from_header_noval(self):
+        """Test empty from header without validation"""
+        suspect = Suspect('sender@unittests.fuglu.org',
+                          'recipient@unittests.fuglu.org', TESTDATADIR + '/helloworld.eml')
+        msg = suspect.get_message_rep()
+        # delete existing From header
+        del msg["From"]
+        # add new From header
+        msg["From"] = "Sender <>"
+        suspect.set_message_rep(msg)
+        sender_list = suspect.parse_from_type_header(header="From")
+
+        # without validation we can still extract the display name and the empty address
+        sender_list = suspect.parse_from_type_header(header="From", validate_mail=False)
+        self.assertEqual([("Sender", "")], sender_list)
+
 class SuspectFilterTestCase(unittest.TestCase):
 
     """Test Suspectfilter"""
