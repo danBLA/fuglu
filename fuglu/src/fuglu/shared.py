@@ -681,7 +681,14 @@ class Suspect(object):
                 # empty list
                 first = None
 
+            # use a loop counter so we can check for an infinite loop
+            loopcounter = 0
             while first:
+                # check if we're in an infinite loop
+                loopcounter += 1
+                if loopcounter > 2000:
+                    raise ValueError("More than 2000 loops in parsing from-type header!")
+                
                 display, mailaddress = first
                 if mailaddress:
                     from_addresses_recombined.append((display, mailaddress))
@@ -706,6 +713,8 @@ class Suspect(object):
                     else:
                         # if there's no more element, add the current one to the list..
                         from_addresses_recombined.append((display, mailaddress))
+                        # set first to None to stop the loop
+                        first = None
                 if not first:
                     try:
                         first = entry_list.popleft()
