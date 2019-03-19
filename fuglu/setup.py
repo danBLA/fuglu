@@ -54,4 +54,5 @@ setup(
         'Topic :: Communications :: Email :: Filters',
         'Topic :: Communications :: Email :: Mail Transport Agents',
     ],
-    )
+    license='Apache Software License',
+)

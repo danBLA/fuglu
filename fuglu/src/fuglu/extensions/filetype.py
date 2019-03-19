@@ -42,9 +42,13 @@ try:
 except ImportError:
     pass
 
-
-STATUS = "available"
 ENABLED = MAGIC_AVAILABLE > 0
+if ENABLED:
+    STATUS = "available"
+else:
+    STATUS = 'Python Magic not installed'
+
+
 
 class MIME_types_base(object):
     """
