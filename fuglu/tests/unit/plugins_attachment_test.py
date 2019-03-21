@@ -6,6 +6,13 @@ import tempfile
 import shutil
 
 try:
+    from unittest.mock import patch
+    from unittest.mock import MagicMock
+except ImportError:
+    from mock import patch
+    from mock import MagicMock
+
+try:
     from configparser import RawConfigParser
 except ImportError:
     from ConfigParser import RawConfigParser
@@ -467,3 +474,109 @@ class TestOnlyAttachmentInline(unittest.TestCase):
         if type(result) is tuple:
             result, message = result
         self.assertEqual(result, DUNNO, "no attachment should be blocked!")
+
+class AttachmentPluginTestCaseMockBounce(unittest.TestCase):
+    """
+    Test setup with bouncing enabled. Don't forget to patch SMTP to prevent actual
+    sending mail. Patch SMTP is done putting the mocking decorator:
+
+    @patch("smtplib.SMTP")
+
+    in front of the test.
+    """
+    def setUp(self):
+        self.tempdir = tempfile.mkdtemp('attachtest', 'fuglu')
+        self.template = '%s/blockedfile.tmpl' % self.tempdir
+        shutil.copy(
+            CONFDIR + '/templates/blockedfile.tmpl.dist', self.template)
+        shutil.copy(CONFDIR + '/rules/default-filenames.conf.dist',
+                    '%s/default-filenames.conf' % self.tempdir)
+        shutil.copy(CONFDIR + '/rules/default-filetypes.conf.dist',
+                    '%s/default-filetypes.conf' % self.tempdir)
+        config = RawConfigParser()
+        config.add_section('FiletypePlugin')
+        config.set('FiletypePlugin', 'template_blockedfile', self.template)
+        config.set('FiletypePlugin', 'rulesdir', self.tempdir)
+        config.set('FiletypePlugin', 'blockaction', 'DELETE')
+        config.set('FiletypePlugin', 'sendbounce', 'True')
+        config.set('FiletypePlugin', 'checkarchivenames', 'True')
+        config.set('FiletypePlugin', 'checkarchivecontent', 'True')
+        config.set('FiletypePlugin', 'archivecontentmaxsize', '7000000')
+        config.set('FiletypePlugin', 'archiveextractlevel', -1)
+        config.set('FiletypePlugin', 'enabledarchivetypes', '')
+
+        config.add_section('main')
+        config.set('main', 'disablebounces', '0')
+        config.set('main', 'outgoingport', '10038')
+        config.set('main', 'outgoinghelo', 'test.fuglu.org')
+        config.set('main', 'bindaddress', '127.0.0.1')
+        self.candidate = FiletypePlugin(config)
+        self.rulescache = RulesCache(self.tempdir)
+        self.candidate.rulescache = self.rulescache
+
+    def tearDown(self):
+        os.remove('%s/default-filenames.conf' % self.tempdir)
+        os.remove('%s/default-filetypes.conf' % self.tempdir)
+        os.remove(self.template)
+        shutil.rmtree(self.tempdir)
+
+    @patch("smtplib.SMTP")
+    def test_bounce_withenvsender(self, smtpmock):
+        """Reference test bounce is called for setup, next test 'test_bounce_noenvsender' should behave differently."""
+
+        testfile = '6mbzipattachment.eml'
+
+        # copy file rules
+        tmpfile = tempfile.NamedTemporaryFile(
+            suffix='virus', prefix='fuglu-unittest', dir='/tmp')
+        shutil.copy("%s/%s" % (TESTDATADIR, testfile), tmpfile.name)
+
+        user = 'recipient-archivenametest@unittests.fuglu.org'
+        conffile = self.tempdir + "/%s-archivenames.conf" % user
+        open(conffile, 'w').write(
+            "deny largefile user does not like the largefile within a zip\ndeny 6mbfile user does not like the largefile within a zip")
+        self.rulescache._loadrules()
+        suspect = Suspect('sender@unittests.fuglu.org', user, tmpfile.name)
+
+        result = self.candidate.examine(suspect)
+        if type(result) is tuple:
+            result, message = result
+        self.assertEqual(
+            result, DELETE, 'archive containing blocked filename was not blocked')
+        tmpfile.close()
+        os.remove(conffile)
+
+        smtpmock_membercalls = [call[0] for call in smtpmock.mock_calls]
+        self.assertTrue(smtpmock.called)
+        self.assertTrue("().helo" in smtpmock_membercalls)
+        self.assertTrue("().sendmail" in smtpmock_membercalls)
+        self.assertTrue("().quit" in smtpmock_membercalls)
+
+    @patch("smtplib.SMTP")
+    def test_bounce_noenvsender(self, smtpmock):
+        """Don't try to send a bounce if original env sender is empty"""
+
+        testfile = '6mbzipattachment.eml'
+
+        # copy file rules
+        tmpfile = tempfile.NamedTemporaryFile(
+            suffix='virus', prefix='fuglu-unittest', dir='/tmp')
+        shutil.copy("%s/%s" % (TESTDATADIR, testfile), tmpfile.name)
+
+        user = 'recipient-archivenametest@unittests.fuglu.org'
+        conffile = self.tempdir + "/%s-archivenames.conf" % user
+        open(conffile, 'w').write(
+            "deny largefile user does not like the largefile within a zip\ndeny 6mbfile user does not like the largefile within a zip")
+        self.rulescache._loadrules()
+        suspect = Suspect('', user, tmpfile.name)
+
+        result = self.candidate.examine(suspect)
+        if type(result) is tuple:
+            result, message = result
+        self.assertEqual(
+            result, DELETE, 'archive containing blocked filename was not blocked')
+        tmpfile.close()
+        os.remove(conffile)
+
+        self.assertFalse(smtpmock.called, "No SMTP client should have been created because there's no mail to send.")
+
