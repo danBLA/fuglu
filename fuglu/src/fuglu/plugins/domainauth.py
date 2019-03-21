@@ -515,6 +515,10 @@ class SpearPhishPlugin(ScannerPlugin):
                 'default': 'False',
                 'description': "set to True to also check display part of From header (else email part only)",
             },
+            'checkbounces': {
+                'default': 'True',
+                'description': 'disable this if you want to exclude mail with empty envelope sender (bounces, NDRs, OOO) from being marked as spearphish'
+            },
         }
 
 
@@ -584,7 +588,9 @@ class SpearPhishPlugin(ScannerPlugin):
         if envelope_sender_domain == envelope_recipient_domain:
             return DUNNO  # we only check the message if the env_sender_domain differs. If it's the same it will be caught by other means (like SPF)
         
-        msgrep = suspect.get_message_rep()
+        if not self.config.getboolean(self.section, 'checkbounces') and suspect.from_address is None:
+            return DUNNO
+        
         header_from_domains = extract_from_domains(suspect)
         if header_from_domains is None:
             header_from_domains = []
