@@ -511,6 +511,8 @@ The other common template variables are available as well.
                         if suspect.is_spam() or suspect.is_virus():
                             self.logger.info(
                                 "backscatter prevention: not sending attachment block bounce to %s - the message is tagged spam or virus" % suspect.from_address)
+                        elif not suspect.from_address:
+                            self.logger.warning("%s, not sending attachment block bounce to empty recipient" % suspect.id)
                         else:
                             self.logger.info(
                                 "Sending attachment block bounce to %s" % suspect.from_address)
