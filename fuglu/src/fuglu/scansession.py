@@ -597,8 +597,10 @@ class SessionHandler(TrackTimings):
                 CrashStore.store_exception()
                 exc = traceback.format_exc()
                 self.logger.error('Plugin %s failed: %s' % (str(plugin), exc))
-                suspect.debug(
-                    'Plugin failed : %s . Please check fuglu log for more details' % e)
+                suspect.debug('Plugin failed : %s . Please check fuglu log for more details' % e)
+                ptag = suspect.get_tag("processingerrors", defaultvalue=[])
+                ptag.append("Plugin %s failed: %s" % (str(plugin), str(e)))
+                suspect.set_tag("processingerrors", ptag)
             finally:
                 self.tracktime(str(plugin), plugin=True)
 
@@ -649,11 +651,14 @@ class SessionHandler(TrackTimings):
                             'Prepender %s added appender: %s' % (plugin, list(map(str, added))))
                     appcopy = out_appenders
 
-            except Exception:
+            except Exception as e:
                 CrashStore.store_exception()
                 exc = traceback.format_exc()
                 self.logger.error(
                     'Prepender plugin %s failed: %s' % (str(plugin), exc))
+                ptag = suspect.get_tag("processingerrors", defaultvalue=[])
+                ptag.append("Prepender %s failed: %s" % (str(plugin), str(e)))
+                suspect.set_tag("processingerrors", ptag)
             finally:
                 self.tracktime(str(plugin), prepender=True)
         return plugcopy, appcopy
@@ -674,10 +679,13 @@ class SessionHandler(TrackTimings):
                 plugin.process(suspect, finaldecision)
                 plugintime = time.time() - starttime
                 suspect.tags['scantimes'].append((plugin.section, plugintime))
-            except Exception:
+            except Exception as e:
                 CrashStore.store_exception()
                 exc = traceback.format_exc()
                 self.logger.error(
                     'Appender plugin %s failed: %s' % (str(plugin), exc))
+                ptag = suspect.get_tag("processingerrors", defaultvalue=[])
+                ptag.append("Appender %s failed: %s" % (str(plugin), str(e)))
+                suspect.set_tag("processingerrors", ptag)
             finally:
                 self.tracktime(str(plugin), appender=True)
