@@ -2,7 +2,7 @@ import unittest
 import unittestsetup
 
 from fuglu.shared import Suspect, DUNNO, REJECT
-from fuglu.plugins.domainauth import SPFPlugin, SpearPhishPlugin
+from fuglu.plugins.domainauth import SPFPlugin, SpearPhishPlugin, SenderRewriteScheme
 try:
     from configparser import RawConfigParser
 except ImportError:
@@ -202,3 +202,50 @@ some <tagged>text</tagged>
                 header_from_domain='f.example.com')),
             (DUNNO, None),
             'env sender domain = recipient domain should NOT be flagged as spearphish (2)')
+
+
+class SRSTests(unittest.TestCase):
+    """SenderRewriteScheme Tests"""
+
+    def test(self):
+        config = RawConfigParser()
+        config.add_section('SenderRewriteScheme')
+
+        # 'default': "mysql://root@localhost/spfcheck?charset=utf8",
+        # 'description': 'SQLAlchemy Connection string. Leave empty to rewrite all senders',
+        config.set('SenderRewriteScheme', 'dbconnection', '')
+
+        # 'default': "SELECT use_srs from domain where domain_name=:domain",
+        # 'description': 'get from sql database :domain will be replaced with the actual domain name. must return field use_srs',
+        config.set('SenderRewriteScheme', 'domain_sql_query', "SELECT use_srs from domain where domain_name=:domain")
+
+        # 'default': 'example.com',
+        # 'description': 'the new envelope sender domain',
+        config.set('SenderRewriteScheme', 'forward_domain', "srs.fuglu.org")
+
+        # 'default': '',
+        # 'description': 'cryptographic secret. set the same random value on all your machines',
+        config.set('SenderRewriteScheme', 'secret', "")
+
+        # 'default': '8',
+        # 'description': 'maximum lifetime of bounces',
+        config.set('SenderRewriteScheme', 'maxage', "8")
+
+        # 'default': '8',
+        # 'description': 'size of auth code',
+        config.set('SenderRewriteScheme', 'hashlength', "8")
+
+        # 'default': '=',
+        # 'description': 'SRS token separator',
+        config.set('SenderRewriteScheme', 'separator', "=")
+
+        # 'default': 'True',
+        # 'description': 'set True to rewrite address in To: header in bounce messages (reverse/decrypt mode)',
+        config.set('SenderRewriteScheme', 'rewrite_header_to', True)
+
+        srs = SenderRewriteScheme(config, section="SenderRewriteScheme")
+
+        suspect = Suspect('sender@fuglu.org', 'recipient@fuglu.org', "/dev/null")
+        srs.examine(suspect)
+        self.assertTrue("SRS" in suspect.from_localpart)
+        self.assertEqual("srs.fuglu.org", suspect.from_domain)

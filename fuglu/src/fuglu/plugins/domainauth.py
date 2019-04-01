@@ -838,7 +838,6 @@ class SenderRewriteScheme(ScannerPlugin):
             try:
                 sender = srs.forward(orig_sender, forward_domain)
                 suspect.from_address = sender
-                suspect.from_localpart, suspect.from_domain = sender.rsplit('@', 1)
                 self.logger.info('SRS: signed %s to %s' % (orig_sender, sender))
             except Exception as e:
                 self.logger.error('SRS: Failed to sign %s reason: %s' % (orig_sender, str(e)))
