@@ -825,7 +825,6 @@ class SenderRewriteScheme(ScannerPlugin):
             try:
                 recipient = srs.reverse(orig_rcpt)
                 suspect.to_address = recipient
-                suspect.to_localpart, suspect.to_domain = recipient.rsplit('@', 1)
                 new_rcpts = [recipient if x == orig_rcpt else x for x in suspect.recipients]
                 suspect.recipients = new_rcpts
                 if self.config.getboolean(self.section, 'rewrite_header_to'):
