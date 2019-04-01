@@ -476,8 +476,8 @@ class SpearPhishPlugin(ScannerPlugin):
     bounce processing. Use the 'Plugin Skipper' or any other form of whitelisting in such cases.
     """
 
-    def __init__(self, section=None):
-        ScannerPlugin.__init__(self, section)
+    def __init__(self, config, section=None):
+        ScannerPlugin.__init__(self, config, section=section)
         self.logger = self._logger()
         self.filelist = FileList(strip=True, skip_empty=True, skip_comments=True, lowercase=True,
                                  additional_filters=None, minimum_time_between_reloads=30)
@@ -682,8 +682,8 @@ class SenderRewriteScheme(ScannerPlugin):
     """
     
     
-    def __init__(self, section=None):
-        ScannerPlugin.__init__(self, section)
+    def __init__(self, config, section=None):
+        ScannerPlugin.__init__(self, config, section=section)
         self.logger = self._logger()
         
         self.requiredvars = {
