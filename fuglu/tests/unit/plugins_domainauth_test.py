@@ -2,7 +2,7 @@ import unittest
 import unittestsetup
 
 from fuglu.shared import Suspect, DUNNO, REJECT
-from fuglu.plugins.domainauth import SPFPlugin, SpearPhishPlugin, SenderRewriteScheme
+from fuglu.plugins.domainauth import SPFPlugin, SpearPhishPlugin, SenderRewriteScheme, SRS_AVAILABLE
 try:
     from configparser import RawConfigParser
 except ImportError:
@@ -209,6 +209,9 @@ class SRSTests(unittest.TestCase):
 
     def base_test_rewrite(self):
         """Test sender rewrite"""
+
+        self.assertTrue(SRS_AVAILABLE)
+
         config = RawConfigParser()
         config.add_section('SenderRewriteScheme')
 
@@ -248,5 +251,5 @@ class SRSTests(unittest.TestCase):
 
         suspect = Suspect('sender@fuglu.org', 'recipient@fuglu.org', "/dev/null")
         srs.examine(suspect)
-        self.assertTrue("SRS" in suspect.from_localpart)
-        self.assertEqual("srs.fuglu.org", suspect.from_domain)
+        self.assertTrue("SRS" in suspect.from_localpart, "%s" % suspect.from_localpart)
+        self.assertEqual("srs.fuglu.org", suspect.from_domain, "%s" % suspect.from_domain)
