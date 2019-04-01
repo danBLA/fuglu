@@ -207,7 +207,8 @@ some <tagged>text</tagged>
 class SRSTests(unittest.TestCase):
     """SenderRewriteScheme Tests"""
 
-    def test(self):
+    def base_test_rewrite(self):
+        """Test sender rewrite"""
         config = RawConfigParser()
         config.add_section('SenderRewriteScheme')
 
