@@ -94,7 +94,10 @@ class NCSession(object):
 
     def getincomingmail(self):
         """return true if mail got in, false on error Session will be kept open"""
-        self.socket.send(force_bString("fuglu scanner ready - please pipe your message\r\n"))
+        self.socket.send(force_bString("fuglu scanner ready - please pipe your message, "
+                                       "(optional) include env sender/recipient in the first lines as "
+                                       "<<ENV_SENDER>> sender@fuglu.org "
+                                       "<<ENV_RECIPIENT>> recipient@fuglu.org\r\n"))
         try:
             (handle, tempfilename) = tempfile.mkstemp(
                 prefix='fuglu', dir=self.config.get('main', 'tempdir'))
@@ -103,11 +106,27 @@ class NCSession(object):
         except Exception as e:
             self.endsession('could not write to tempfile')
 
+        env_sender_key = b"<<ENV_SENDER>>"
+        len_env_sender_key = len(env_sender_key)
+        env_recipient_key = b"<<ENV_RECIPIENT>>"
+        len_env_recipient_key = len(env_recipient_key)
+
+        check_env_data = True
         while True:
             data = self.socket.recv(1024)
             if len(data) < 1:
                 break
-            self.tempfile.write(data)
+            if check_env_data and data[:len_env_sender_key] == env_sender_key:
+                # sender definition
+                self.from_address = force_uString(data[len_env_sender_key:]).strip()
+            elif check_env_data and data[:len_env_recipient_key] == env_recipient_key:
+                # recipient definition
+                self.recipients.append(force_uString(data[len_env_recipient_key:]).strip())
+            else:
+                # message
+                check_env_data = False
+                self.tempfile.write(data)
+
         self.tempfile.close()
         self.logger.debug('Incoming message received')
         return True
