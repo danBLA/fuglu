@@ -118,10 +118,12 @@ class NCSession(object):
                 break
             if check_env_data and data[:len_env_sender_key] == env_sender_key:
                 # sender definition
-                self.from_address = force_uString(data[len_env_sender_key:]).strip()
+                self.from_address = force_uString(data[len_env_sender_key:])\
+                    .replace("\r", "").replace("\n", "").strip()
             elif check_env_data and data[:len_env_recipient_key] == env_recipient_key:
                 # recipient definition
-                self.recipients.append(force_uString(data[len_env_recipient_key:]).strip())
+                self.recipients.append(force_uString(data[len_env_recipient_key:])
+                                       .replace("\r", "").replace("\n", "").strip())
             else:
                 # message
                 check_env_data = False
