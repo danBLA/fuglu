@@ -41,11 +41,17 @@ class NCHandler(ProtocolHandler):
 
         sess = self.sess
         fromaddr = "unknown@example.org"
-        toaddr = "unknown@example.org"
+        toaddr = ["unknown@example.org"]
+        
+        # use envelope from/to if available
+        if sess.from_address:
+            fromaddr = sess.from_address
+        if sess.recipients:    
+            toaddr = sess.recipients
 
         tempfilename = sess.tempfilename
 
-        suspect = Suspect(fromaddr, [toaddr, ], tempfilename, att_cachelimit=self._att_mgr_cachesize)
+        suspect = Suspect(fromaddr, toaddr, tempfilename, att_cachelimit=self._att_mgr_cachesize)
         return suspect
 
     def commitback(self, suspect):
@@ -95,9 +101,8 @@ class NCSession(object):
     def getincomingmail(self):
         """return true if mail got in, false on error Session will be kept open"""
         self.socket.send(force_bString("fuglu scanner ready - please pipe your message, "
-                                       "(optional) include env sender/recipient in the first lines as "
-                                       "<<ENV_SENDER>> sender@fuglu.org "
-                                       "<<ENV_RECIPIENT>> recipient@fuglu.org\r\n"))
+                                       "(optional) include env sender/recipient in the beginning, "
+                                       "see documentation\r\n"))
         try:
             (handle, tempfilename) = tempfile.mkstemp(
                 prefix='fuglu', dir=self.config.get('main', 'tempdir'))
@@ -106,27 +111,89 @@ class NCSession(object):
         except Exception as e:
             self.endsession('could not write to tempfile')
 
-        env_sender_key = b"<<ENV_SENDER>>"
-        len_env_sender_key = len(env_sender_key)
-        env_recipient_key = b"<<ENV_RECIPIENT>>"
-        len_env_recipient_key = len(env_recipient_key)
-
-        check_env_data = True
+        collect_lumps = []
         while True:
             data = self.socket.recv(1024)
             if len(data) < 1:
                 break
-            if check_env_data and data[:len_env_sender_key] == env_sender_key:
-                # sender definition
-                self.from_address = force_uString(data[len_env_sender_key:]).strip()
-            elif check_env_data and data[:len_env_recipient_key] == env_recipient_key:
-                # recipient definition
-                self.recipients.append(force_uString(data[len_env_recipient_key:]).strip())
             else:
-                # message
-                check_env_data = False
-                self.tempfile.write(data)
-
+                collect_lumps.append(data)
+                
+        data = b"".join(collect_lumps)
+        
+        data = self.parse_remove_env_data(data)
+        
+        self.tempfile.write(data)
         self.tempfile.close()
         self.logger.debug('Incoming message received')
         return True
+    
+    def parse_remove_env_data(self, data):
+        """
+        Check if there is envelop data prepend to the message. If yes, parse it and store sender, receivers, ...
+        Return message only part.
+        Args:
+            data (bytes): message, eventually with message data prepend
+
+        Returns:
+            bytes : message string in bytes
+
+        """
+        start_tag = b"<ENV_DATA_PREPEND>"
+        end_tag = b"</ENV_DATA_PREPEND>"
+        if start_tag == data[:len(start_tag)]:
+            self.logger.debug('Prepend envelope data found')
+            end_index = data.find(end_tag)
+            if end_index < 0:
+                self.logger.error("Found start tag for prepend ENV data but no end tag!")
+                return b""
+            # split data in prepend envelope data and main message data
+            envdata = data[len(start_tag):end_index]
+            data = data[end_index + len(end_tag):]
+            
+            # parse envelope data
+            self.parse_env_data(force_uString(envdata))
+        else:
+            self.logger.debug('No prepend envelope data found')
+        return data
+    
+    def parse_env_data(self, env_string):
+        """
+        Parse envelope data string and store data internally
+        
+        Args:
+            env_string (str): 
+        """
+
+        # ------ #
+        # sender #
+        # ------ #
+        start_tag = "<SENDER>"
+        end_tag = "</SENDER>"
+        
+        start_index = env_string.find(start_tag)
+        end_index = env_string.find(end_tag)
+        self.logger.debug("parse_env_data: SENDER: sind: %u, eind: %u" % (start_index, end_index))
+        
+        if start_index > -1 and end_index > -1 and end_index >= start_index + len(start_tag):
+            senderstring = env_string[start_index+len(start_tag):end_index]
+            self.from_address = senderstring.strip()
+            self.logger.debug("parse_env_data: SENDER: sender: %s" % self.from_address)
+            
+        # ---------- #
+        # recipients #
+        # ---------- #
+        start_tag = "<RECIPIENTS>"
+        end_tag = "</RECIPIENTS>"
+
+        start_index = env_string.find(start_tag)
+        end_index = env_string.find(end_tag)
+        self.logger.debug("parse_env_data: RECIPIENTS: sind: %u, eind: %u" % (start_index, end_index))
+
+        if start_index > -1 and end_index > -1 and end_index >= start_index + len(start_tag):
+            recipientsstring = env_string[start_index+len(start_tag):end_index]
+            self.logger.debug("parse_env_data: RECIPIENTS: extracted string: %s" % recipientsstring)
+            recipientslist = recipientsstring.split(",")
+            for recipient in recipientslist:
+                self.recipients.append(recipient.strip())
+            self.logger.debug("parse_env_data: RECIPIENTS: recipients: %s" % ",".join(self.recipients))
