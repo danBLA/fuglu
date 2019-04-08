@@ -528,12 +528,13 @@ class Suspect(object):
         self.set_message_rep(msg,att_mgr_reset=False)
 
     @staticmethod
-    def decode_msg_header(header):
+    def decode_msg_header(header, decode_errors="replace"):
         """
         Decode message header from email.message into unicode string
 
         Args:
-            header (str, email.header.Header):
+            header (str, email.header.Header): the header to decode
+            decode_errors (str): error handling as in standard bytes.decode -> strict, ignore, replace
 
         Returns:
             str
@@ -546,11 +547,15 @@ class Suspect(object):
             connector = u" "
 
         try:
-            headerstring = connector.join([force_uString(x[0], encodingGuess=x[1]) for x in decode_header(header)])
+            headerstring = connector.join(
+                [force_uString(x[0], encodingGuess=x[1], errors=decode_errors) for x in decode_header(header)]
+            )
         except TypeError:
             # if input is bytes (Py3) we end here
             header_unicode = force_uString(header)
-            headerstring = u"".join([force_uString(x[0], encodingGuess=x[1]) for x in decode_header(header_unicode)])
+            headerstring = u"".join(
+                [force_uString(x[0], encodingGuess=x[1], errors=decode_errors) for x in decode_header(header_unicode)]
+            )
         except Exception as e:
             headerstring = header
         return force_uString(headerstring)

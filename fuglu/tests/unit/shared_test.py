@@ -281,6 +281,27 @@ class SuspectTestCase(unittest.TestCase):
 
         self.assertEqual(expected, out)
 
+    def test_suspect_decode_msg_header_ignorechar(self):
+        """By default, replace unknown characters in decode_msg_headers"""
+        suspect = Suspect('sender@unittests.fuglu.org',
+                          'recipient@unittests.fuglu.org', TESTDATADIR + '/helloworld.eml')
+
+        # check headers just set
+        msg = suspect.get_message_rep()
+
+        encodedheader = "=?UTF-8?B?Y2hlY2sgdGhpcyBjaGFyOiDiiIA=?="
+        expected = u"check this char: ∀"
+        msg["x-new-1"] = encodedheader
+        out = Suspect.decode_msg_header(msg["x-new-1"])
+        self.assertEqual(expected, out, "The original case with correct encoding")
+
+        encodedheader = "=?UTF-8?B?Y2hlY2sgdGhpcyBjaGFyOiDiiI?="
+        expected = u"check this char: �"
+
+        msg["x-new-2"] = encodedheader
+        out = Suspect.decode_msg_header(msg["x-new-2"])
+        self.assertEqual(expected, out, "Due to the broken encoding the corrupted char should be replaced")
+
     def test_multiline_from(self):
         """Test parsing of from header, encoded and split on two lines"""
 
