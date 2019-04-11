@@ -1,6 +1,29 @@
+# -*- coding: utf-8 -*-
+#   Copyright 2009-2019 Fumail Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+#
+#
 import datetime
 import os
 import subprocess
+
+
+VERSION_ALPHA = 'alpha'
+VERSION_BETA = 'beta'
+VERSION_RC = 'rc'
+VERSION_FINAL = 'final'
 
 
 def get_version(version=None):
@@ -15,13 +38,13 @@ def get_version(version=None):
     main = get_main_version(version)
 
     sub = ''
-    if version[3] == 'alpha' or version[3] == 'beta':
+    if version[3] in [VERSION_ALPHA, VERSION_BETA]:
         git_changeset = get_git_changeset()
         if git_changeset:
             sub = '.dev%s' % git_changeset
 
-    elif version[3] != 'final':
-        mapping = {'alpha': 'a', 'beta': 'b', 'rc': 'rc'}
+    elif version[3] != VERSION_FINAL:
+        mapping = {VERSION_ALPHA: 'a', VERSION_BETA: 'b', VERSION_RC: 'rc'}
         sub = mapping[version[3]] + str(version[4])
 
     return main + sub
@@ -43,14 +66,14 @@ def get_complete_version(version=None):
         from fuglu import FUGLU_VERSION as version
     else:
         assert len(version) == 5
-        assert version[3] in ('alpha', 'beta', 'rc', 'final')
+        assert version[3] in (VERSION_ALPHA, VERSION_BETA, VERSION_RC, VERSION_FINAL)
 
     return version
 
 
 def get_docs_version(version=None):
     version = get_complete_version(version)
-    if version[3] != 'final':
+    if version[3] != VERSION_FINAL:
         return 'dev'
     else:
         return '%d.%d' % version[:2]
