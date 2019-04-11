@@ -11,7 +11,7 @@ Prerequisites
 required
 --------
 
- * **python** (>=2.6)
+ * **python** (>=2.6, >=3.4)
  * **python-setuptools**
  * **postfix**
 
@@ -22,6 +22,17 @@ recommended
  * **Spamassassin daemon (spamd)** ( if you don't have/want this, you need to disable it in the configuration, see below)
  * **Clam antivirus daemon (clamd)** ( if you don't have/want this, you need to disable it in the configuration, see below)
  * **python-BeautifulSoup** (optional, used to improve html tag stripping from body searches if available)
+ * **other python modules** depending on your requirements and plugins enabled, more python dependencies may be needed:
+   * python-sqlalchemy with a backend such as python-mysql/python-MySQLdb
+   * python-dns
+   * python-redis
+   * python-ipaddr
+   * python-spf
+   * python-srs
+   * python-dkim
+   * py7zlib
+   * python-rarfile with a backend such as unrar binary or bsdtar
+   * beautifulsoup 4.x
 
 ----------------------------
 Getting and installing Fuglu
