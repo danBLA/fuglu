@@ -31,12 +31,12 @@ def get_version(version=None):
     version = get_complete_version(version)
 
     # Now build the two parts of the version number:
-    # main = X.Y[.Z]
+    # main = X.Y.Z
     # sub = .devN - for pre-alpha releases
     #     | {a|b|rc}N - for alpha, beta, and rc releases
 
     main = get_main_version(version)
-
+    
     sub = ''
     if version[3] in [VERSION_ALPHA, VERSION_BETA]:
         git_changeset = get_git_changeset()
@@ -46,15 +46,14 @@ def get_version(version=None):
     elif version[3] != VERSION_FINAL:
         mapping = {VERSION_ALPHA: 'a', VERSION_BETA: 'b', VERSION_RC: 'rc'}
         sub = mapping[version[3]] + str(version[4])
-
+    
     return main + sub
 
 
 def get_main_version(version=None):
-    """Return main version (X.Y[.Z]) from VERSION."""
+    """Return main version (X.Y.Z) from VERSION."""
     version = get_complete_version(version)
-    parts = 2 if version[2] == 0 else 3
-    return '.'.join(str(x) for x in version[:parts])
+    return '.'.join(str(x) for x in version[:3])
 
 
 def get_complete_version(version=None):
