@@ -130,6 +130,7 @@ attachment=fuglu.plugins.attachment.FiletypePlugin
 clamav=fuglu.plugins.clamav.ClamavPlugin
 
 spamassassin=fuglu.plugins.sa.SAPlugin
+salearn=fuglu.plugins.sa.SALearn
 
 vacation=fuglu.plugins.vacation.VacationPlugin
 
