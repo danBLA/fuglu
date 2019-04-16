@@ -457,15 +457,15 @@ class SuspectTestCase(unittest.TestCase):
         file = os.path.join(TESTDATADIR, "nonascii_env_rcpt.eml")
         suspect = Suspect('sender@fuglu.org', 'recipient@fuglu.org', file)
         source = force_uString(suspect.get_source())
-        print(source)
 
-        # From mail header, encoded and split on two lines
+        found_mail = suspect.parse_from_type_header(header='to',)[0][1]
+        self.assertEqual(u'a{IGNORE}aa.aaaaaa@aaaaaa.aa', found_mail[:1]+"{IGNORE}"+found_mail[2:])
+        # Note the original to-header looks like:
         #
-        # From: "=?UTF-8?B?dGhpcyBpcyBmcm9tOiA=?=
-        #  =?UTF-8?B?RlVHTFU=?=" <fuglu_from@evil1.unittests.fuglu.org>
-
-        found_mail_list = suspect.parse_from_type_header(header='to',)
-        self.assertEqual([("", u'a�aa.aaaaaa@aaaaaa.aa')], found_mail_list)
+        # To: aüaa.aaaaaa@aaaaaa.aa
+        #
+        # which is not allowed. So the character that is extracted for "ü" seems to depend on
+        # python version, so in this test it is ignored and replaced by {IGNORE}
 
 class SuspectFilterTestCase(unittest.TestCase):
 
