@@ -1014,9 +1014,12 @@ class Suspect(object):
 
         unknown = None
 
-        receivedheaders = self.get_message_rep().get_all('Received')
-        if receivedheaders is None:
+        receivedheaders_raw = self.get_message_rep().get_all('Received')
+        if receivedheaders_raw is None:
             return unknown
+        else:
+            # make sure receivedheaders is an array of strings, no Header objects
+            receivedheaders = [Suspect.decode_msg_header(h) for h in receivedheaders_raw]
 
         for rcvdline in receivedheaders[skip:]:
             h_rev_ip = self._parse_rcvd_header(rcvdline)
