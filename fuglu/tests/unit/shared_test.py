@@ -451,6 +451,22 @@ class SuspectTestCase(unittest.TestCase):
         sender_list = suspect.parse_from_type_header(header="From", validate_mail=False)
         self.assertEqual([("Sender", "")], sender_list)
 
+    def test_to_header_unicode_noencoding(self):
+        """Test parsing of "to"-header containing a special char but no encoding"""
+
+        file = os.path.join(TESTDATADIR, "nonascii_env_rcpt.eml")
+        suspect = Suspect('sender@fuglu.org', 'recipient@fuglu.org', file)
+        source = force_uString(suspect.get_source())
+        print(source)
+
+        # From mail header, encoded and split on two lines
+        #
+        # From: "=?UTF-8?B?dGhpcyBpcyBmcm9tOiA=?=
+        #  =?UTF-8?B?RlVHTFU=?=" <fuglu_from@evil1.unittests.fuglu.org>
+
+        found_mail_list = suspect.parse_from_type_header(header='to',)
+        self.assertEqual([("", u'a�aa.aaaaaa@aaaaaa.aa')], found_mail_list)
+
 class SuspectFilterTestCase(unittest.TestCase):
 
     """Test Suspectfilter"""
@@ -921,6 +937,15 @@ class ClientInfoTestCase(unittest.TestCase):
         self.assertEqual(helo, 'helo3')
         self.assertEqual(ip, '10.0.0.3')
         self.assertEqual(revdns, 'rdns3')
+
+    def test_utf8_received(self):
+        """Test parsing received header with utf8 char"""
+        suspect = Suspect('sender@unittests.fuglu.org',
+                          'recipient@unittests.fuglu.org', TESTDATADIR + '/nonascii_env_rcpt.eml')
+        helo, ip, revdns = suspect.client_info_from_rcvd(None, 0)
+        self.assertEqual(helo, 'dcba.gfedcba.aa')
+        self.assertEqual(ip, '10.0.0.1')
+        self.assertEqual(revdns, 'abcd.abcdefg.aa')
 
 
 class FileListTestCase(unittest.TestCase):
