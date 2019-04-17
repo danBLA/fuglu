@@ -588,7 +588,7 @@ class SpearPhishPlugin(ScannerPlugin):
         if envelope_sender_domain == envelope_recipient_domain:
             return DUNNO  # we only check the message if the env_sender_domain differs. If it's the same it will be caught by other means (like SPF)
         
-        if not self.config.getboolean(self.section, 'checkbounces') and suspect.from_address is None:
+        if not self.config.getboolean(self.section, 'checkbounces') and suspect.from_address=='':
             return DUNNO
         
         header_from_domains = extract_from_domains(suspect)
