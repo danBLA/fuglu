@@ -733,6 +733,14 @@ Tags:
 
 
 
+SALEARN_LOCAL = 'local'
+SALEARN_REMOTE = 'remote'
+SALEARN_HAM = 'ham'
+SALEARN_SPAM = 'spam'
+SALEARN_SET = 'Set'
+SALEARN_REMOVE = 'Remove'
+
+
 class SALearn(SAPlugin):
     
     def __init__(self, config, section):
@@ -789,9 +797,9 @@ class SALearn(SAPlugin):
     def _get_databases(self):
         databases = []
         if self.config.getboolean(self.section, 'learn_local'):
-            databases.append('local')
-        if self.config.getboolean(self.section, 'learn_local'):
-            databases.append('local')
+            databases.append(SALEARN_LOCAL)
+        if self.config.getboolean(self.section, 'learn_remote'):
+            databases.append(SALEARN_REMOTE)
         return databases
         
     
@@ -804,8 +812,8 @@ class SALearn(SAPlugin):
             suspect.debug('Too big for spamchecks. %s > %s' % (spamsize, maxsize))
             return DUNNO
         
-        messageclass = 'spam' # TODO: implement ham/spam condition
-        learnaction = 'Set' # TODO: implement Set/Remove condition
+        messageclass = SALEARN_SPAM # TODO: implement ham/spam condition
+        learnaction = SALEARN_SET # TODO: implement Set/Remove condition
         
         databases = self._get_databases()
         
@@ -815,13 +823,13 @@ class SALearn(SAPlugin):
         return DUNNO
     
     
-    def _salearn_content(self, messagecontent, user, messageclass='spam', learnaction='Set', databases=('local', 'remote')):
+    def _salearn_content(self, messagecontent, user, messageclass=SALEARN_SPAM, learnaction=SALEARN_SET, databases=(SALEARN_LOCAL, SALEARN_REMOTE)):
         """pass content to sa, return body"""
-        assert messageclass in ['ham', 'spam']
-        assert learnaction in ['Set', 'Remove']
+        assert messageclass in [SALEARN_HAM, SALEARN_SPAM]
+        assert learnaction in [SALEARN_SET, SALEARN_REMOVE]
         assert 1<=len(databases)<=2
         for db in databases:
-            assert db in ['local', 'remote']
+            assert db in [SALEARN_LOCAL, SALEARN_REMOTE]
             
         retries = self.config.getint(self.section, 'retries')
         peruserconfig = self.config.getboolean(self.section, 'peruserconfig')
@@ -862,8 +870,8 @@ class SALearn(SAPlugin):
                 
                 self.logger.debug('Spamd said: %s' % line2_spaminfo)
                 hdr, status = line2_spaminfo.split(':')
-                if (learnaction=='Set' and hdr=='DidSet') \
-                    or learnaction=='Remove' and hdr=='DidRemove':
+                if (learnaction==SALEARN_SET and hdr=='DidSet') \
+                    or (learnaction==SALEARN_REMOVE and hdr=='DidRemove'):
                     success = True
                 else:
                     success = False
