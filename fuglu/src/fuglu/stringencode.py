@@ -53,7 +53,7 @@ def try_encoding(u_inputstring,encoding="utf-8"):
         raise e
 
 
-def try_decoding(b_inputstring,encodingGuess="utf-8"):
+def try_decoding(b_inputstring, encodingGuess="utf-8", errors="strict"):
     """ Try to decode an encoded string
 
     This will raise exceptions if object can not be decoded. The calling
@@ -62,8 +62,8 @@ def try_decoding(b_inputstring,encodingGuess="utf-8"):
 
     Args:
         b_inputstring (str/bytes): input byte string
-    Keyword Args:
         encodingGuess (str): guess for encoding used, default assume unicode
+        errors (str): error handling as in standard bytes.decode -> strict, ignore, replace
 
     Returns:
         unicode string
@@ -79,10 +79,11 @@ def try_decoding(b_inputstring,encodingGuess="utf-8"):
     logger = logging.getLogger("fuglu.stringencode.try_decoding")
     u_outputstring = None
     try:
-        u_outputstring = b_inputstring.decode(encodingGuess,"strict")
-    except (UnicodeDecodeError, LookupError):
+        u_outputstring = b_inputstring.decode(encodingGuess, errors=errors)
+    except (UnicodeDecodeError, LookupError) as e:
         # if we get here we will also print either the chardet or trial&error decoding message anyway
-        #logger.debug("found non %s encoding or encoding not found, try to detect encoding" % encodingGuess)
+        logger.debug("found non %s encoding or encoding not found (msg: %s), try to detect encoding"
+                     % (str(e), encodingGuess))
         pass
     
     if u_outputstring is None:
@@ -90,7 +91,7 @@ def try_decoding(b_inputstring,encodingGuess="utf-8"):
             encoding = chardet.detect(b_inputstring)['encoding']
             logger.info("chardet -> encoding estimated as %s" % encoding)
             try:
-                u_outputstring = b_inputstring.decode(encoding, "strict")
+                u_outputstring = b_inputstring.decode(encoding, errors=errors)
             except (UnicodeDecodeError, LookupError):
                 logger.info("encoding found by chardet (%s) does not work" % encoding)
         else:
@@ -98,10 +99,10 @@ def try_decoding(b_inputstring,encodingGuess="utf-8"):
     
     if u_outputstring is None:
         trialerrorencoding = EncodingTrialError.test_all(b_inputstring, returnimmediately=True)
-        logger.info("trial&error -> encoding estimated as %s" % trialerrorencoding)
+        logger.info("trial&error -> encoding estimated as one of (selecting first) %s" % trialerrorencoding)
         if trialerrorencoding:
             try:
-                u_outputstring = b_inputstring.decode(trialerrorencoding, "strict")
+                u_outputstring = b_inputstring.decode(trialerrorencoding[0], errors=errors)
             except (UnicodeDecodeError, LookupError):
                 logger.info("encoding found by trial & error (%s) does not work" % trialerrorencoding)
     
@@ -111,13 +112,13 @@ def try_decoding(b_inputstring,encodingGuess="utf-8"):
     return u_outputstring
 
 
-def force_uString(inputstring,encodingGuess="utf-8"):
+def force_uString(inputstring,encodingGuess="utf-8", errors="strict"):
     """Try to enforce a unicode string
     
     Args:
         inputstring (str, unicode, list): input string or list of strings to be checked
-    Keyword Args:
         encodingGuess (str): guess for encoding used, default assume unicode
+        errors (str): error handling as in standard bytes.decode -> strict, ignore, replace
 
     Raises:
         ForceUStringError: if input is not string/unicode/bytes (or list containing such elements)
@@ -128,7 +129,7 @@ def force_uString(inputstring,encodingGuess="utf-8"):
     if inputstring is None:
         return None
     elif isinstance(inputstring,list):
-        return [force_uString(item) for item in inputstring]
+        return [force_uString(item, encodingGuess=encodingGuess, errors=errors) for item in inputstring]
 
     try:
         if sys.version_info > (3,):
@@ -137,21 +138,25 @@ def force_uString(inputstring,encodingGuess="utf-8"):
             if isinstance(inputstring,str):
                 return inputstring
             else:
-                return try_decoding(inputstring,encodingGuess)
+                return try_decoding(inputstring, encodingGuess=encodingGuess, errors=errors)
         else:
             # Python 2.x
             # the basic "str" type is bytes, unicode
             # has its own type "unicode"
-            if isinstance(inputstring,unicode):
+            if isinstance(inputstring, unicode):
                 return inputstring
             else:
-                return try_decoding(inputstring,encodingGuess)
-    except (AttributeError, TypeError):
+                return try_decoding(inputstring, encodingGuess=encodingGuess, errors=errors)
+    except (AttributeError, TypeError) as e:
         # Input might not be bytes but a number which is then
         # expected to be converted to unicode
 
         logger = logging.getLogger("fuglu.force_uString")
-        logger.debug("object is not string/unicode/bytes but %s" % str(type(inputstring)))
+        if not isinstance(inputstring, (str, bytes)):
+            logger.debug("object is not string/unicode/bytes but %s" % str(type(inputstring)))
+        else:
+            logger.debug("decoding failed using guess %s for object of type %s with message %s"
+                         % (encodingGuess, str(type(inputstring)), str(e)))
 
         if sys.version_info < (3,):
             try:
@@ -226,7 +231,7 @@ def force_bString(inputstring,encoding="utf-8",checkEncoding=False):
 
     if checkEncoding:
         # re-encode to make sure it matches input encoding
-        return try_encoding(try_decoding(b_outString,encodingGuess=encoding),encoding=encoding)
+        return try_encoding(try_decoding(b_outString, encodingGuess=encoding), encoding=encoding)
     else:
         return b_outString
 

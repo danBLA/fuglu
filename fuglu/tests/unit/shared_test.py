@@ -281,6 +281,27 @@ class SuspectTestCase(unittest.TestCase):
 
         self.assertEqual(expected, out)
 
+    def test_suspect_decode_msg_header_ignorechar(self):
+        """By default, replace unknown characters in decode_msg_headers"""
+        suspect = Suspect('sender@unittests.fuglu.org',
+                          'recipient@unittests.fuglu.org', TESTDATADIR + '/helloworld.eml')
+
+        # check headers just set
+        msg = suspect.get_message_rep()
+
+        encodedheader = "=?UTF-8?B?Y2hlY2sgdGhpcyBjaGFyOiDiiIA=?="
+        expected = u"check this char: ∀"
+        msg["x-new-1"] = encodedheader
+        out = Suspect.decode_msg_header(msg["x-new-1"])
+        self.assertEqual(expected, out, "The original case with correct encoding")
+
+        encodedheader = "=?UTF-8?B?Y2hlY2sgdGhpcyBjaGFyOiDiiI?="
+        expected = u"check this char: �"
+
+        msg["x-new-2"] = encodedheader
+        out = Suspect.decode_msg_header(msg["x-new-2"])
+        self.assertEqual(expected, out, "Due to the broken encoding the corrupted char should be replaced")
+
     def test_multiline_from(self):
         """Test parsing of from header, encoded and split on two lines"""
 
@@ -429,6 +450,22 @@ class SuspectTestCase(unittest.TestCase):
         # without validation we can still extract the display name and the empty address
         sender_list = suspect.parse_from_type_header(header="From", validate_mail=False)
         self.assertEqual([("Sender", "")], sender_list)
+
+    def test_to_header_unicode_noencoding(self):
+        """Test parsing of "to"-header containing a special char but no encoding"""
+
+        file = os.path.join(TESTDATADIR, "nonascii_env_rcpt.eml")
+        suspect = Suspect('sender@fuglu.org', 'recipient@fuglu.org', file)
+        source = force_uString(suspect.get_source())
+
+        found_mail = suspect.parse_from_type_header(header='to',)[0][1]
+        self.assertEqual(u'a{IGNORE}aa.aaaaaa@aaaaaa.aa', found_mail[:1]+"{IGNORE}"+found_mail[2:])
+        # Note the original to-header looks like:
+        #
+        # To: aüaa.aaaaaa@aaaaaa.aa
+        #
+        # which is not allowed. So the character that is extracted for "ü" seems to depend on
+        # python version, so in this test it is ignored and replaced by {IGNORE}
 
 class SuspectFilterTestCase(unittest.TestCase):
 
@@ -900,6 +937,15 @@ class ClientInfoTestCase(unittest.TestCase):
         self.assertEqual(helo, 'helo3')
         self.assertEqual(ip, '10.0.0.3')
         self.assertEqual(revdns, 'rdns3')
+
+    def test_utf8_received(self):
+        """Test parsing received header with utf8 char"""
+        suspect = Suspect('sender@unittests.fuglu.org',
+                          'recipient@unittests.fuglu.org', TESTDATADIR + '/nonascii_env_rcpt.eml')
+        helo, ip, revdns = suspect.client_info_from_rcvd(None, 0)
+        self.assertEqual(helo, 'dcba.gfedcba.aa')
+        self.assertEqual(ip, '10.0.0.1')
+        self.assertEqual(revdns, 'abcd.abcdefg.aa')
 
 
 class FileListTestCase(unittest.TestCase):

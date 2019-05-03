@@ -130,6 +130,7 @@ attachment=fuglu.plugins.attachment.FiletypePlugin
 clamav=fuglu.plugins.clamav.ClamavPlugin
 
 spamassassin=fuglu.plugins.sa.SAPlugin
+salearn=fuglu.plugins.sa.SALearn
 
 vacation=fuglu.plugins.vacation.VacationPlugin
 
@@ -239,7 +240,7 @@ filenametemplate=${id}.eml
 
 #if true/1/yes: store original message
 #if false/0/no: store message probably altered by previous plugins, eg with spamassassin headers
-storeoriginal=1
+storeoriginal=True
 
 #change owner of saved messages (username or numeric id) - this only works if fuglu is running as root (which is NOT recommended)
 chown=
@@ -257,7 +258,7 @@ template_blockedfile=/etc/fuglu/templates/blockedfile.tmpl
 
 #inform the sender about blocked attachments.
 #If a previous plugin tagged the message as spam or infected, no bounce will be sent to prevent backscatter
-sendbounce=1
+sendbounce=True
 
 #directory that contains attachment rules
 rulesdir=/etc/fuglu/rules
@@ -276,12 +277,12 @@ dbconnectstring=
 query=SELECT action,regex,description FROM attachmentrules WHERE scope=:scope AND checktype=:checktype ORDER BY prio
 
 #enable scanning of filenames within archives (zip,rar). This does not actually extract the files, it just looks at the filenames found in the archive.
-checkarchivenames=0
+checkarchivenames=False
 
 #extract compressed archives(zip,rar) and check file content type with libmagics
 #note that the files will be extracted into memory - tune archivecontentmaxsize  accordingly.
 #fuglu does not extract archives within the archive(recursion)
-checkarchivecontent=0
+checkarchivecontent=False
 
 #only extract and examine files up to this amount of (uncompressed) bytes
 archivecontentmaxsize=5000000
@@ -305,7 +306,7 @@ port=3310
 timeout=30
 
 #*EXPERIMENTAL*: Perform multiple scans over the same connection. May improve performance on busy systems.
-pipelining=0
+pipelining=False
 
 #maximum message size, larger messages will not be scanned.  
 #should match the 'StreamMaxLength' config option in clamd.conf 
@@ -324,7 +325,7 @@ problemaction=DEFER
 rejectmessage=threat detected: ${virusname}
 
 #*EXPERIMENTAL*: fallback to clamscan if clamd is unavailable. YMMV, each scan can take 5-20 seconds and massively increase load on a busy system.
-clamscanfallback=0
+clamscanfallback=False
 
 #the path to clamscan executable
 clamscan=/usr/bin/clamscan
@@ -356,13 +357,13 @@ retries=3
 #in fuglu (which might have been altered by previous plugins)
 #only set this to disabled if you have a custom plugin that adds special headers to the message that will be 
 #used in spamassassin rules
-scanoriginal=1
+scanoriginal=True
 
 #forward the original message or replace the content as returned by spamassassin
-#if this is set to True/1/Yes , no spamassassin headers will be visible in the final message.
-#"original" in this case means "as passed to spamassassin", eg. if 'scanoriginal' is set to 0 above this will forward the
+#if this is enabled, no spamassassin headers will be visible in the final message.
+#"original" in this case means "as passed to spamassassin", eg. if 'scanoriginal' above is disabled this will forward the
 #message as retreived from previous plugins 
-forwardoriginal=0
+forwardoriginal=False
 
 #what header does SA set to indicate the spam status
 #Note that fuglu requires a standard header template configuration for spamstatus and score extraction
@@ -374,7 +375,7 @@ spamheader=X-Spam-Status
 spamheader_prepend=X-Spam-
 
 #enable user_prefs in SA. This hands the recipient address over the spamd connection which allows SA to search for configuration overrides
-peruserconfig=1
+peruserconfig=True
 
 #spamscore threshold to mark a message as high spam
 highspamlevel=15
@@ -393,7 +394,7 @@ rejectmessage=message identified as spam
 
 #consult spamassassins(or any other) sql blacklist for messages that are too big for spam checks
 #requires the sql extension to be enabled
-check_sql_blacklist=0
+check_sql_blacklist=False
 
 #sqlalchemy db connect string
 sql_blacklist_dbconnectstring=mysql:///localhost/spamassassin
@@ -412,13 +413,13 @@ debugport=10888
 debugfile=/tmp/fuglu_debug.log
 
 #debugged message can not be bounced
-nobounce=1
+nobounce=True
 
 #don't re-inject debugged messages back to postfix
-noreinject=1
+noreinject=True
 
 #don't run appender plugins for debugged messages
-noappender=1
+noappender=True
 
 [PluginSkipper]
 

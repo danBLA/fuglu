@@ -108,10 +108,12 @@ Tags:
                 'default': 'X-Spam-Status',
                 'description': """what header does SA set to indicate the spam status\nNote that fuglu requires a standard header template configuration for spamstatus and score extraction\nif 'forwardoriginal' is set to 0\neg. start with _YESNO_ or _YESNOCAPS_ and contain score=_SCORE_""",
             },
+            
             'spamheader_prepend': {
                 'default': 'X-Spam-',
                 'description': 'tells fuglu what spamassassin prepends to its headers. Set this according to your spamassassin config especially if you forwardoriginal=0 and strip_oversize=1',
             },
+            
             'peruserconfig': {
                 'default': 'True',
                 'description': 'enable user_prefs in SA. This hands the recipient address over the spamd connection which allows SA to search for configuration overrides',
@@ -395,7 +397,8 @@ Tags:
             new_src = new_src[:maxsize-1]
         
         return new_src
-
+    
+    
     def examine(self, suspect):
         # check if someone wants to skip sa checks
         if suspect.get_tag('SAPlugin.skip') is True:
@@ -677,7 +680,7 @@ Tags:
                     self.logger.error("Got invalid status line from spamd: %s" % line1_info)
                     continue
 
-                (version, number, status) = answer
+                version, number, status = answer
                 if status != 'EX_OK':
                     self.logger.error("Got bad status from spamd: %s" % status)
                     continue
@@ -727,6 +730,169 @@ Tags:
         socketfile = s.makefile("rb")
         gotback = socketfile.read()
         print(gotback)
+
+
+
+class SALearn(SAPlugin):
+    
+    def __init__(self, config, section):
+        SAPlugin.__init__(self, config, section)
+        self.requiredvars = {
+            'host': {
+                'default': 'localhost',
+                'description': 'hostname where spamd runs',
+            },
+
+            'port': {
+                'default': '783',
+                'description': "tcp port number or path to spamd unix socket",
+            },
+
+            'timeout': {
+                'default': '30',
+                'description': 'how long should we wait for an answer from sa',
+            },
+
+            'maxsize': {
+                'default': '256000',
+                'description': "maximum size in bytes. larger messages will be skipped",
+            },
+
+            'retries': {
+                'default': '3',
+                'description': 'how often should fuglu retry the connection before giving up',
+            },
+            
+            'peruserconfig': {
+                'default': 'True',
+                'description': 'enable user_prefs in SA. This hands the recipient address over the spamd connection which allows SA to search for configuration overrides',
+            },
+
+            'problemaction': {
+                'default': 'DUNNO',
+                'description': "action if there is a problem (DUNNO, DEFER)",
+            },
+            
+            'learn_local': {
+                'default': 'True',
+                'description': 'learn to local database',
+            },
+            
+            'learn_remote': {
+                'default': 'True',
+                'description': 'learn to remote database',
+            },
+        
+        }
+        
+    
+    def _get_databases(self):
+        databases = []
+        if self.config.getboolean(self.section, 'learn_local'):
+            databases.append('local')
+        if self.config.getboolean(self.section, 'learn_local'):
+            databases.append('local')
+        return databases
+        
+    
+    def examine(self, suspect):
+        spamsize = suspect.size
+        maxsize = self.config.getint(self.section, 'maxsize')
+
+        if spamsize > maxsize:
+            self.logger.info('%s Size Skip, %s > %s' % (suspect.id, spamsize, maxsize))
+            suspect.debug('Too big for spamchecks. %s > %s' % (spamsize, maxsize))
+            return DUNNO
+        
+        messageclass = 'spam' # TODO: implement ham/spam condition
+        learnaction = 'Set' # TODO: implement Set/Remove condition
+        
+        databases = self._get_databases()
+        
+        ret = self._salearn_content(suspect.get_original_source(), suspect.to_address, messageclass, learnaction, databases)
+        if not ret:
+            return self._problemcode()
+        return DUNNO
+    
+    
+    def _salearn_content(self, messagecontent, user, messageclass='spam', learnaction='Set', databases=('local', 'remote')):
+        """pass content to sa, return body"""
+        assert messageclass in ['ham', 'spam']
+        assert learnaction in ['Set', 'Remove']
+        assert 1<=len(databases)<=2
+        for db in databases:
+            assert db in ['local', 'remote']
+            
+        retries = self.config.getint(self.section, 'retries')
+        peruserconfig = self.config.getboolean(self.section, 'peruserconfig')
+        spamsize = len(messagecontent)
+        for i in range(0, retries):
+            try:
+                self.logger.debug('Contacting spamd  (Try %s of %s)' % (i + 1, retries))
+                s = self.__init_socket()
+                s.sendall(force_bString('TELL SPAMC/1.2'))
+                s.sendall(force_bString("\r\n"))
+                s.sendall(force_bString("Content-length: %s" % spamsize))
+                s.sendall(force_bString("\r\n"))
+                s.sendall(force_bString("Message-class: %s" % messageclass))
+                s.sendall(force_bString("\r\n"))
+                s.sendall(force_bString("%s: %s" % (learnaction, ', '.join(databases))))
+                s.sendall(force_bString("\r\n"))
+                if peruserconfig:
+                    s.sendall(force_bString("User: %s" % user))
+                    s.sendall(force_bString("\r\n"))
+                s.sendall(force_bString("\r\n"))
+                s.sendall(force_bString(messagecontent))
+                self.logger.debug('Sent %s bytes to spamd' % spamsize)
+                s.shutdown(socket.SHUT_WR)
+                socketfile = s.makefile("rb")
+                line1_info = force_uString(socketfile.readline())
+                self.logger.debug(line1_info)
+                line2_spaminfo = force_uString(socketfile.readline())
+                
+                answer = line1_info.strip().split()
+                if len(answer) != 3:
+                    self.logger.error("Got invalid status line from spamd: %s" % line1_info)
+                    continue
+                
+                version, number, status = answer
+                if status != 'EX_OK':
+                    self.logger.error("Got bad status from spamd: %s" % status)
+                    continue
+                
+                self.logger.debug('Spamd said: %s' % line2_spaminfo)
+                hdr, status = line2_spaminfo.split(':')
+                if (learnaction=='Set' and hdr=='DidSet') \
+                    or learnaction=='Remove' and hdr=='DidRemove':
+                    success = True
+                else:
+                    success = False
+                
+                return success
+            except socket.timeout:
+                self.logger.error('SPAMD Socket timed out.')
+            except socket.herror as h:
+                self.logger.error('SPAMD Herror encountered : %s' % str(h))
+            except socket.gaierror as g:
+                self.logger.error('SPAMD gaierror encountered: %s' % str(g))
+            except socket.error as e:
+                self.logger.error('SPAMD socket error: %s' % str(e))
+            except Exception as e:
+                self.logger.error('SPAMD communication error: %s' % str(e))
+            
+            time.sleep(1)
+        return None
+    
+    
+    def lint(self):
+        allok = self.check_config() and self.lint_ping()
+        if allok:
+            databases = self._get_databases()
+            allok = 1<=len(databases)<=2
+            if not allok:
+                print('ERROR: Enable at least one of learn_local, learn_remote')
+        return allok
+
 
 
 if __name__ == '__main__':

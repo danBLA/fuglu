@@ -528,12 +528,13 @@ class Suspect(object):
         self.set_message_rep(msg,att_mgr_reset=False)
 
     @staticmethod
-    def decode_msg_header(header):
+    def decode_msg_header(header, decode_errors="replace"):
         """
         Decode message header from email.message into unicode string
 
         Args:
-            header (str, email.header.Header):
+            header (str, email.header.Header): the header to decode
+            decode_errors (str): error handling as in standard bytes.decode -> strict, ignore, replace
 
         Returns:
             str
@@ -546,11 +547,15 @@ class Suspect(object):
             connector = u" "
 
         try:
-            headerstring = connector.join([force_uString(x[0], encodingGuess=x[1]) for x in decode_header(header)])
+            headerstring = connector.join(
+                [force_uString(x[0], encodingGuess=x[1], errors=decode_errors) for x in decode_header(header)]
+            )
         except TypeError:
             # if input is bytes (Py3) we end here
             header_unicode = force_uString(header)
-            headerstring = u"".join([force_uString(x[0], encodingGuess=x[1]) for x in decode_header(header_unicode)])
+            headerstring = u"".join(
+                [force_uString(x[0], encodingGuess=x[1], errors=decode_errors) for x in decode_header(header_unicode)]
+            )
         except Exception as e:
             headerstring = header
         return force_uString(headerstring)
@@ -1009,9 +1014,12 @@ class Suspect(object):
 
         unknown = None
 
-        receivedheaders = self.get_message_rep().get_all('Received')
-        if receivedheaders is None:
+        receivedheaders_raw = self.get_message_rep().get_all('Received')
+        if receivedheaders_raw is None:
             return unknown
+        else:
+            # make sure receivedheaders is an array of strings, no Header objects
+            receivedheaders = [Suspect.decode_msg_header(h) for h in receivedheaders_raw]
 
         for rcvdline in receivedheaders[skip:]:
             h_rev_ip = self._parse_rcvd_header(rcvdline)
@@ -1282,6 +1290,54 @@ AAEAAQA3AAAAbQAAAAAA
             print("EICAR Test virus not found!")
             return False
         print("%s found virus %s" % (str(self), result))
+        return True
+
+    def _skip_on_previous_virus(self, suspect):
+        """
+        Configurable skip message scan based on previous virus findings.
+        Args:
+            suspect (fuglu.shared.Suspect):  the suspect 
+
+        Returns:
+            str: empty string means "don't skip", otherwise string contains reason to skip
+        """
+        skiplist = self.config.get(self.section, 'skip_on_previous_virus')
+        if skiplist.lower() == "none":
+            # don't skip
+            return ""
+        elif skiplist.lower() == "all":
+            # skip if already marked as virus, no matter which scanner did mark
+            isvirus = suspect.is_virus()
+            if isvirus:
+                return "Message is virus and skiplist is 'all' -> skip!"
+            else:
+                return ""
+        else:
+            # skip only if scanner from given list has marked message as virus
+            scannerlist = [scanner.strip() for scanner in skiplist.split(',')]
+
+            # dict with scanner as key for scanners that found a virus
+            scanner_virustags = suspect.tags['virus']
+            for scanner in scannerlist:
+                if scanner_virustags.get(scanner, False):
+                    return "Scanner %s has already tagged message as virus -> skip" % scanner
+        return ""
+    
+    def lintinfo_skip(self):
+        """
+        If 'examine' method uses _skip_on_previous_virus to skip scan, this routine can be
+        used to print lint info
+        """
+        skiplist = self.config.get(self.section, 'skip_on_previous_virus')
+        if skiplist.lower() == "none":
+            print("%s will always scan, even if message is already marked as virus" % self.enginename )
+        elif skiplist.lower() == "all":
+            print("%s will skip scan if message is already marked as virus" % self.enginename )
+        else:
+            # skip only if scanner from given list has marked message as virus
+            scannerlist = [scanner.strip() for scanner in skiplist.split(',')]
+            print("%s will skip scan if message is already marked as virus by: %s" 
+                  % (self.enginename, ",".join(scannerlist)))
         return True
 
 

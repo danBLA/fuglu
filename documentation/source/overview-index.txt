@@ -14,14 +14,18 @@ Fuglu's simple plugin architecture allows extending functionality easily (basic 
 Features
 --------
 
-Fuglus features include
+Fuglu's features include
 
- * Virus Scanning ( clamav / sophos / f-prot / .... )
- * Spam Filter ( spamassassin )
+ * Virus Scanning ( clamav / sophos / f-prot / ... )
+ * Spam Filter ( spamassassin / rspamd / ... )
  * Mail Archive
  * Attachment Blocker, with global/domain/individual rules
  * Different behaviour for outgoing mail (eg. don't scan for spam but scan for viruses)
  * statistics (performance mrtg graphs, spam/ham , viruses , ...)
+ * Sender Rewriting Scheme (SRS) provider for postfix
+ * SPF, DKIM and other mail authenticity tests
+ * global/domain/individual configuration in SQL database
+ * easy to extend with custom plugins
 
 
 
