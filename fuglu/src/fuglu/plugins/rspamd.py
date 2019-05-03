@@ -17,6 +17,7 @@
 
 
 from fuglu.shared import ScannerPlugin, DUNNO, DEFER, Suspect, string_to_actioncode, apply_template
+from fuglu.stringencode import force_uString
 from fuglu.extensions.sql import DBConfig
 import re
 import json
@@ -186,9 +187,7 @@ class RSpamdPlugin(ScannerPlugin):
             conn.request("POST", "/symbols", content, {})
             response = conn.getresponse()
             #response.status, response.reason
-            jsondata = response.read()
-            if isinstance(jsondata, bytes): # python3
-                jsondata = jsondata.decode('utf-8')
+            jsondata = force_uString(response.read())
             reply = json.loads(jsondata)
         except Exception as e:
             reply = None
