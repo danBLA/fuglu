@@ -21,6 +21,7 @@ from fuglu.connectors.smtpconnector import buildmsgsource
 from fuglu.stringencode import force_bString, force_uString
 import os
 import socket
+import email
 
 class NCHandler(ProtocolHandler):
     protoname = 'NETCAT'
@@ -43,7 +44,7 @@ class NCHandler(ProtocolHandler):
         fromaddr = "unknown@example.org"
         toaddr = ["unknown@example.org"]
         
-        # use envelope from/to if available
+        # use envelope from/to from ncsession if available
         if sess.from_address:
             fromaddr = sess.from_address
         if sess.recipients:    
@@ -52,6 +53,11 @@ class NCHandler(ProtocolHandler):
         tempfilename = sess.tempfilename
 
         suspect = Suspect(fromaddr, toaddr, tempfilename, att_cachelimit=self._att_mgr_cachesize)
+        if sess.tags:
+            # update suspect tags with the ones receivec
+            # during ncsession
+            suspect.tags.update(sess.tags)
+            
         return suspect
 
     def commitback(self, suspect):
@@ -83,6 +89,7 @@ class NCSession(object):
         self.socket = socket
         self.logger = logging.getLogger("fuglu.ncsession")
         self.tempfile = None
+        self.tags = {}
 
     def send(self, message):
         self.socket.sendall(force_bString(message))
@@ -139,61 +146,54 @@ class NCSession(object):
             bytes : message string in bytes
 
         """
-        start_tag = b"<ENV_DATA_PREPEND>"
+        start_tag_deprecated = b"<ENV_DATA_PREPEND>"
         end_tag = b"</ENV_DATA_PREPEND>"
-        if start_tag == data[:len(start_tag)]:
-            self.logger.debug('Prepend envelope data found')
-            end_index = data.find(end_tag)
+        
+        start_tag_header = b"X-DATA-PREPEND-START"
+        end_tag_header = b"X-DATA-PREPEND-END"
+        
+        if start_tag_deprecated == data[:len(start_tag_deprecated)]:
+            self.logger.error('Deprecated env start tag found, please update fuglu')
+            return b""
+        elif start_tag_header == data[:len(start_tag_header)]:
+            self.logger.debug('Prepend envelope data header found')
+            end_index = data.find(end_tag_header)
             if end_index < 0:
-                self.logger.error("Found start tag for prepend ENV data but no end tag!")
+                self.logger.error("Found start tag for prepend ENV data header but no end header!")
+                return b""
+            end_index = data.find(b'\n', end_index)
+            if end_index < 0:
+                self.logger.error("Found start/end tag for prepend ENV data header but no newline!")
                 return b""
             # split data in prepend envelope data and main message data
-            envdata = data[len(start_tag):end_index]
-            data = data[end_index + len(end_tag):]
-            
+            envdata = data[:end_index+1]  # +1 to include the \n
+            data = data[end_index+1:]
+
             # parse envelope data
-            self.parse_env_data(force_uString(envdata))
+            self.parse_env_data_header(envdata)
         else:
             self.logger.debug('No prepend envelope data found')
         return data
     
-    def parse_env_data(self, env_string):
+    def parse_env_data_header(self, env_buffer):
         """
         Parse envelope data string and store data internally
-        
         Args:
-            env_string (str): 
+            env_string (bytes): 
         """
-
-        # ------ #
-        # sender #
-        # ------ #
-        start_tag = "<SENDER>"
-        end_tag = "</SENDER>"
-        
-        start_index = env_string.find(start_tag)
-        end_index = env_string.find(end_tag)
-        self.logger.debug("parse_env_data: SENDER: sind: %u, eind: %u" % (start_index, end_index))
-        
-        if start_index > -1 and end_index > -1 and end_index >= start_index + len(start_tag):
-            senderstring = env_string[start_index+len(start_tag):end_index]
-            self.from_address = senderstring.strip()
-            self.logger.debug("parse_env_data: SENDER: sender: %s" % self.from_address)
-            
-        # ---------- #
-        # recipients #
-        # ---------- #
-        start_tag = "<RECIPIENTS>"
-        end_tag = "</RECIPIENTS>"
-
-        start_index = env_string.find(start_tag)
-        end_index = env_string.find(end_tag)
-        self.logger.debug("parse_env_data: RECIPIENTS: sind: %u, eind: %u" % (start_index, end_index))
-
-        if start_index > -1 and end_index > -1 and end_index >= start_index + len(start_tag):
-            recipientsstring = env_string[start_index+len(start_tag):end_index]
-            self.logger.debug("parse_env_data: RECIPIENTS: extracted string: %s" % recipientsstring)
-            recipientslist = recipientsstring.split(",")
-            for recipient in recipientslist:
-                self.recipients.append(recipient.strip())
-            self.logger.debug("parse_env_data: RECIPIENTS: recipients: %s" % ",".join(self.recipients))
+        mymsg = email.message_from_bytes(env_buffer)
+        for key, header in mymsg.items():
+            value = Suspect.decode_msg_header(header).strip()
+            if not value:
+                continue
+            key = key.upper()
+            if key == "X-ENV-SENDER":
+                self.from_address = value.strip()
+            elif key == "X-ENV-RECIPIENT":
+                self.recipients.append(value.strip())
+            elif key == "X-DATA-PREPEND-START":
+                self.tags["prepend_identifier"] = value
+            elif key == "X-DATA-PREPEND-END":
+                self.tags["prepend_identifier"] = value
+            else:
+                self.tags[key] = value
