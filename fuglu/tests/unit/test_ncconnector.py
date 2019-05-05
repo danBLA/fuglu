@@ -46,7 +46,7 @@ HEADER4: 4
         """test identifier"""
         nc = NCSession(None, None)
         nc.parse_env_data_header(envdata)
-        self.assertEqual("PRE", nc.tags.get('identifier'))
+        self.assertEqual("PRE", nc.tags.get('prepend_identifier'))
 
     def test_senders(self):
         """test env sender extraction"""
