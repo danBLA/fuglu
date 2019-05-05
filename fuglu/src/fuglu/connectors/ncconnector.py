@@ -132,7 +132,11 @@ class NCSession(object):
         
         self.tempfile.write(data)
         self.tempfile.close()
-        self.logger.debug('Incoming message received')
+        if not data:
+            self.logger.debug('Problem receiving or parsing message')
+            return False
+        else:
+            self.logger.debug('Incoming message received')
         return True
     
     def parse_remove_env_data(self, data):
@@ -153,7 +157,9 @@ class NCSession(object):
         end_tag_header = b"X-DATA-PREPEND-END"
         
         if start_tag_deprecated == data[:len(start_tag_deprecated)]:
-            self.logger.error('Deprecated env start tag found, please update fuglu')
+            self.logger.error('Deprecated env start tag found, please update fuglu\n'
+                              'Header first 200 chars:\n'
+                              '%s' % data[:100])
             return b""
         elif start_tag_header == data[:len(start_tag_header)]:
             self.logger.debug('Prepend envelope data header found')
@@ -193,7 +199,9 @@ class NCSession(object):
                 self.recipients.append(value.strip())
             elif key == "X-DATA-PREPEND-START":
                 self.tags["prepend_identifier"] = value
+                self.logger.debug("set prepend identifier from Start header to: %s" % value)
             elif key == "X-DATA-PREPEND-END":
                 self.tags["prepend_identifier"] = value
+                self.logger.debug("set prepend identifier from End header to: %s" % value)
             else:
                 self.tags[key] = value
