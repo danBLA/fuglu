@@ -1,3 +1,5 @@
+# -*- coding: UTF-8 -*-
+
 from unittestsetup import TESTDATADIR
 import unittest
 
