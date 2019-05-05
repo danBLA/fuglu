@@ -187,7 +187,11 @@ class NCSession(object):
         Args:
             env_string (bytes): 
         """
-        mymsg = email.message_from_bytes(env_buffer)
+        try:
+            mymsg = email.message_from_bytes(env_buffer)
+        except AttributeError:
+            mymsg = email.message_from_string(env_buffer)
+
         for key, header in mymsg.items():
             value = Suspect.decode_msg_header(header).strip()
             if not value:
