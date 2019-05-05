@@ -2,6 +2,7 @@
 
 from unittestsetup import TESTDATADIR
 import unittest
+import sys
 
 from fuglu.connectors.ncconnector import NCSession
 
@@ -65,4 +66,7 @@ HEADER4: 4
         nc = NCSession(None, None)
         nc.parse_env_data_header(envdata)
         self.assertIn("X-ENV-DISTRACT", nc.tags)
-        self.assertEqual("ümlaut@test.example", nc.tags["X-ENV-DISTRACT"])
+        if sys.version_info > (3,):
+            self.assertEqual("ümlaut@test.example", nc.tags["X-ENV-DISTRACT"])
+        else:
+            self.assertEqual("mlaut@test.example", nc.tags["X-ENV-DISTRACT"][1:])
