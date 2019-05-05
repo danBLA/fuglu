@@ -192,11 +192,12 @@ class NCSession(object):
             value = Suspect.decode_msg_header(header).strip()
             if not value:
                 continue
-            key = key.upper()
             if key == "X-ENV-SENDER":
                 self.from_address = value.strip()
+                self.logger.debug("Found env sender: %s" % value)
             elif key == "X-ENV-RECIPIENT":
                 self.recipients.append(value.strip())
+                self.logger.debug("Found env recipient: %s" % value)
             elif key == "X-DATA-PREPEND-START":
                 self.tags["prepend_identifier"] = value
                 self.logger.debug("set prepend identifier from Start header to: %s" % value)
@@ -205,3 +206,4 @@ class NCSession(object):
                 self.logger.debug("set prepend identifier from End header to: %s" % value)
             else:
                 self.tags[key] = value
+                self.logger.debug("Store in Suspect TAG: (%s,%s)" % (key, value))
