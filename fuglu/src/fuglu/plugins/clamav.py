@@ -107,6 +107,10 @@ Tags:
                 'default': '30',
                 'description': "process timeout",
             },
+            'skip_on_previous_virus': {
+                'default': 'none',
+                'description': 'define AVScanner engine names causing current plugin to skip if they found already a virus',
+            },
         }
         self.logger = self._logger()
         self.enginename = 'ClamAV'
@@ -114,10 +118,14 @@ Tags:
     
     def __str__(self):
         return "Clam AV"
-    
-    
+
     def examine(self, suspect):
         if self._check_too_big(suspect):
+            return DUNNO
+        
+        skip = self._skip_on_previous_virus(suspect)
+        if skip:
+            self.logger.info("%s %s" % (suspect.id, skip))
             return DUNNO
 
         content = suspect.get_source()
@@ -377,7 +385,9 @@ Tags:
             if allok:
                 runtime = time.time()-starttime
                 print('clamscan scan time: %.2fs' % runtime)
-        
+
+        # print lint info for skip
+        self.lintinfo_skip()
         return allok
     
     

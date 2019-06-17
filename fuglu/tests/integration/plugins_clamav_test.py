@@ -43,6 +43,7 @@ class ClamavPluginTestCase(unittest.TestCase):
         config.set('ClamavPlugin', 'problemaction', 'DEFER')
         config.set('ClamavPlugin', 'rejectmessage', '')
         config.set('ClamavPlugin', 'pipelining', '0')
+        config.set('ClamavPlugin', 'skip_on_previous_virus', 'none')
 
         self.candidate = ClamavPlugin(config)
 

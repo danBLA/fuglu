@@ -1292,6 +1292,54 @@ AAEAAQA3AAAAbQAAAAAA
         print("%s found virus %s" % (str(self), result))
         return True
 
+    def _skip_on_previous_virus(self, suspect):
+        """
+        Configurable skip message scan based on previous virus findings.
+        Args:
+            suspect (fuglu.shared.Suspect):  the suspect 
+
+        Returns:
+            str: empty string means "don't skip", otherwise string contains reason to skip
+        """
+        skiplist = self.config.get(self.section, 'skip_on_previous_virus')
+        if skiplist.lower() == "none":
+            # don't skip
+            return ""
+        elif skiplist.lower() == "all":
+            # skip if already marked as virus, no matter which scanner did mark
+            isvirus = suspect.is_virus()
+            if isvirus:
+                return "Message is virus and skiplist is 'all' -> skip!"
+            else:
+                return ""
+        else:
+            # skip only if scanner from given list has marked message as virus
+            scannerlist = [scanner.strip() for scanner in skiplist.split(',')]
+
+            # dict with scanner as key for scanners that found a virus
+            scanner_virustags = suspect.tags['virus']
+            for scanner in scannerlist:
+                if scanner_virustags.get(scanner, False):
+                    return "Scanner %s has already tagged message as virus -> skip" % scanner
+        return ""
+    
+    def lintinfo_skip(self):
+        """
+        If 'examine' method uses _skip_on_previous_virus to skip scan, this routine can be
+        used to print lint info
+        """
+        skiplist = self.config.get(self.section, 'skip_on_previous_virus')
+        if skiplist.lower() == "none":
+            print("%s will always scan, even if message is already marked as virus" % self.enginename )
+        elif skiplist.lower() == "all":
+            print("%s will skip scan if message is already marked as virus" % self.enginename )
+        else:
+            # skip only if scanner from given list has marked message as virus
+            scannerlist = [scanner.strip() for scanner in skiplist.split(',')]
+            print("%s will skip scan if message is already marked as virus by: %s" 
+                  % (self.enginename, ",".join(scannerlist)))
+        return True
+
 
 class PrependerPlugin(BasicPlugin):
 
