@@ -253,11 +253,11 @@ class FuzorCheck(ScannerPlugin, FuzorMixin):
             #     self._writeheader(suspect,headername,'HIGH')
             # elif count>self.config.getint(self.section,'lowthreshold'):
             #     self._writeheader(suspect,headername,'LOW')
+            suspect.set_tag('FuZor', (fuhash.digest, count))
             if count > 0:
                 # self.logger.info("%s: FUZOR WRITE HEADER"%suspect.id)
                 self._writeheader(suspect, "%s-ID" % headername, fuhash.digest)
                 self._writeheader(suspect, "%s-Lvl" % headername, count)
-                suspect.set_tag('FuZor', (fuhash.digest, count))
                 self.logger.info("suspect %s digest %s seen %s times" % (suspect.id, fuhash.digest, count))
             else:
                 self.logger.debug("suspect %s digest %s not seen before" % (suspect.id, fuhash.digest))
