@@ -138,9 +138,22 @@ class FuzorMixin(object):
             pass
     
         if fuhash.digest is not None:
-            self._init_backend()
-            count = self.backend.increase(fuhash.digest)
-            self.logger.info("suspect %s hash %s seen %s times before" % (suspect.id, fuhash.digest, count - 1))
+            try:
+                self._init_backend()
+            except redis.exceptions.ConnectionError as e:
+                self.logger.error('failed to connect to redis server: %s' % str(e))
+                return
+            
+            try:
+                count = self.backend.increase(fuhash.digest)
+                self.logger.info("suspect %s hash %s seen %s times before" % (suspect.id, fuhash.digest, count - 1))
+            except redis.exceptions.TimeoutError as e:
+                self.logger.error('%s failed increasing count due to %s' % (suspect.id, str(e)))
+                return
+            except redis.exceptions.ConnectionError as e:
+                self.logger.error('%s failed increasing count due to %s, resetting connection' % (suspect.id, str(e)))
+                self.backend = None
+                return
         else:
             self.logger.info("suspect %s not enough data for a digest" % suspect.id)
 
@@ -243,9 +256,23 @@ class FuzorCheck(ScannerPlugin, FuzorMixin):
         if fuhash.digest is not None:
             suspect.debug('Fuzor digest = %s' % fuhash.digest)
             # self.logger.info("%s: FUZOR INIT-BACKEND"%suspect.id)
-            self._init_backend()
+            try:
+                self._init_backend()
+            except redis.exceptions.ConnectionError as e:
+                self.logger.error('failed to connect to redis server: %s' % str(e))
+                return DUNNO
+            
             # self.logger.info("%s: FUZOR START-QUERY"%suspect.id)
-            count = self.backend.get(fuhash.digest)
+            try:
+                count = self.backend.get(fuhash.digest)
+            except redis.exceptions.TimeoutError as e:
+                self.logger.error('%s failed getting count due to %s' % (suspect.id, str(e)))
+                return DUNNO
+            except redis.exceptions.ConnectionError as e:
+                self.logger.error('%s failed getting count due to %s, resetting connection' % (suspect.id, str(e)))
+                self.backend = None
+                return DUNNO
+
             # self.logger.info("%s: FUZOR END-QUERY"%suspect.id)
             headername = self.config.get(self.section, 'headername')
             # for now we only write the count, later we might replace with LOW/HIGH
