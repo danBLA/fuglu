@@ -121,23 +121,27 @@ class FuzorMixin(object):
         if not REDIS_ENABLED:
             return DUNNO
         
-        maxsize = self.config.getint(self.section, 'maxsize')
-        if suspect.size > maxsize:
-            self.logger.debug('%s Size Skip, %s > %s' % (suspect.id, suspect.size, maxsize))
-            return
+        digest, count = suspect.get_tag('FuZor', (None, -1))
+        if count == -1: # no previously run plugin generated digest
+            maxsize = self.config.getint(self.section, 'maxsize')
+            if suspect.size > maxsize:
+                self.logger.debug('%s Size Skip, %s > %s' % (suspect.id, suspect.size, maxsize))
+                return
+            
+            msg = suspect.get_message_rep()
+            fuhash = FuzorDigest(msg)
         
-        msg = suspect.get_message_rep()
-        fuhash = FuzorDigest(msg)
+            try:
+                self.logger.debug(
+                    "suspect %s to=%s hash %s usable_body=%s predigest=%s subject=%s" %
+                    (suspect.id, suspect.to_address, fuhash.digest, fuhash.bodytext_size, fuhash.predigest[:50],
+                     msg.get('Subject')))
+            except Exception:
+                pass
+            
+            digest = fuhash.digest
     
-        try:
-            self.logger.debug(
-                "suspect %s to=%s hash %s usable_body=%s predigest=%s subject=%s" %
-                (suspect.id, suspect.to_address, fuhash.digest, fuhash.bodytext_size, fuhash.predigest[:50],
-                 msg.get('Subject')))
-        except Exception:
-            pass
-    
-        if fuhash.digest is not None:
+        if digest is not None:
             self._init_backend()
             count = self.backend.increase(fuhash.digest)
             self.logger.info("suspect %s hash %s seen %s times before" % (suspect.id, fuhash.digest, count - 1))
@@ -186,7 +190,7 @@ class FuzorReportAppender(AppenderPlugin, FuzorMixin):
     
     def process(self, suspect, decision):
         if not REDIS_ENABLED:
-            return DUNNO
+            return
         
         self.report(suspect)
 
@@ -239,6 +243,8 @@ class FuzorCheck(ScannerPlugin, FuzorMixin):
         msg = suspect.get_message_rep()
         # self.logger.info("%s: FUZOR PRE-HASH"%suspect.id)
         fuhash = FuzorDigest(msg)
+        count = 0
+        digest = None
         # self.logger.info("%s: FUZOR POST-HASH"%suspect.id)
         if fuhash.digest is not None:
             suspect.debug('Fuzor digest = %s' % fuhash.digest)
@@ -246,6 +252,7 @@ class FuzorCheck(ScannerPlugin, FuzorMixin):
             self._init_backend()
             # self.logger.info("%s: FUZOR START-QUERY"%suspect.id)
             count = self.backend.get(fuhash.digest)
+            digest = fuhash.digest
             # self.logger.info("%s: FUZOR END-QUERY"%suspect.id)
             headername = self.config.get(self.section, 'headername')
             # for now we only write the count, later we might replace with LOW/HIGH
@@ -253,7 +260,6 @@ class FuzorCheck(ScannerPlugin, FuzorMixin):
             #     self._writeheader(suspect,headername,'HIGH')
             # elif count>self.config.getint(self.section,'lowthreshold'):
             #     self._writeheader(suspect,headername,'LOW')
-            suspect.set_tag('FuZor', (fuhash.digest, count))
             if count > 0:
                 # self.logger.info("%s: FUZOR WRITE HEADER"%suspect.id)
                 self._writeheader(suspect, "%s-ID" % headername, fuhash.digest)
@@ -264,6 +270,7 @@ class FuzorCheck(ScannerPlugin, FuzorMixin):
         else:
             suspect.debug('suspect %s not enough data for a digest' % suspect.id)
         
+        suspect.set_tag('FuZor', (digest, count))
         # diff=time.time()-start
         # self.logger.info("%s: FUZOR END (NORMAL), time =
         # %.4f"%(suspect.id,diff))
@@ -281,9 +288,13 @@ class FuzorPrint(ScannerPlugin):
     
     
     def examine(self, suspect):
-        msg = suspect.get_message_rep()
-        fuhash = FuzorDigest(msg)
-        if fuhash.digest is not None:
+        digest, count = suspect.get_tag('FuZor', (None, -1))
+        if count == -1:  # no previously run plugin generated digest
+            msg = suspect.get_message_rep()
+            fuhash = FuzorDigest(msg)
+            digest = fuhash.digest
+            
+        if digest is not None:
             self.logger.info("Predigest: %s" % fuhash.predigest)
             self.logger.info('%s: hash %s' % (suspect.id, fuhash.digest))
         else:
@@ -292,6 +303,7 @@ class FuzorPrint(ScannerPlugin):
                 suspect.id)
         
         return DUNNO
+
 
 
 class FuzorDigest(object):
