@@ -1,6 +1,9 @@
 
 [main]
 
+# change the default directory (/etc/fuglu/conf.d) to look for plugin configurations
+configdir=
+
 #identifier can be any string that helps you identifying your config file
 #this helps making sure the correct config is loaded. this identifier will be printed out when fuglu is reloading its config
 identifier=dist
