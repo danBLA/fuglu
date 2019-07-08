@@ -42,12 +42,15 @@ class FuzorMixin(object):
             },
             'maxsize': {
                 'default': '600000',
-                'description':
-                    'maxsize in bytes, larger messages will be skipped'
+                'description': 'maxsize in bytes, larger messages will be skipped'
             },
             'timeout': {
                 'default': '2',
                 'description': 'timeout in seconds'
+            },
+            'rcptcount': {
+                'default': 'False',
+                'description': 'False: increase count by 1. True: increase count by number of recipients. Useful in milter/prequeue mode.'
             },
         }
         self.backend = None
@@ -142,9 +145,13 @@ class FuzorMixin(object):
             digest = fuhash.digest
     
         if digest is not None:
+            amount = 1
+            if self.config.getboolean(self.section, 'rcptcount'):
+                amount = len(suspect.recipients)
+            
             self._init_backend()
-            count = self.backend.increase(fuhash.digest)
-            self.logger.info("suspect %s hash %s seen %s times before" % (suspect.id, fuhash.digest, count - 1))
+            count = self.backend.increase(digest, amount=amount)
+            self.logger.info("suspect %s hash %s seen %s times before" % (suspect.id, digest, count - 1))
         else:
             self.logger.info("suspect %s not enough data for a digest" % suspect.id)
 
@@ -424,9 +431,9 @@ class RedisBackend(object):
         self.ttl = 7 * 24 * 3600
         self.logger = logging.getLogger("fuglu.FuzorMixin.RedisBackend")
     
-    def increase(self, digest):
+    def increase(self, digest, amount=1):
         pipe = self.redis.pipeline()
-        pipe.incr(digest)
+        pipe.incr(digest, amount=amount)
         pipe.expire(digest, self.ttl)
         try:
             result = pipe.execute()
