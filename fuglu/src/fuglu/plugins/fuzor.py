@@ -42,15 +42,12 @@ class FuzorMixin(object):
             },
             'maxsize': {
                 'default': '600000',
-                'description': 'maxsize in bytes, larger messages will be skipped'
+                'description':
+                    'maxsize in bytes, larger messages will be skipped'
             },
             'timeout': {
                 'default': '2',
                 'description': 'timeout in seconds'
-            },
-            'rcptcount': {
-                'default': 'False',
-                'description': 'False: increase count by 1. True: increase count by number of recipients. Useful in milter/prequeue mode.'
             },
         }
         self.backend = None
@@ -124,34 +121,39 @@ class FuzorMixin(object):
         if not REDIS_ENABLED:
             return DUNNO
         
-        digest, count = suspect.get_tag('FuZor', (None, -1))
-        if count == -1: # no previously run plugin generated digest
-            maxsize = self.config.getint(self.section, 'maxsize')
-            if suspect.size > maxsize:
-                self.logger.debug('%s Size Skip, %s > %s' % (suspect.id, suspect.size, maxsize))
+        maxsize = self.config.getint(self.section, 'maxsize')
+        if suspect.size > maxsize:
+            self.logger.debug('%s Size Skip, %s > %s' % (suspect.id, suspect.size, maxsize))
+            return
+        
+        msg = suspect.get_message_rep()
+        fuhash = FuzorDigest(msg)
+    
+        try:
+            self.logger.debug(
+                "suspect %s to=%s hash %s usable_body=%s predigest=%s subject=%s" %
+                (suspect.id, suspect.to_address, fuhash.digest, fuhash.bodytext_size, fuhash.predigest[:50],
+                 msg.get('Subject')))
+        except Exception:
+            pass
+    
+        if fuhash.digest is not None:
+            try:
+                self._init_backend()
+            except redis.exceptions.ConnectionError as e:
+                self.logger.error('failed to connect to redis server: %s' % str(e))
                 return
             
-            msg = suspect.get_message_rep()
-            fuhash = FuzorDigest(msg)
-        
             try:
-                self.logger.debug(
-                    "suspect %s to=%s hash %s usable_body=%s predigest=%s subject=%s" %
-                    (suspect.id, suspect.to_address, fuhash.digest, fuhash.bodytext_size, fuhash.predigest[:50],
-                     msg.get('Subject')))
-            except Exception:
-                pass
-            
-            digest = fuhash.digest
-    
-        if digest is not None:
-            amount = 1
-            if self.config.getboolean(self.section, 'rcptcount'):
-                amount = len(suspect.recipients)
-            
-            self._init_backend()
-            count = self.backend.increase(digest, amount=amount)
-            self.logger.info("suspect %s hash %s seen %s times before" % (suspect.id, digest, count - 1))
+                count = self.backend.increase(fuhash.digest)
+                self.logger.info("suspect %s hash %s seen %s times before" % (suspect.id, fuhash.digest, count - 1))
+            except redis.exceptions.TimeoutError as e:
+                self.logger.error('%s failed increasing count due to %s' % (suspect.id, str(e)))
+                return
+            except redis.exceptions.ConnectionError as e:
+                self.logger.error('%s failed increasing count due to %s, resetting connection' % (suspect.id, str(e)))
+                self.backend = None
+                return
         else:
             self.logger.info("suspect %s not enough data for a digest" % suspect.id)
 
@@ -197,7 +199,7 @@ class FuzorReportAppender(AppenderPlugin, FuzorMixin):
     
     def process(self, suspect, decision):
         if not REDIS_ENABLED:
-            return
+            return DUNNO
         
         self.report(suspect)
 
@@ -250,16 +252,27 @@ class FuzorCheck(ScannerPlugin, FuzorMixin):
         msg = suspect.get_message_rep()
         # self.logger.info("%s: FUZOR PRE-HASH"%suspect.id)
         fuhash = FuzorDigest(msg)
-        count = 0
-        digest = None
         # self.logger.info("%s: FUZOR POST-HASH"%suspect.id)
         if fuhash.digest is not None:
             suspect.debug('Fuzor digest = %s' % fuhash.digest)
             # self.logger.info("%s: FUZOR INIT-BACKEND"%suspect.id)
-            self._init_backend()
+            try:
+                self._init_backend()
+            except redis.exceptions.ConnectionError as e:
+                self.logger.error('failed to connect to redis server: %s' % str(e))
+                return DUNNO
+            
             # self.logger.info("%s: FUZOR START-QUERY"%suspect.id)
-            count = self.backend.get(fuhash.digest)
-            digest = fuhash.digest
+            try:
+                count = self.backend.get(fuhash.digest)
+            except redis.exceptions.TimeoutError as e:
+                self.logger.error('%s failed getting count due to %s' % (suspect.id, str(e)))
+                return DUNNO
+            except redis.exceptions.ConnectionError as e:
+                self.logger.error('%s failed getting count due to %s, resetting connection' % (suspect.id, str(e)))
+                self.backend = None
+                return DUNNO
+
             # self.logger.info("%s: FUZOR END-QUERY"%suspect.id)
             headername = self.config.get(self.section, 'headername')
             # for now we only write the count, later we might replace with LOW/HIGH
@@ -267,6 +280,7 @@ class FuzorCheck(ScannerPlugin, FuzorMixin):
             #     self._writeheader(suspect,headername,'HIGH')
             # elif count>self.config.getint(self.section,'lowthreshold'):
             #     self._writeheader(suspect,headername,'LOW')
+            suspect.set_tag('FuZor', (fuhash.digest, count))
             if count > 0:
                 # self.logger.info("%s: FUZOR WRITE HEADER"%suspect.id)
                 self._writeheader(suspect, "%s-ID" % headername, fuhash.digest)
@@ -277,7 +291,6 @@ class FuzorCheck(ScannerPlugin, FuzorMixin):
         else:
             suspect.debug('suspect %s not enough data for a digest' % suspect.id)
         
-        suspect.set_tag('FuZor', (digest, count))
         # diff=time.time()-start
         # self.logger.info("%s: FUZOR END (NORMAL), time =
         # %.4f"%(suspect.id,diff))
@@ -295,13 +308,9 @@ class FuzorPrint(ScannerPlugin):
     
     
     def examine(self, suspect):
-        digest, count = suspect.get_tag('FuZor', (None, -1))
-        if count == -1:  # no previously run plugin generated digest
-            msg = suspect.get_message_rep()
-            fuhash = FuzorDigest(msg)
-            digest = fuhash.digest
-            
-        if digest is not None:
+        msg = suspect.get_message_rep()
+        fuhash = FuzorDigest(msg)
+        if fuhash.digest is not None:
             self.logger.info("Predigest: %s" % fuhash.predigest)
             self.logger.info('%s: hash %s' % (suspect.id, fuhash.digest))
         else:
@@ -310,7 +319,6 @@ class FuzorPrint(ScannerPlugin):
                 suspect.id)
         
         return DUNNO
-
 
 
 class FuzorDigest(object):
@@ -431,9 +439,9 @@ class RedisBackend(object):
         self.ttl = 7 * 24 * 3600
         self.logger = logging.getLogger("fuglu.FuzorMixin.RedisBackend")
     
-    def increase(self, digest, amount=1):
+    def increase(self, digest):
         pipe = self.redis.pipeline()
-        pipe.incr(digest, amount=amount)
+        pipe.incr(digest)
         pipe.expire(digest, self.ttl)
         try:
             result = pipe.execute()
