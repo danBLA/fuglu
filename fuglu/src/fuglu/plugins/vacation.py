@@ -287,7 +287,7 @@ SQL Example for mysql:
         return "Vacation"
 
     def _cache(self):
-        if self.cache == None:
+        if self.cache is None:
             self.cache = VacationCache(self.config)
         return self.cache
 
@@ -295,7 +295,7 @@ SQL Example for mysql:
         # this plugin should not cause fuglu to defer
         try:
             vac = self.should_send_vacation_message(suspect)
-            if vac != None:
+            if vac is not None:
                 self.logger.debug('Vacation message candidate detected: Sender: %s recipient(on vacation): %s' % (
                     suspect.from_address, suspect.to_address))
                 self.send_vacation_reply(suspect, vac)
@@ -315,7 +315,7 @@ SQL Example for mysql:
         self._cache().reloadifnecessary()
 
         vacation = self.on_vacation(suspect)
-        if vacation == None:
+        if vacation is None:
             return None
 
         self.logger.debug(
@@ -383,7 +383,7 @@ SQL Example for mysql:
         for header, restring in list(vacation_ignoreheaderregex.items()):
             #self.logger.info("searching for header %s"%header)
             vals = messagerep.get_all(header)
-            if vals != None:
+            if vals is not None:
                 for val in vals:
                     if re.search(restring, val, re.I):
                         self.logger.debug(
@@ -398,7 +398,7 @@ SQL Example for mysql:
         log = dbsession.query(VacationReply).filter_by(vacation=vacation).filter(
             VacationReply.sent > datetime.now() - timedelta(days=1)).filter_by(recipient=recipient).first()
         dbsession.expunge_all()
-        if log != None:
+        if log is not None:
             self.logger.debug(
                 'Sender %s already notfied at %s' % (log.recipient, log.sent))
             return True
@@ -414,13 +414,13 @@ SQL Example for mysql:
 
         # check subject
         subj = vacation.subject
-        if subj == None or subj.strip() == '':
+        if subj is None or subj.strip() == '':
             self.logger.errror('Vacation has no subject, not sending message')
             return None
 
         # We must choose the body charset manually
         body = vacation.body
-        if body == None:
+        if body is None:
             body = ''
 
         for body_charset in 'US-ASCII', 'ISO-8859-1', 'UTF-8':
