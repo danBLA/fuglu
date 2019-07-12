@@ -280,6 +280,12 @@ class MainController(object):
                 'description': "if this is set to True/1/yes , no Bounces will be sent from Fuglu eg. after a blocked attachment has been detected\nThis may be used for debugging/testing to make sure fuglu can not produce backscatter",
                 'default': "0",
             },
+            
+            'nobouncefile': {
+                'section': 'main',
+                'description': 'list of domains to which no bounces will be sent',
+                'default': '/etc/fuglu/rules/nobounce.txt',
+            },
 
             'debuginfoheader': {
                 'section': 'main',
