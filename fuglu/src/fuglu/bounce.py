@@ -65,8 +65,7 @@ class Bounce(object):
             msgrep['To'] = Header("<%s>" % recipient).encode()
 
         if not 'From' in msgrep:
-            msgrep['from'] = Header(
-                "<MAILER-DAEMON@%s>" % socket.gethostname()).encode()
+            msgrep['from'] = Header("<MAILER-DAEMON@%s>" % socket.gethostname()).encode()
 
         if not 'auto-submitted' in msgrep:
             msgrep['auto-submitted'] = Header('auto-generated').encode()
@@ -94,8 +93,7 @@ class Bounce(object):
         """
 
         if not os.path.exists(templatefile):
-            self.logger.error(
-                'Template file does not exist: %s' % templatefile)
+            self.logger.error('Template file does not exist: %s' % templatefile)
             return
 
         with open(templatefile) as fp:
