@@ -39,7 +39,10 @@ class Bounce(object):
     
     def _init_nobounce(self):
         if self.nobounce is None:
-            filepath = self.config.get('main', 'nobouncefile')
+            try:
+                filepath = self.config.get('main', 'nobouncefile')
+            except Exception:
+                filepath = None
             if filepath and os.path.exists(filepath):
                 self.nobounce = FileList(filepath)
             elif filepath:
