@@ -28,6 +28,7 @@ class SSSPTestCase(unittest.TestCase):
         config = RawConfigParser()
         config.add_section('main')
         config.set('main', 'disablebounces', '1')
+        config.set('main', 'nobouncefile', '')
         config.add_section('SSSPPlugin')
         config.set('SSSPPlugin', 'maxsize', 5000000000)
         config.set('SSSPPlugin', 'retries', 1)

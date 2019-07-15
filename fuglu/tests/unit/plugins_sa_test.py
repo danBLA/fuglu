@@ -28,6 +28,7 @@ class SATestCase(unittest.TestCase):
         config = RawConfigParser()
         config.add_section('main')
         config.set('main', 'disablebounces', '1')
+        config.set('main', 'nobouncefile', '')
         config.add_section('SAPlugin')
         # current tests don't need config options, add them here later if
         # necessary

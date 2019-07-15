@@ -23,7 +23,7 @@ from email.utils import formatdate, make_msgid
 from email.header import Header
 import socket
 
-from fuglu.shared import apply_template
+from fuglu.shared import apply_template, FileList, extract_domain
 from fuglu.stringencode import force_bString
 
 
@@ -34,7 +34,21 @@ class Bounce(object):
     def __init__(self, config):
         self.logger = logging.getLogger('fuglu.bouncer')
         self.config = config
-
+        self.nobounce = None
+    
+    
+    def _init_nobounce(self):
+        if self.nobounce is None:
+            try:
+                filepath = self.config.get('main', 'nobouncefile')
+            except Exception:
+                filepath = None
+            if filepath and os.path.exists(filepath):
+                self.nobounce = FileList(filepath)
+            elif filepath:
+                self.logger.warning('nobouncefile %s not found' % filepath)
+    
+    
     def _add_required_headers(self, recipient, messagecontent):
         """add headers required for sending automated mail"""
 
@@ -54,8 +68,7 @@ class Bounce(object):
             msgrep['To'] = Header("<%s>" % recipient).encode()
 
         if not 'From' in msgrep:
-            msgrep['from'] = Header(
-                "<MAILER-DAEMON@%s>" % socket.gethostname()).encode()
+            msgrep['from'] = Header("<MAILER-DAEMON@%s>" % socket.gethostname()).encode()
 
         if not 'auto-submitted' in msgrep:
             msgrep['auto-submitted'] = Header('auto-generated').encode()
@@ -67,7 +80,8 @@ class Bounce(object):
             msgrep['Message-ID'] = make_msgid()
 
         return msgrep.as_string()
-
+    
+    
     def send_template_file(self, recipient, templatefile, suspect, values):
         """Send a E-Mail Bounce Message
 
@@ -82,15 +96,15 @@ class Bounce(object):
         """
 
         if not os.path.exists(templatefile):
-            self.logger.error(
-                'Template file does not exist: %s' % templatefile)
+            self.logger.error('Template file does not exist: %s' % templatefile)
             return
 
         with open(templatefile) as fp:
             filecontent = fp.read()
 
         self.send_template_string(recipient, filecontent, suspect, values)
-
+    
+    
     def send_template_string(self, recipient, templatecontent, suspect, values):
         """Send a E-Mail Bounce Message
 
@@ -104,31 +118,34 @@ class Bounce(object):
             values       : Values to apply to the template
         """
         if suspect.get_tag('nobounce'):
-            self.logger.info(
-                'Not sending bounce to %s - bounces disabled by plugin' % recipient)
+            self.logger.info('Not sending bounce to %s - bounces disabled by plugin' % recipient)
             return
 
         message = apply_template(templatecontent, suspect, values)
         try:
             message = self._add_required_headers(recipient, message)
         except Exception as e:
-            self.logger.warning(
-                "Bounce message template could not be verified: %s" % str(e))
+            self.logger.warning('Bounce message template could not be verified: %s' % str(e))
 
         self.logger.debug('Sending bounce message to %s' % recipient)
         fromaddress = "<>"
         self._send(fromaddress, recipient, message)
-
+    
+    
     def _send(self, fromaddress, toaddress, message):
         """really send message"""
         if self.config.getboolean('main', 'disablebounces'):
-            self.logger.warning(
-                'Bounces are disabled in config - not sending message to %s' % toaddress)
+            self.logger.info('Bounces are disabled in config - not sending message to %s' % toaddress)
             return
+        
+        self._init_nobounce()
+        if self.nobounce and extract_domain(toaddress) in self.nobounce.get_list():
+            self.logger.info('Bounces to this rcpt are disabled - not sending message to %s' % toaddress)
+            return
+        
         smtpServer = smtplib.SMTP(self.config.get('main','bindaddress'), self.config.getint('main', 'outgoingport'))
         helo = self.config.get('main', 'outgoinghelo')
         if helo.strip() == '':
-            import socket
             helo = socket.gethostname()
         smtpServer.helo(helo)
         smtpServer.sendmail(fromaddress, toaddress, message)

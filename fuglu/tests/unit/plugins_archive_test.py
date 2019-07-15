@@ -21,6 +21,7 @@ class ArchiveTestcase(unittest.TestCase):
         config = RawConfigParser()
         config.add_section('main')
         config.set('main', 'disablebounces', '1')
+        config.set('main', 'nobouncefile', '1')
 
         config.add_section('ArchivePlugin')
         config.set('ArchivePlugin', 'archivedir', '/tmp')

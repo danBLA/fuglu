@@ -69,6 +69,7 @@ class DatabaseConfigTestCase(unittest.TestCase):
                    'SELECT action,regex,description FROM attachmentrules WHERE scope=:scope AND checktype=:checktype ORDER BY prio')
         config.add_section('main')
         config.set('main', 'disablebounces', '1')
+        config.set('main', 'nobouncefile', '')
         config.set('FiletypePlugin', 'checkarchivenames', 'False')
         config.set('FiletypePlugin', 'checkarchivecontent', 'False')
         config.set('FiletypePlugin', 'archivecontentmaxsize', 500000)
@@ -134,6 +135,7 @@ class AttachmentPluginTestCase(unittest.TestCase):
 
         config.add_section('main')
         config.set('main', 'disablebounces', '1')
+        config.set('main', 'nobouncefile', '')
         self.candidate = FiletypePlugin(config)
         self.rulescache = RulesCache(self.tempdir)
         self.candidate.rulescache = self.rulescache
@@ -437,6 +439,7 @@ class TestOnlyAttachmentInline(unittest.TestCase):
 
         config.add_section('main')
         config.set('main', 'disablebounces', '1')
+        config.set('main', 'nobouncefile', '')
         self.candidate = FiletypePlugin(config)
         self.rulescache = RulesCache(self.tempdir)
         self.candidate.rulescache = self.rulescache
@@ -507,6 +510,7 @@ class AttachmentPluginTestCaseMockBounce(unittest.TestCase):
 
         config.add_section('main')
         config.set('main', 'disablebounces', '0')
+        config.set('main', 'nobouncefile', '')
         config.set('main', 'outgoingport', '10038')
         config.set('main', 'outgoinghelo', 'test.fuglu.org')
         config.set('main', 'bindaddress', '127.0.0.1')
