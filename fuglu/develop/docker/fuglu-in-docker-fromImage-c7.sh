@@ -153,9 +153,9 @@ do
    echo "- Installing current fuglu source -"
    echo "-----------------------------------"
    if [ $job == "py2" ]; then
-      docker exec -i $did python2 setup.py install --force
+      docker exec -i $did pip2 install -e .
    elif [ $job == "py3" ]; then
-      docker exec -i $did python3 setup.py install --force
+      docker exec -i $did pip3 install -e .
    else
       echo "Internal problem!"
       exit 1
@@ -165,6 +165,8 @@ do
    echo "--------------------------"
    echo "- Writing default config -"
    echo "--------------------------"
+   docker exec -i $did /bin/bash -c "mkdir -p /etc/fuglu"
+   docker exec -i $did /bin/bash -c "cp -r conf/* /etc/fuglu"
    docker exec -i $did /bin/bash -c "rename '.dist' '' /etc/fuglu/*.dist"
    docker exec -i $did /bin/bash -c "mkdir -p /var/log/fuglu"
    docker exec -i $did /bin/bash -c "chown -R nobody /var/log/fuglu"
