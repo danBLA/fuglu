@@ -122,7 +122,11 @@ class FuzorMixin(object):
                             break
                     if not ok:
                         print("Please update. Minimum version %s" % ".".join([str(i) for i in py3minversion]))
-    
+
+        if self.config.getboolean(self.section, 'stripoversize'):
+            maxsize = self.config.getint(self.section, 'maxsize')
+            print("Stripping oversize messages (size > %u) to calculate a fuzor hash..." % maxsize)
+
         return ok
     
     
@@ -133,7 +137,7 @@ class FuzorMixin(object):
         
         maxsize = self.config.getint(self.section, 'maxsize')
         if suspect.size > maxsize:
-            if self.config.get(self.section, 'stripoversize'):
+            if self.config.getboolean(self.section, 'stripoversize'):
                 suspect.debug('Fuzor: message too big (%u), stripping down to %u' % (suspect.size, maxsize))
                 msg = message_from_string(
                     suspect.source_stripped_attachments(maxsize=maxsize),
@@ -186,10 +190,7 @@ class FuzorReport(ScannerPlugin, FuzorMixin):
         self.logger = self._logger()
     
     
-    def lint(self):
-        return FuzorMixin.lint(self)
-    
-    
+
     def examine(self, suspect):
         if not REDIS_ENABLED:
             return DUNNO
@@ -210,11 +211,7 @@ class FuzorReportAppender(AppenderPlugin, FuzorMixin):
         self.logger = self._logger()
     
     
-    def lint(self):
-        return FuzorMixin.lint(self)
-    
-    
-    
+
     def process(self, suspect, decision):
         if not REDIS_ENABLED:
             return DUNNO
@@ -237,8 +234,7 @@ class FuzorCheck(ScannerPlugin, FuzorMixin):
             },
         })
     
-    
-    
+
     def _writeheader(self, suspect, header, value):
         hdr = "%s: %s" % (header, value)
         tag = suspect.get_tag('SAPlugin.tempheader')
@@ -251,11 +247,6 @@ class FuzorCheck(ScannerPlugin, FuzorMixin):
         suspect.set_tag('SAPlugin.tempheader', tag)
     
     
-    def lint(self):
-        return FuzorMixin.lint(self)
-    
-    
-    
     def examine(self, suspect):
         if not REDIS_ENABLED:
             return DUNNO
@@ -265,7 +256,7 @@ class FuzorCheck(ScannerPlugin, FuzorMixin):
         maxsize = self.config.getint(self.section, 'maxsize')
         if suspect.size > maxsize:
 
-            if self.config.get(self.section, 'stripoversize'):
+            if self.config.getboolean(self.section, 'stripoversize'):
                 suspect.debug('Fuzor: message too big (%u), stripping down to %u' % (suspect.size, maxsize))
                 msg = message_from_string(
                     suspect.source_stripped_attachments(maxsize=maxsize),
