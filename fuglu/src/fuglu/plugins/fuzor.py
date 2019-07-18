@@ -15,14 +15,19 @@
 # limitations under the License.
 #
 #
-from fuglu.shared import ScannerPlugin, AppenderPlugin, SuspectFilter, DUNNO
-from fuglu.extensions.redisext import RedisKeepAlive, redis, ENABLED as REDIS_ENABLED
 import hashlib
 import re
 import sys
 import logging
 import socket
+from email import message_from_string
 
+from fuglu.shared import ScannerPlugin, AppenderPlugin, SuspectFilter, DUNNO
+from fuglu.extensions.redisext import RedisKeepAlive, redis, ENABLED as REDIS_ENABLED
+if sys.version_info > (3,):
+    from fuglu.lib.patchedemail import PatchedMessage
+else:
+    from email.message import Message as PatchedMessage
 
 
 class FuzorMixin(object):
@@ -44,6 +49,11 @@ class FuzorMixin(object):
                 'default': '600000',
                 'description':
                     'maxsize in bytes, larger messages will be skipped'
+            },
+            'stripoversize': {
+                'default': False,
+                'description':
+                    'Remove attachments and reduce text to "maxsize" so large mails can be processed'
             },
             'timeout': {
                 'default': '2',
@@ -123,10 +133,18 @@ class FuzorMixin(object):
         
         maxsize = self.config.getint(self.section, 'maxsize')
         if suspect.size > maxsize:
-            self.logger.debug('%s Size Skip, %s > %s' % (suspect.id, suspect.size, maxsize))
-            return
-        
-        msg = suspect.get_message_rep()
+            if self.config.get(self.section, 'stripoversize'):
+                suspect.debug('Fuzor: message too big (%u), stripping down to %u' % (suspect.size, maxsize))
+                msg = message_from_string(
+                    suspect.source_stripped_attachments(maxsize=maxsize),
+                    _class=PatchedMessage
+                )
+            else:
+                self.logger.debug('%s Size Skip, %s > %s' % (suspect.id, suspect.size, maxsize))
+                return
+        else:
+            msg = suspect.get_message_rep()
+
         fuhash = FuzorDigest(msg)
     
         try:
@@ -244,12 +262,22 @@ class FuzorCheck(ScannerPlugin, FuzorMixin):
         
         # self.logger.info("%s: FUZOR START"%suspect.id)
         # start=time.time()
-        if suspect.size > self.config.getint(self.section, 'maxsize'):
-            suspect.debug('Fuzor: message too big, not digesting')
-            self.logger.debug('suspect %s message too big, not digesting' % suspect.id)
-            # self.logger.info("%s: FUZOR END (SIZE SKIP)"%suspect.id)
-            return DUNNO
-        msg = suspect.get_message_rep()
+        maxsize = self.config.getint(self.section, 'maxsize')
+        if suspect.size > maxsize:
+
+            if self.config.get(self.section, 'stripoversize'):
+                suspect.debug('Fuzor: message too big (%u), stripping down to %u' % (suspect.size, maxsize))
+                msg = message_from_string(
+                    suspect.source_stripped_attachments(maxsize=maxsize),
+                    _class=PatchedMessage
+                )
+            else:
+                suspect.debug('Fuzor: message too big, not digesting')
+                self.logger.debug('suspect %s message too big, not digesting' % suspect.id)
+                # self.logger.info("%s: FUZOR END (SIZE SKIP)"%suspect.id)
+                return DUNNO
+        else:
+            msg = suspect.get_message_rep()
         # self.logger.info("%s: FUZOR PRE-HASH"%suspect.id)
         fuhash = FuzorDigest(msg)
         # self.logger.info("%s: FUZOR POST-HASH"%suspect.id)
