@@ -165,6 +165,7 @@ timeout=1
 headername=X-FuZor
 maxsize=600000
 redispw=
+stripoversize=False
         """
         try:
             config.readfp(BytesIO(configfile))

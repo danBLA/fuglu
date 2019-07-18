@@ -467,6 +467,27 @@ class SuspectTestCase(unittest.TestCase):
         # which is not allowed. So the character that is extracted for "ü" seems to depend on
         # python version, so in this test it is ignored and replaced by {IGNORE}
 
+
+    def test_strip_attachments(self):
+        """Test is attachment is stripped and therefore message smaller"""
+        suspect = Suspect('sender@unittests.fuglu.org', 'recipient@unittests.fuglu.org', TESTDATADIR + '/6mbzipattachment.eml')
+
+        source_stripped_attachments = suspect.source_stripped_attachments()
+        print("Size original/stripped message: %u/%u"
+              % (len(suspect.get_original_source()), len(source_stripped_attachments)))
+        self.assertTrue(len(source_stripped_attachments) < len(suspect.get_source()) / 10,
+                        "after stripping zip attachment, size should be less than 10% of original mail")
+
+    def test_strip_attachments_maxsize(self):
+        """Test is attachment is stripped and max size applied"""
+        suspect = Suspect('sender@unittests.fuglu.org', 'recipient@unittests.fuglu.org', TESTDATADIR + '/6mbzipattachment.eml')
+
+        source_stripped_attachments = suspect.source_stripped_attachments(maxsize=100)
+        print("Size original/stripped message: %u/%u"
+              % (len(suspect.get_original_source()), len(source_stripped_attachments)))
+        self.assertEqual(100,len(source_stripped_attachments),
+                        "after stripping zip attachment and limiting size, size should be 100")
+
 class SuspectFilterTestCase(unittest.TestCase):
 
     """Test Suspectfilter"""

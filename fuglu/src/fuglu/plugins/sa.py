@@ -357,48 +357,6 @@ Tags:
             return isspam, spamscore, spamheader
         return isspam, spamscore, spamheader
 
-
-    def _strip_attachments(self, content, maxsize):
-        """
-        strip all attachments from multipart mails except for plaintext and html text parts.
-        if message is still too long, truncate.
-
-        Args:
-            content: string containing message source
-            maxsize: integer of maximum message size accepted by spamassassin
-
-        Returns: stripped and truncated message content
-
-        """
-
-        # Content is str or bytes (Py3), so try both
-        try:
-            msgrep = email.message_from_string(content, _class=PatchedMessage)
-        except TypeError:
-            msgrep = email.message_from_bytes(content, _class=PatchedMessage)
-
-        
-        if msgrep.is_multipart():
-            new_msg = PatchedMIMEMultipart()
-            for hdr, val in msgrep.items():
-                # convert "val" to "str" since in Py3 it might be of type email.header.Header
-                new_msg.add_header(hdr, str(val))
-            for part in msgrep.walk():
-                # only plaintext and html parts but no text attachments
-                if part.get_content_maintype() == 'text' and part.get_filename() is None:
-                    new_msg.attach(part)
-            new_src = new_msg.as_string()
-        else:
-            # text only mail - keep full content and truncate later
-            new_src = content
-
-        if len(new_src) > maxsize:
-            # truncate to maxsize
-            new_src = new_src[:maxsize-1]
-        
-        return new_src
-    
-    
     def examine(self, suspect):
         # check if someone wants to skip sa checks
         if suspect.get_tag('SAPlugin.skip') is True:
@@ -430,7 +388,8 @@ Tags:
             stripped = True
             # keep copy of original content before stripping
             content_orig = content
-            content = self._strip_attachments(content, maxsize)
+            # send maxsize-1 to be consistent with previous implementation
+            content = suspect.source_stripped_attachments(content=content, maxsize=maxsize-1)
             self.logger.info('%s stripped attachments, body size reduced from %s to %s bytes' % (suspect.id, len(content_orig), len(content)))
         # stick to bytes
         content = force_bString(content)
