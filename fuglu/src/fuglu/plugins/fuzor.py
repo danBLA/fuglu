@@ -20,7 +20,10 @@ import re
 import sys
 import logging
 import socket
-from email import message_from_string
+try:
+    from email import message_from_bytes
+except:
+    from email import message_from_string as message_from_bytes
 
 from fuglu.shared import ScannerPlugin, AppenderPlugin, SuspectFilter, DUNNO
 from fuglu.extensions.redisext import RedisKeepAlive, redis, ENABLED as REDIS_ENABLED
@@ -139,7 +142,7 @@ class FuzorMixin(object):
         if suspect.size > maxsize:
             if self.config.getboolean(self.section, 'stripoversize'):
                 suspect.debug('Fuzor: message too big (%u), stripping down to %u' % (suspect.size, maxsize))
-                msg = message_from_string(
+                msg = message_from_bytes(
                     suspect.source_stripped_attachments(maxsize=maxsize),
                     _class=PatchedMessage
                 )
@@ -258,7 +261,7 @@ class FuzorCheck(ScannerPlugin, FuzorMixin):
 
             if self.config.getboolean(self.section, 'stripoversize'):
                 suspect.debug('Fuzor: message too big (%u), stripping down to %u' % (suspect.size, maxsize))
-                msg = message_from_string(
+                msg = message_from_bytes(
                     suspect.source_stripped_attachments(maxsize=maxsize),
                     _class=PatchedMessage
                 )
