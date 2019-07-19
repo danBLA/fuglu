@@ -1065,11 +1065,11 @@ class Suspect(object):
         if message is still too long, truncate.
 
         Args:
-            content: string containing message source
-            maxsize: integer of maximum message size accepted
+            content (string,bytes): message source
+            maxsize (integer): maximum message size accepted
 
-        Returns: stripped and truncated message content
-
+        Returns:
+            bytes: stripped and truncated message content
         """
 
         if content is None:
@@ -1090,16 +1090,20 @@ class Suspect(object):
                 # only plaintext and html parts but no text attachments
                 if part.get_content_maintype() == 'text' and part.get_filename() is None:
                     new_msg.attach(part)
-            new_src = new_msg.as_string()
+            try:
+                new_src = new_msg.as_bytes()
+            except AttributeError:
+                # Py2
+                new_src = new_msg.as_string()
         else:
             # text only mail - keep full content and truncate later
-            new_src = content
+            new_src = force_bString(content)
 
         if maxsize and len(new_src) > maxsize:
             # truncate to maxsize
             new_src = new_src[:maxsize]
 
-        return new_src
+        return force_bString(new_src)
 
 
 def strip_address(address):
