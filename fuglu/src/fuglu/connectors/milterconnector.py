@@ -477,6 +477,10 @@ class MilterSession(lm.MilterProtocol):
         self.config = config
         self.logger = logging.getLogger('fuglu.miltersession')
 
+        self.logger.debug("Options negotiated:")
+        for smfip_option, smfip_string in iter(lm.SMFIP_PROTOS.items()):
+            self.logger.debug("* %s: %s" % (smfip_string, bool(smfip_option & self.protos)))
+
         # connection
         self.heloname = None
         self.addr = None
