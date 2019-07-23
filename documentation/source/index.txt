@@ -6,7 +6,19 @@
 FuGlu Mail Content Scanner
 ==========================
 
-Contents:
+FuGlu is a mail scanning daemon for Postfix written in Python. It acts as the glue application between the MTA and spam checkers and antivirus software. FuGlu focuses on being solid, easy to manage, debug and monitor.
+
+ * `Source on gitlab <https://gitlab.com/fumail/fuglu/>`_
+ * `latest version from git as package <https://gitlab.com/fumail/fuglu/-/archive/master/fuglu-master.tar.gz>`_
+ * `Fuglu releases on pypi <https://pypi.python.org/pypi/fuglu/>`_
+ * `Mailing List  <http://fuglu.org/mailman/listinfo/fuglu-users_fuglu.org>`_
+
+ Fuglu comes with a bunch of plugins for doing all kinds of mail processing related tasks (content filter, header and body modifications, out-of-office autoreplies, archiving, statistics, ...) The simple plugin architecture makes it easy for anyone with basic python skills to add new functionality.
+
+ .. image:: _static/fuglu.png
+
+Documentation
+-------------
 
 .. toctree::
    :maxdepth: 3
@@ -22,5 +34,3 @@ Contents:
    api
 
 * :ref:`search`
-
-
