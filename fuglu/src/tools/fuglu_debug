@@ -56,7 +56,7 @@ smtpServer.helo('fuglu.debug.local')
 
 # read message
 try:
-   fh = open(sys.argv[1])
+   fh = open(sys.argv[1],'rb')
    message = fh.read()
 except FileNotFoundError:
     print("")
