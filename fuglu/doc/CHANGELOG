@@ -1,4 +1,22 @@
--- Fuglu 0.10.0, WIP
+-- Fuglu 0.10.1 and 0.10.2, 2019-07-31
+ * switch python3 testing from 3.4 to 3.6
+ * allows to define custom conf.d (in fuglu config file or as runtime parameter)
+ * disable bounces for addresses given by file
+ * in reinject, use SMTPUTF8 for unicode addresses even if not given
+ * new plugin SALearn
+
+Developers:
+ * improvements string encoding/decoding
+ * improvements get_client_info
+ * fix in SpearPhishPlugin for empty sender
+ * virusscanner - skip on previous virusscanner hit
+ * Fuzor: Prevent checksum recalculation, always add tag, improved exception handling
+ * RSpamdPlugin: fix for non-ascii chars in rspamd answer
+ * strip_attachments moved from SAPlugin to Suspect
+ * Fuzor: Strip oversize option
+ * Py3 fix for fuglu_debug
+
+-- Fuglu 0.10.0, 2019-04-11
  * require setuptools
  * performance improvements (smtpconnector)
  * improved header parsing and decoding
