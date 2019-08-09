@@ -289,6 +289,9 @@ Tags:
         data = b''
         maxFailedAttempts = 40
         failedAttempt = 0
+        readtimeout = self.config.getint(self.section, 'timeout') * 3  # extra timeout condition
+        starttime = time.time()
+        
         while True:
             try:
                 chunk = sock.recv(4096)
@@ -299,7 +302,7 @@ Tags:
                     break
                 if b'\0' in chunk:
                     raise Exception("%s: Protocol error: got unexpected additional data after delimiter"%suspectID)
-            except socket.error:
+            except socket.error as e:
                 # looks like there can be a socket error when we try to connect too quickly after sending, so
                 # better retry several times
                 # Got this idea from pyclamd, see:
@@ -308,9 +311,19 @@ Tags:
                 # maximum of 1 second by 40*0.025 [s] if this helps to avoid a complete rescan of the message
                 time.sleep(0.025)
                 failedAttempt += 1
-                self.logger.warning("%s: Failed receive attempt %u/%u"%(suspectID,failedAttempt,maxFailedAttempts))
+                self.logger.warning("%s: Failed receive attempt %u/%u: %s" % (suspectID,failedAttempt, maxFailedAttempts, str(e)))
                 if failedAttempt == maxFailedAttempts:
                     raise
+            else:
+                # Sometimes we get one socket error and after that we never get a proper answer to satisfy
+                # break or exception condition in try block, neither are there subsequent socket errors.
+                # This can lead to an endless loop where a worker remains forever in this while loop,
+                # rendering the worker useless and causing high cpu load. We thus add this additional
+                # loop termination condition.
+                runtime = time.time() - starttime
+                if runtime > readtimeout:
+                    raise Exception("%s: Read timeout after %.2fs" % (suspectID, runtime))
+        
         return data[:-1]  # remove \0 at the end
     
     
