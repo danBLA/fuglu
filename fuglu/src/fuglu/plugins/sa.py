@@ -438,7 +438,7 @@ Tags:
                         msgrep_filtered = email.message_from_string(filtered, _class=PatchedMessage)
                     header_new = []
                     for h,v in msgrep_filtered.items():
-                        header_new.append(h.strip() + ': ' + v.strip())
+                        header_new.append(force_uString(h).strip() + ': ' + force_uString(v).strip())
                     # add headers to msg
                     sa_prepend = self.config.get(self.section, 'spamheader_prepend')
                     for i in header_new:
