@@ -179,7 +179,7 @@ Prerequisites: Requires a running sophos daemon with dynamic interface (SAVDI)
         if not self._accepted(s):
             raise Exception("SSSP Options not accepted: %s" % self._last_line)
 
-        resp = self._receivemsg(s)
+        resp = self._receive_msg(s)
 
         for l in resp:
             if donesyntax.match(l):
@@ -312,7 +312,7 @@ Prerequisites: Requires a running sophos daemon with dynamic interface (SAVDI)
         :param s: the socket
         :return: dict: options supported by sophos
         """
-        resp = self._receivemsg(s)
+        resp = self._receive_msg(s)
         opts = {}
     
         for l in resp:
@@ -354,7 +354,7 @@ Prerequisites: Requires a running sophos daemon with dynamic interface (SAVDI)
         :return: None
         """
         s.send(b'BYE\n')
-        self.receiveline(s)
+        self._receive_line(s)
     
     
     
