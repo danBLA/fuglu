@@ -39,12 +39,12 @@ class SSSPTestCase(unittest.TestCase):
 
     def tearDown(self):
         pass
-
-    @patch("fuglu.plugins.sssp.sayGoodbye")
-    @patch("fuglu.plugins.sssp.receivemsg")
-    @patch("fuglu.plugins.sssp.accepted")
-    @patch("fuglu.plugins.sssp.exchangeGreetings")
-    @patch("fuglu.plugins.sssp.readoptions")
+    
+    @patch("fuglu.plugins.sssp.SSSPPlugin._say_goodbye")
+    @patch("fuglu.plugins.sssp.SSSPPlugin._receive_msg")
+    @patch("fuglu.plugins.sssp.SSSPPlugin._accepted")
+    @patch("fuglu.plugins.sssp.SSSPPlugin._exchange_greetings")
+    @patch("fuglu.plugins.sssp.SSSPPlugin._read_options")
     def test_answer(self, rops, exchgr, acc, rcvmsg, sgb):
         """Test parsing of sophos answer, especially removal of tmp-folder in name"""
 
