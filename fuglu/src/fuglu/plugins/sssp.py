@@ -25,6 +25,7 @@ from fuglu.stringencode import force_bString, force_uString
 import socket
 import os
 import re
+import time
 
 # Regular Expressions defining some messages from the server.
 acceptsyntax = re.compile(b"^ACC\s+(.*?)\s*$")
@@ -110,6 +111,7 @@ Prerequisites: Requires a running sophos daemon with dynamic interface (SAVDI)
             except Exception as e:
                 self.logger.warning("Error encountered while contacting SSSP server (try %s of %s): %s" % (
                     i + 1, self.config.getint(self.section, 'retries'), str(e)))
+                time.sleep(0.05) # give savdi a few ms before retrying
         self.logger.error("SSSP scan failed after %s retries" %
                           self.config.getint(self.section, 'retries'))
 
