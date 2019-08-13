@@ -54,7 +54,7 @@ class FuzorMixin(object):
                     'maxsize in bytes, larger messages will be skipped'
             },
             'stripoversize': {
-                'default': False,
+                'default': 'False',
                 'description':
                     'Remove attachments and reduce text to "maxsize" so large mails can be processed'
             },
