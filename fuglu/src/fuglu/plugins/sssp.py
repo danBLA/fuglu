@@ -25,6 +25,7 @@ from fuglu.stringencode import force_bString, force_uString
 import socket
 import os
 import re
+import time
 
 # Regular Expressions defining some messages from the server.
 acceptsyntax = re.compile(b"^ACC\s+(.*?)\s*$")
@@ -33,94 +34,8 @@ virussyntax = re.compile(b"^VIRUS\s+(\S+)\s+(.*)")
 typesyntax = re.compile(b"^TYPE\s+(\w+)")
 donesyntax = re.compile(b"^DONE\s+(\w+)\s+(\w+)\s+(.*?)\s*$")
 eventsyntax = re.compile(b"^([A-Z]+)\s+(\w+)")
-tmpdirsyntax = re.compile(u"(/tmp/savid_tmp[^\/]+/)(.+)")
+tmpdirsyntax = re.compile(u"(/tmp/savid_tmp[^/]+/)(.+)")
 
-# Receives a line of text from the socket
-# \r chars are discarded
-# The line is terminated by a \n
-# NUL chars indicate a broken socket
-
-def receiveline(s):
-    line = b''
-    done = 0
-    while not done:
-        c = s.recv(1)
-        if c == b'':
-            return b''
-        done = (c == b'\n')
-        if not done and c != b'\r':
-            line = line + c
-
-    return line
-
-
-# Receives a whole message. Messages are terminated by
-# a blank line
-
-def receivemsg(s):
-
-    response = []
-    finished = 0
-
-    while not finished:
-        msg = receiveline(s)
-        finished = (len(msg) == 0)
-        if not finished:
-            response.append(msg)
-
-    return response
-
-
-# Receives the ACC message which is a single line
-# conforming to the acceptsyntax RE.
-
-def accepted(s):
-    acc = receiveline(s)
-    return acceptsyntax.match(acc)
-
-
-# Reads a message which should be a list of options
-# and transforms them into a dictionary
-
-def readoptions(s):
-    resp = receivemsg(s)
-    opts = {}
-
-    for l in resp:
-        parts = optionsyntax.findall(l)
-        for p in parts:
-            p0 = force_uString(p[0])
-            if p0 not in opts:
-                opts[p0] = []
-
-            opts[p0].append(force_uString(p[1]))
-
-    return opts
-
-
-# Performs the initial exchange of messages.
-
-def exchangeGreetings(s):
-
-    line = receiveline(s)
-
-    if not line.startswith(b'OK SSSP/1.0'):
-        return 0
-
-    s.send(b'SSSP/1.0\n')
-
-    if not accepted(s):
-        print("Greeting Rejected!!")
-        return 0
-
-    return 1
-
-
-# performs the final exchange of messages
-
-def sayGoodbye(s):
-    s.send(b'BYE\n')
-    receiveline(s)
 
 
 class SSSPPlugin(AVScannerPlugin):
@@ -175,6 +90,7 @@ Prerequisites: Requires a running sophos daemon with dynamic interface (SAVDI)
         }
         self.logger = self._logger()
         self.enginename = 'sophos'
+        self._last_line = None
     
     
     def __str__(self):
@@ -195,6 +111,7 @@ Prerequisites: Requires a running sophos daemon with dynamic interface (SAVDI)
             except Exception as e:
                 self.logger.warning("Error encountered while contacting SSSP server (try %s of %s): %s" % (
                     i + 1, self.config.getint(self.section, 'retries'), str(e)))
+                time.sleep(0.05) # give savdi a few ms before retrying
         self.logger.error("SSSP scan failed after %s retries" %
                           self.config.getint(self.section, 'retries'))
 
@@ -217,16 +134,16 @@ Prerequisites: Requires a running sophos daemon with dynamic interface (SAVDI)
 
         # Read the welcome message
 
-        if not exchangeGreetings(s):
-            raise Exception("SSSP Greeting failed")
+        if not self._exchange_greetings(s):
+            raise Exception("SSSP Greeting failed: %s" % self._last_line)
 
         # QUERY to discover the maxclassificationsize
         s.send(b'SSSP/1.0 QUERY\n')
 
-        if not accepted(s):
-            raise Exception("SSSP Query rejected")
+        if not self._accepted(s):
+            raise Exception("SSSP Query rejected: %s" % self._last_line)
 
-        options = readoptions(s)
+        options = self._read_options(s)
 
         # Set the options for classification
         enableoptions = [
@@ -259,10 +176,10 @@ Prerequisites: Requires a running sophos daemon with dynamic interface (SAVDI)
 
         s.send(force_bString(sendbuf))
 
-        if not accepted(s):
-            raise Exception("SSSP Options not accepted")
+        if not self._accepted(s):
+            raise Exception("SSSP Options not accepted: %s" % self._last_line)
 
-        resp = receivemsg(s)
+        resp = self._receive_msg(s)
 
         for l in resp:
             if donesyntax.match(l):
@@ -274,13 +191,13 @@ Prerequisites: Requires a running sophos daemon with dynamic interface (SAVDI)
         # Send the SCAN request
 
         s.send(force_bString('SCANDATA ' + str(len(content)) + '\n'))
-        if not accepted(s):
-            raise Exception("SSSP Scan rejected")
+        if not self._accepted(s):
+            raise Exception("SSSP Scan rejected: %s" % self._last_line)
 
         s.sendall(force_bString(content))
 
         # and read the result
-        events = receivemsg(s)
+        events = self._receive_msg(s)
 
         for l in events:
             if virussyntax.match(l):
@@ -294,7 +211,7 @@ Prerequisites: Requires a running sophos daemon with dynamic interface (SAVDI)
                 dr[filename] = virus
 
         try:
-            sayGoodbye(s)
+            self._say_goodbye(s)
             s.shutdown(socket.SHUT_RDWR)
         except socket.error as e:
             self.logger.warning('%s Error terminating connection: %s', (suspectid, str(e)))
@@ -335,6 +252,110 @@ Prerequisites: Requires a running sophos daemon with dynamic interface (SAVDI)
                 raise Exception('Could not reach SSSP server using network (%s, %s)' % (host, port))
 
         return s
+    
+    
+    def _receive_line(self, s):
+        """
+        Receives a line of text from the socket
+        \r chars are discarded
+        The line is terminated by a \n
+        NUL chars indicate a broken socket
+        :param s: the socket
+        :return: data read from socket
+        """
+        line = b''
+        done = 0
+        while not done:
+            c = s.recv(1)
+            if c == b'':
+                return b''
+            done = (c == b'\n')
+            if not done and c != b'\r':
+                line = line + c
+        self._last_line = line
+        return line
+    
+    
+    def _receive_msg(self, s):
+        """
+        Receives a whole message. Messages are terminated by a blank line
+        :param s: the socket
+        :return: list of lines received
+        """
+        response = []
+        finished = 0
+    
+        while not finished:
+            msg = self._receive_line(s)
+            finished = (len(msg) == 0)
+            if not finished:
+                response.append(msg)
+    
+        return response
+    
+    
+    def _accepted(self, s):
+        """
+        Receives the ACC message which is a single line
+        conforming to the acceptsyntax RE.
+        :param s: the socket
+        :return: boolean: does line start with ACC?
+        """
+        acc = self._receive_line(s)
+        return acceptsyntax.match(acc)
+    
+    
+    def _read_options(self, s):
+        """
+        Reads a message which should be a list of options
+        and transforms them into a dictionary
+        :param s: the socket
+        :return: dict: options supported by sophos
+        """
+        resp = self._receive_msg(s)
+        opts = {}
+    
+        for l in resp:
+            parts = optionsyntax.findall(l)
+            for p in parts:
+                p0 = force_uString(p[0])
+                if p0 not in opts:
+                    opts[p0] = []
+            
+                opts[p0].append(force_uString(p[1]))
+    
+        return opts
+    
+    
+    def _exchange_greetings(self, s):
+        """
+        Performs the initial exchange of messages.
+        :param s: the socket
+        :return: 1 on success, 0 if greeting failed
+        """
+        line = self._receive_line(s)
+    
+        if not line.startswith(b'OK SSSP/1.0'):
+            return 0
+    
+        s.send(b'SSSP/1.0\n')
+    
+        if not self._accepted(s):
+            print("Greeting Rejected!!")
+            return 0
+    
+        return 1
+    
+    
+    def _say_goodbye(self, s):
+        """
+        performs the final exchange of messages
+        :param s: the socket
+        :return: None
+        """
+        s.send(b'BYE\n')
+        self._receive_line(s)
+    
     
     
     def lint(self):
