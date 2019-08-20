@@ -33,6 +33,7 @@ else:
     from email.message import Message as PatchedMessage
 
 
+
 class FuzorMixin(object):
     def __init__(self):
         self.requiredvars = {
@@ -135,8 +136,10 @@ class FuzorMixin(object):
     
     
     def report(self, suspect):
+        digest = None
+        count = 0
         if not REDIS_ENABLED:
-            return DUNNO
+            return digest, count
         
         maxsize = self.config.getint(self.section, 'maxsize')
         if suspect.size > maxsize:
@@ -148,12 +151,12 @@ class FuzorMixin(object):
                 )
             else:
                 self.logger.debug('%s Size Skip, %s > %s' % (suspect.id, suspect.size, maxsize))
-                return
+                return digest, count
         else:
             msg = suspect.get_message_rep()
-
+        
         fuhash = FuzorDigest(msg)
-    
+        
         try:
             self.logger.debug(
                 "suspect %s to=%s hash %s usable_body=%s predigest=%s subject=%s" %
@@ -161,26 +164,32 @@ class FuzorMixin(object):
                  msg.get('Subject')))
         except Exception:
             pass
-    
+        
         if fuhash.digest is not None:
+            digest = fuhash.digest
             try:
                 self._init_backend()
+                have_backend = True
             except redis.exceptions.ConnectionError as e:
                 self.logger.error('failed to connect to redis server: %s' % str(e))
-                return
-            
+                have_backend = False
+                
             try:
-                count = self.backend.increase(fuhash.digest)
-                self.logger.info("suspect %s hash %s seen %s times before" % (suspect.id, fuhash.digest, count - 1))
+                if have_backend:
+                    count = self.backend.increase(fuhash.digest)
+                    self.logger.info("suspect %s hash %s seen %s times before" % (suspect.id, fuhash.digest, count - 1))
             except redis.exceptions.TimeoutError as e:
                 self.logger.error('%s failed increasing count due to %s' % (suspect.id, str(e)))
-                return
             except redis.exceptions.ConnectionError as e:
                 self.logger.error('%s failed increasing count due to %s, resetting connection' % (suspect.id, str(e)))
                 self.backend = None
-                return
         else:
             self.logger.info("suspect %s not enough data for a digest" % suspect.id)
+        
+        if fuhash.digest is not None:
+            return digest, count
+        else:
+            return digest, count
 
 
 
@@ -198,7 +207,9 @@ class FuzorReport(ScannerPlugin, FuzorMixin):
         if not REDIS_ENABLED:
             return DUNNO
         
-        self.report(suspect)
+        digest, count = self.report(suspect)
+        if digest is not None and suspect.get_tag('FuZor') is None:
+            suspect.set_tag('FuZor', (digest, count))
         return DUNNO
 
 
@@ -219,7 +230,9 @@ class FuzorReportAppender(AppenderPlugin, FuzorMixin):
         if not REDIS_ENABLED:
             return DUNNO
         
-        self.report(suspect)
+        digest, count = self.report(suspect)
+        if digest is not None and suspect.get_tag('FuZor') is None:
+            suspect.set_tag('FuZor', (digest, count))
 
 
 
@@ -237,7 +250,8 @@ class FuzorCheck(ScannerPlugin, FuzorMixin):
             },
         })
     
-
+    
+    
     def _writeheader(self, suspect, header, value):
         hdr = "%s: %s" % (header, value)
         tag = suspect.get_tag('SAPlugin.tempheader')
@@ -248,6 +262,7 @@ class FuzorCheck(ScannerPlugin, FuzorMixin):
         else:  # str/unicode
             tag = "%s\r\n%s" % (tag, hdr)
         suspect.set_tag('SAPlugin.tempheader', tag)
+    
     
     
     def examine(self, suspect):
@@ -341,6 +356,7 @@ class FuzorPrint(ScannerPlugin):
                 suspect.id)
         
         return DUNNO
+
 
 
 class FuzorDigest(object):
