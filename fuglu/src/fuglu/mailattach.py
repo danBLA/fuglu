@@ -918,6 +918,11 @@ class Mailattachment_mgr(object):
                 att_name = Suspect.decode_msg_header(att_name)
             except Exception:
                 pass
+            # for long filenames (<78 chars) not properly implementing
+            # continuation according to RFC2231 we might end up with with
+            # line break in the filename. Even tough some operating systems
+            # allow line breaks in filenames, better to remove them...
+            att_name = att_name.replace('\r', '').replace('\n', '')
         else:
             #  --
             #  generate a filename

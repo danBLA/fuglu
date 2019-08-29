@@ -1365,3 +1365,47 @@ class ProblematicCase(unittest.TestCase):
             if att.filename == "test.png":
                 print(att.defects)
                 self.assertEqual("application/unknown", att.contenttype)
+
+class TestLongFilenames(unittest.TestCase):
+    def test_long_filename(self):
+        """Test if attachment manager removes CRLF in filenames due to non-RFC2231 conform line continuation
+
+        Correct Content-Disposition header which is the first attachment in the test mail
+
+        ```
+        Content-Disposition: attachment;
+         filename*0="this is a long filename which I want to be split over severa";
+         filename*1="l line that is why I just keep writing more and more letters";
+         filename*2=".txt"
+        ```
+
+         and the bad Content-Disposition header which is the second attachment
+
+        ```
+        Content-Disposition: attachment;
+         filename="(2) is a long filename which I want to be split over several
+         line that is why I just keep writing more and more letters.txt"
+        ```
+
+        The bad Content-Disposition header end up with \r\n in the filename using the standard python
+        function "get_filename" to extract the filename
+        (https://docs.python.org/3/library/email.message.html#email.message.EmailMessage.get_filename)
+        which has to be corrected by the attachment manager
+        """
+
+        tempfile = join(TESTDATADIR, "long_long_attachment_filename.eml")
+
+        suspect = Suspect('sender@unittests.fuglu.org',
+                          'recipient@unittests.fuglu.org', tempfile)
+
+        m_attach_mgr = suspect.att_mgr
+
+        direct_attachments = [datt for datt in m_attach_mgr.get_fileslist() if datt != "unnamed.htm"]
+        print("Filenames, Level  [0:0]")
+        for datt in direct_attachments:
+            print("* [%s]" % datt)
+
+        self.assertEqual(2, len(direct_attachments))
+        for datt in direct_attachments:
+            self.assertEqual("this is a long filename which I want to be split over several line that is why I "
+                             "just keep writing more and more letters.txt", datt)
