@@ -83,6 +83,29 @@ class SMTPHandler(ProtocolHandler):
 
         # if there are SMTP options (SMTPUTF8, ...) then use ehlo
         mail_options = list(suspect.smtp_options)
+
+        if "SMTPUTF8" not in mail_options:
+            # make sure SMTPUTF8 option is set if there are addresses not purely ascii
+            add_option = False
+            if suspect.from_address:
+                try:
+                    force_uString(suspect.from_address).encode(encoding="ascii", errors="strict")
+                except UnicodeEncodeError:
+                    self.logger.warning("%s reinject: trying to send from %s without SMTPUTF8 option enabled"
+                                        % (suspect.id, suspect.from_address))
+                    add_option = True
+            for rcpt in suspect.to_address:
+                if rcpt:
+                    try:
+                        force_uString(rcpt).encode(encoding="ascii", errors="strict")
+                    except UnicodeEncodeError:
+                        self.logger.warning("%s reinject: trying to send to %s without SMTPUTF8 option enabled"
+                                            % (suspect.id, rcpt))
+                        add_option = True
+            if add_option:
+                mail_options.append("SMTPUTF8")
+                self.logger.warning("%s reinject: enable SMTPUTF8 option!" % suspect.id)
+
         serveranswer = None
         responsecode = None
         try:
@@ -453,6 +476,7 @@ class SMTPSession(object):
                 if "SMTPUTF8" not in self.ehlo_options:
                     raise ValueError("SMTPUTF8 support was not proposed")
                 self.smtpoptions.add("SMTPUTF8")
+
             if "8BITMIME" in remaining:
                 if "8BITMIME" not in self.ehlo_options:
                     raise ValueError("8BITMIME support was not proposed")

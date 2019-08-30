@@ -187,6 +187,8 @@ parser.add_option("--pidfile", action="store", dest="pidfile",
                   help="use a different pidfile than /var/run/fuglu.pid")
 parser.add_option("-c", "--config", action="store", dest="configfile",
                   help="use a different config file and disable reading from /etc/fuglu/conf.d")
+parser.add_option("--configdir", action="store", dest="configdir",
+                  help="use a folder different from conf.d, enable reading even if using -c/--config option")
 parser.add_option("--baseloglevel", dest="baseloglevel", default="DEBUG", choices=["DEBUG", "INFO", "ERROR"],
                   help="log-level for foreground mode and base (MIN) for all logging")
 
@@ -207,6 +209,9 @@ if opts.configfile:
     theconfigfile = opts.configfile
     theloggingfile = os.path.join(
         os.path.split(theconfigfile)[0], os.path.split(theloggingfile)[1])
+    # set config dir option to None in case of a custom configfile, might be set again by
+    # - option in config file
+    # - command line option
     dconfdir = None
 
 config = configparser.RawConfigParser()
@@ -215,6 +220,22 @@ if not os.path.exists(theconfigfile):
     sys.exit(1)
 with open(theconfigfile) as fp:
     readconfig = config.readfp(fp)
+
+# set config directory if given in config file
+if config.has_option('main', 'configdir'):
+    configdirinput = config.get('main', 'configdir')
+    # set config to input from config file if not an empty string
+    if configdirinput:
+        dconfdir = configdirinput
+        if lint:
+            print("Setting configdir by config file option to: %s" % dconfdir)
+
+# overwrite config directory "conf.d" by command line option
+if opts.configdir:
+    dconfdir = opts.configdir
+    if lint:
+        print("Setting configdir by command line option to: %s" % dconfdir)
+
 # load conf.d
 if dconfdir and os.path.isdir(dconfdir):
     filelist = os.listdir(dconfdir)

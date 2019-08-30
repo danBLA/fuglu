@@ -21,17 +21,12 @@ from fuglu.extensions.filearchives import Archivehandle
 from fuglu.extensions.filetype import filetype_handler
 from fuglu.mailattach import NoExtractInfo
 import re
-import mimetypes
 import os
 import os.path
 import logging
 import sys
-from email.header import decode_header
 import email
-
 from threading import Lock
-from io import BytesIO
-import traceback
 
 try:
     FileNotFoundError
@@ -493,16 +488,16 @@ The other common template variables are available as well.
 
             prog = re.compile(regex, re.I)
             if self.extremeverbosity:
-                self.logger.debug('Attachment %s Rule %s' % (obj, regex))
+                self.logger.debug('%s Attachment %s Rule %s' % (suspect.id, obj, regex))
             if isinstance(obj, bytes) and sys.version_info > (3,):
                 obj = obj.decode('UTF-8', 'ignore')
             if prog.search(obj):
-                self.logger.debug('Rulematch: Attachment=%s Rule=%s Description=%s Action=%s' % (
-                    obj, regex, description, action))
-                suspect.debug('Rulematch: Attachment=%s Rule=%s Description=%s Action=%s' % (
-                    obj, regex, description, action))
+                self.logger.debug('%s Rulematch: Attachment=%s Rule=%s Description=%s Action=%s' % (
+                    suspect.id, obj, regex, description, action))
+                suspect.debug('%s Rulematch: Attachment=%s Rule=%s Description=%s Action=%s' % (
+                    suspect.id, obj, regex, description, action))
                 if action == 'deny':
-                    self.logger.info('suspect %s contains blocked attachment %s %s' % (
+                    self.logger.info('%s contains blocked attachment %s %s' % (
                         suspect.id, displayname, asciirep))
                     suspect.tags['blocked']['FiletypePlugin'] = True
                     blockinfo = ("%s %s: %s" % (displayname, asciirep, description)).strip()
@@ -510,12 +505,12 @@ The other common template variables are available as well.
                     if self.sendbounce:
                         if suspect.is_spam() or suspect.is_virus():
                             self.logger.info(
-                                "backscatter prevention: not sending attachment block bounce to %s - the message is tagged spam or virus" % suspect.from_address)
+                                "%s backscatter prevention: not sending attachment block bounce to %s - the message is tagged spam or virus" % (suspect.id, suspect.from_address))
                         elif not suspect.from_address:
                             self.logger.warning("%s, not sending attachment block bounce to empty recipient" % suspect.id)
                         else:
                             self.logger.info(
-                                "Sending attachment block bounce to %s" % suspect.from_address)
+                                "%s Sending attachment block bounce to %s" % (suspect.id, suspect.from_address))
                             bounce = Bounce(self.config)
                             bounce.send_template_file(
                                 suspect.from_address, self.blockedfiletemplate, suspect, dict(blockinfo=blockinfo))
@@ -523,7 +518,7 @@ The other common template variables are available as well.
 
                 if action == 'delete':
                     self.logger.info(
-                        'suspect %s contains blocked attachment %s %s -- SILENT DELETE! --' % (suspect.id, displayname, asciirep))
+                        '%s contains blocked attachment %s %s -- SILENT DELETE! --' % (suspect.id, displayname, asciirep))
                     return ATTACHMENT_SILENTDELETE
 
                 if action == 'allow':
@@ -534,7 +529,7 @@ The other common template variables are available as well.
     def matchMultipleSets(self, setlist, obj, suspect, attachmentname=None):
         """run through multiple sets and return the first action which matches obj"""
         self.logger.debug(
-            'Checking object %s against attachment rulesets' % obj)
+            '%s Checking object %s against attachment rulesets' % (suspect.id, obj))
         for ruleset in setlist:
             res = self.matchRules(ruleset, obj, suspect, attachmentname)
             if res != ATTACHMENT_DUNNO:
@@ -555,7 +550,7 @@ The other common template variables are available as well.
             dbconn = self.config.get(self.section, 'dbconnectstring')
 
         if dbconn.strip() != '':
-            self.logger.debug('Loading attachment rules from database')
+            self.logger.debug('%s Loading attachment rules from database' % suspect.id)
             query = self.config.get(self.section, 'query')
             dbfile = DBFile(dbconn, query)
             user_names = self.rulescache.get_rules_from_config_lines(
@@ -566,8 +561,8 @@ The other common template variables are available as well.
                 dbfile.getContent({'scope': suspect.to_address, 'checktype': FUATT_CHECKTYPE_ARCHIVE_FN}))
             user_archive_ctypes = self.rulescache.get_rules_from_config_lines(
                 dbfile.getContent({'scope': suspect.to_address, 'checktype': FUATT_CHECKTYPE_ARCHIVE_CT}))
-            self.logger.debug('Found %s filename rules, %s content-type rules, %s archive filename rules, %s archive content rules for address %s' %
-                              (len(user_names), len(user_ctypes), len(user_archive_names), len(user_archive_ctypes), suspect.to_address))
+            self.logger.debug('%s Found %s filename rules, %s content-type rules, %s archive filename rules, %s archive content rules for address %s' %
+                              (suspect.id, len(user_names), len(user_ctypes), len(user_archive_names), len(user_archive_ctypes), suspect.to_address))
 
             domain_names = self.rulescache.get_rules_from_config_lines(
                 dbfile.getContent({'scope': suspect.to_domain, 'checktype': FUATT_CHECKTYPE_FN}))
@@ -577,10 +572,10 @@ The other common template variables are available as well.
                 dbfile.getContent({'scope': suspect.to_domain, 'checktype': FUATT_CHECKTYPE_ARCHIVE_FN}))
             domain_archive_ctypes = self.rulescache.get_rules_from_config_lines(
                 dbfile.getContent({'scope': suspect.to_domain, 'checktype': FUATT_CHECKTYPE_ARCHIVE_CT}))
-            self.logger.debug('Found %s filename rules, %s content-type rules, %s archive filename rules, %s archive content rules for domain %s' %
-                              (len(domain_names), len(domain_ctypes), len(domain_archive_names), len(domain_archive_ctypes), suspect.to_domain))
+            self.logger.debug('%s Found %s filename rules, %s content-type rules, %s archive filename rules, %s archive content rules for domain %s' %
+                              (suspect.id, len(domain_names), len(domain_ctypes), len(domain_archive_names), len(domain_archive_ctypes), suspect.to_domain))
         else:
-            self.logger.debug('Loading attachment rules from filesystem dir %s'%(self.config.get(self.section,'rulesdir')))
+            self.logger.debug('%s Loading attachment rules from filesystem dir %s' % (suspect.id, self.config.get(self.section,'rulesdir')))
             user_names = self.rulescache.getNAMERules(suspect.to_address)
             user_ctypes = self.rulescache.getCTYPERules(suspect.to_address)
             user_archive_names = self.rulescache.getARCHIVENAMERules(
@@ -613,8 +608,8 @@ The other common template variables are available as well.
                 # with filenames that are not auto-generated
                 pass
             else:
-                self.logger.debug("Skip message object: %s (attachment: %s, inline: %s, auto-name: %s)" % (
-                    att_name, attObj.is_attachment, attObj.is_inline, attObj.filename_generated
+                self.logger.debug("%s Skip message object: %s (attachment: %s, inline: %s, auto-name: %s)" % (
+                    suspect.id, att_name, attObj.is_attachment, attObj.is_inline, attObj.filename_generated
                 ))
                 continue
                 
@@ -677,7 +672,7 @@ The other common template variables are available as well.
                             continue
 
 
-                    self.logger.debug("Extracting %s as %s" % (att_name,attObj.archive_type))
+                    self.logger.debug("%s Extracting %s as %s" % (suspect.id, att_name,attObj.archive_type))
                     archivecontentmaxsize = self.config.getint(self.section, 'archivecontentmaxsize')
                     try:
                         archiveextractlevel = self.config.getint(self.section, 'archiveextractlevel')
@@ -754,7 +749,7 @@ The other common template variables are available as well.
                                     self._debuginfo(suspect, 'Archive File not checked: %s' % str(e))
 
                     except Exception as e:
-                        self.logger.error("archive scanning failed in attachment %s: %s" % (att_name, str(e)))
+                        self.logger.error("%s archive scanning failed in attachment %s: %s" % (suspect.id, att_name, str(e)))
         return DUNNO
     
     def walk_all_parts(self, message):
@@ -782,7 +777,7 @@ The other common template variables are available as well.
     def _debuginfo(self, suspect, message):
         """Debug to log and suspect"""
         suspect.debug(message)
-        self.logger.debug(message)
+        self.logger.debug('%s %s' % (suspect.id, message))
     
     
     def __str__(self):

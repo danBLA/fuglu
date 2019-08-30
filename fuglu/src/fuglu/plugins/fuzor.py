@@ -15,13 +15,22 @@
 # limitations under the License.
 #
 #
-from fuglu.shared import ScannerPlugin, AppenderPlugin, SuspectFilter, DUNNO
-from fuglu.extensions.redisext import RedisKeepAlive, redis, ENABLED as REDIS_ENABLED
 import hashlib
 import re
 import sys
 import logging
 import socket
+try:
+    from email import message_from_bytes
+except:
+    from email import message_from_string as message_from_bytes
+
+from fuglu.shared import ScannerPlugin, AppenderPlugin, SuspectFilter, DUNNO
+from fuglu.extensions.redisext import RedisKeepAlive, redis, ENABLED as REDIS_ENABLED
+if sys.version_info > (3,):
+    from fuglu.lib.patchedemail import PatchedMessage
+else:
+    from email.message import Message as PatchedMessage
 
 
 
@@ -44,6 +53,11 @@ class FuzorMixin(object):
                 'default': '600000',
                 'description':
                     'maxsize in bytes, larger messages will be skipped'
+            },
+            'stripoversize': {
+                'default': 'False',
+                'description':
+                    'Remove attachments and reduce text to "maxsize" so large mails can be processed'
             },
             'timeout': {
                 'default': '2',
@@ -112,23 +126,37 @@ class FuzorMixin(object):
                             break
                     if not ok:
                         print("Please update. Minimum version %s" % ".".join([str(i) for i in py3minversion]))
-    
+
+        if self.config.getboolean(self.section, 'stripoversize'):
+            maxsize = self.config.getint(self.section, 'maxsize')
+            print("Stripping oversize messages (size > %u) to calculate a fuzor hash..." % maxsize)
+
         return ok
     
     
     
     def report(self, suspect):
+        digest = None
+        count = 0
         if not REDIS_ENABLED:
-            return DUNNO
+            return digest, count
         
         maxsize = self.config.getint(self.section, 'maxsize')
         if suspect.size > maxsize:
-            self.logger.debug('%s Size Skip, %s > %s' % (suspect.id, suspect.size, maxsize))
-            return
+            if self.config.getboolean(self.section, 'stripoversize'):
+                suspect.debug('Fuzor: message too big (%u), stripping down to %u' % (suspect.size, maxsize))
+                msg = message_from_bytes(
+                    suspect.source_stripped_attachments(maxsize=maxsize),
+                    _class=PatchedMessage
+                )
+            else:
+                self.logger.debug('%s Size Skip, %s > %s' % (suspect.id, suspect.size, maxsize))
+                return digest, count
+        else:
+            msg = suspect.get_message_rep()
         
-        msg = suspect.get_message_rep()
         fuhash = FuzorDigest(msg)
-    
+        
         try:
             self.logger.debug(
                 "suspect %s to=%s hash %s usable_body=%s predigest=%s subject=%s" %
@@ -136,26 +164,32 @@ class FuzorMixin(object):
                  msg.get('Subject')))
         except Exception:
             pass
-    
+        
         if fuhash.digest is not None:
+            digest = fuhash.digest
             try:
                 self._init_backend()
+                have_backend = True
             except redis.exceptions.ConnectionError as e:
                 self.logger.error('failed to connect to redis server: %s' % str(e))
-                return
-            
+                have_backend = False
+                
             try:
-                count = self.backend.increase(fuhash.digest)
-                self.logger.info("suspect %s hash %s seen %s times before" % (suspect.id, fuhash.digest, count - 1))
+                if have_backend:
+                    count = self.backend.increase(fuhash.digest)
+                    self.logger.info("suspect %s hash %s seen %s times before" % (suspect.id, fuhash.digest, count - 1))
             except redis.exceptions.TimeoutError as e:
                 self.logger.error('%s failed increasing count due to %s' % (suspect.id, str(e)))
-                return
             except redis.exceptions.ConnectionError as e:
                 self.logger.error('%s failed increasing count due to %s, resetting connection' % (suspect.id, str(e)))
                 self.backend = None
-                return
         else:
             self.logger.info("suspect %s not enough data for a digest" % suspect.id)
+        
+        if fuhash.digest is not None:
+            return digest, count
+        else:
+            return digest, count
 
 
 
@@ -168,15 +202,14 @@ class FuzorReport(ScannerPlugin, FuzorMixin):
         self.logger = self._logger()
     
     
-    def lint(self):
-        return FuzorMixin.lint(self)
-    
-    
+
     def examine(self, suspect):
         if not REDIS_ENABLED:
             return DUNNO
         
-        self.report(suspect)
+        digest, count = self.report(suspect)
+        if digest is not None and suspect.get_tag('FuZor') is None:
+            suspect.set_tag('FuZor', (digest, count))
         return DUNNO
 
 
@@ -192,16 +225,14 @@ class FuzorReportAppender(AppenderPlugin, FuzorMixin):
         self.logger = self._logger()
     
     
-    def lint(self):
-        return FuzorMixin.lint(self)
-    
-    
-    
+
     def process(self, suspect, decision):
         if not REDIS_ENABLED:
             return DUNNO
         
-        self.report(suspect)
+        digest, count = self.report(suspect)
+        if digest is not None and suspect.get_tag('FuZor') is None:
+            suspect.set_tag('FuZor', (digest, count))
 
 
 
@@ -233,10 +264,6 @@ class FuzorCheck(ScannerPlugin, FuzorMixin):
         suspect.set_tag('SAPlugin.tempheader', tag)
     
     
-    def lint(self):
-        return FuzorMixin.lint(self)
-    
-    
     
     def examine(self, suspect):
         if not REDIS_ENABLED:
@@ -244,12 +271,22 @@ class FuzorCheck(ScannerPlugin, FuzorMixin):
         
         # self.logger.info("%s: FUZOR START"%suspect.id)
         # start=time.time()
-        if suspect.size > self.config.getint(self.section, 'maxsize'):
-            suspect.debug('Fuzor: message too big, not digesting')
-            self.logger.debug('suspect %s message too big, not digesting' % suspect.id)
-            # self.logger.info("%s: FUZOR END (SIZE SKIP)"%suspect.id)
-            return DUNNO
-        msg = suspect.get_message_rep()
+        maxsize = self.config.getint(self.section, 'maxsize')
+        if suspect.size > maxsize:
+
+            if self.config.getboolean(self.section, 'stripoversize'):
+                suspect.debug('Fuzor: message too big (%u), stripping down to %u' % (suspect.size, maxsize))
+                msg = message_from_bytes(
+                    suspect.source_stripped_attachments(maxsize=maxsize),
+                    _class=PatchedMessage
+                )
+            else:
+                suspect.debug('Fuzor: message too big, not digesting')
+                self.logger.debug('suspect %s message too big, not digesting' % suspect.id)
+                # self.logger.info("%s: FUZOR END (SIZE SKIP)"%suspect.id)
+                return DUNNO
+        else:
+            msg = suspect.get_message_rep()
         # self.logger.info("%s: FUZOR PRE-HASH"%suspect.id)
         fuhash = FuzorDigest(msg)
         # self.logger.info("%s: FUZOR POST-HASH"%suspect.id)
@@ -319,6 +356,7 @@ class FuzorPrint(ScannerPlugin):
                 suspect.id)
         
         return DUNNO
+
 
 
 class FuzorDigest(object):

@@ -34,9 +34,10 @@ from fuglu.stringencode import force_uString, force_bString
 from fuglu.mailattach import Mailattachment_mgr
 
 if sys.version_info > (3,):
-    from fuglu.lib.patchedemail import PatchedMessage
+    from fuglu.lib.patchedemail import PatchedMessage, PatchedMIMEMultipart
 else:
     from email.message import Message as PatchedMessage
+    from email.mime.multipart import MIMEMultipart as PatchedMIMEMultipart
 
 try:
     from html.parser import HTMLParser
@@ -1058,6 +1059,51 @@ class Suspect(object):
             return None
         return match.groups()
 
+    def source_stripped_attachments(self, content=None, maxsize=None):
+        """
+        strip all attachments from multipart mails except for plaintext and html text parts.
+        if message is still too long, truncate.
+
+        Args:
+            content (string,bytes): message source
+            maxsize (integer): maximum message size accepted
+
+        Returns:
+            bytes: stripped and truncated message content
+        """
+
+        if content is None:
+            content = self.get_source()
+
+        # Content is str or bytes (Py3), so try both
+        try:
+            msgrep = email.message_from_string(content, _class=PatchedMessage)
+        except TypeError:
+            msgrep = email.message_from_bytes(content, _class=PatchedMessage)
+
+        if msgrep.is_multipart():
+            new_msg = PatchedMIMEMultipart()
+            for hdr, val in msgrep.items():
+                # convert "val" to "str" since in Py3 it might be of type email.header.Header
+                new_msg.add_header(hdr, str(val))
+            for part in msgrep.walk():
+                # only plaintext and html parts but no text attachments
+                if part.get_content_maintype() == 'text' and part.get_filename() is None:
+                    new_msg.attach(part)
+            try:
+                new_src = new_msg.as_bytes()
+            except AttributeError:
+                # Py2
+                new_src = new_msg.as_string()
+        else:
+            # text only mail - keep full content and truncate later
+            new_src = force_bString(content)
+
+        if maxsize and len(new_src) > maxsize:
+            # truncate to maxsize
+            new_src = new_src[:maxsize]
+
+        return force_bString(new_src)
 
 
 def strip_address(address):
