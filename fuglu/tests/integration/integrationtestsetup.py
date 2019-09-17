@@ -59,6 +59,7 @@ class DummySMTPServer(object):
         counter = 0
         while not self._suspect and counter < 10:
             time.sleep(0.5)
+            counter += 1
         return self._suspect
 
     @suspect.setter
