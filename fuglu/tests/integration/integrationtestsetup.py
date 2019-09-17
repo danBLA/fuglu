@@ -2,6 +2,8 @@ import os
 import sys
 import logging
 import socket
+import time
+
 
 UNITTESTDIR = os.path.dirname(os.path.realpath(__file__))
 CODEDIR = os.path.abspath(UNITTESTDIR + '../../../src')
@@ -39,18 +41,46 @@ class DummySMTPServer(object):
         self.logger.debug('Starting dummy SMTP Server on Port %s' % port)
         self.port = port
         self.config = config
-        self.tempfilename = None
+        self._tempfilename = None
 
         self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self._socket.bind((address, port))
         self._socket.listen(100)
         self.logger.debug('listen at: %s, %s' % (address, port))
-        self.suspect = None
+        self._suspect = None
         self.stayalive = stayalive
         self.is_waiting = False
         self.response_code = 250
         self.response_message = "OK - queued as 1337"
+
+    @property
+    def tempfilename(self):
+        max_wait_counter = 20
+        counter = 0
+        while not self._tempfilename and counter < max_wait_counter:
+            print("DummySMTPServer: WARNING waiting for tempfilename do be not NONE %u/%u" % (counter, max_wait_counter))
+            time.sleep(0.5)
+            counter += 1
+        return self._tempfilename
+
+    @tempfilename.setter
+    def tempfilename(self, newtempfilename):
+        self._tempfilename = newtempfilename
+
+    @property
+    def suspect(self):
+        max_wait_counter = 20
+        counter = 0
+        while not self._suspect and counter < max_wait_counter:
+            print("DummySMTPServer: WARNING waiting for suspect do be not NONE %u/%u" % (counter, max_wait_counter))
+            time.sleep(0.5)
+            counter += 1
+        return self._suspect
+
+    @suspect.setter
+    def suspect(self, newsus):
+        self._suspect = newsus
 
     def serve(self):
         from fuglu.shared import Suspect
@@ -60,11 +90,11 @@ class DummySMTPServer(object):
         # Otherwise, it should run the loop once which will receive a
         # message and create the suspect
         self.is_waiting = True
-        while (self.suspect is None) or self.stayalive:
+        while (self._suspect is None) or self.stayalive:
             self.logger.debug('Waiting for accept connection')
             nsd = self._socket.accept()
             self.logger.debug('Accepted connection (Suspect is None: %s, stayalive: %s)' %
-                              ((self.suspect is None), self.stayalive))
+                              ((self._suspect is None), self.stayalive))
 
             sess = SMTPSession(nsd[0], self.config)
             self.logger.debug('Created SMTPSession')
@@ -91,11 +121,11 @@ class DummySMTPServer(object):
                               (fromaddr, "["+", ".join(recipients)+"]" if len(recipients) > 1 else recipients[0],
                                self.tempfilename))
 
-            if self.stayalive or (self.suspect is None):
+            if self.stayalive or (self._suspect is None):
                 self.suspect = Suspect(fromaddr, recipients, self.tempfilename)
         self.is_waiting = False
         self.logger.debug('Exit server loop (Suspect is None: %s, stayalive: %s)' %
-                          ((self.suspect is None), self.stayalive))
+                          ((self._suspect is None), self.stayalive))
 
     def shutdown(self):
         if self._socket:
