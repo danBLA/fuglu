@@ -2,6 +2,8 @@ import os
 import sys
 import logging
 import socket
+import time
+
 
 UNITTESTDIR = os.path.dirname(os.path.realpath(__file__))
 CODEDIR = os.path.abspath(UNITTESTDIR + '../../../src')
@@ -46,11 +48,22 @@ class DummySMTPServer(object):
         self._socket.bind((address, port))
         self._socket.listen(100)
         self.logger.debug('listen at: %s, %s' % (address, port))
-        self.suspect = None
+        self._suspect = None
         self.stayalive = stayalive
         self.is_waiting = False
         self.response_code = 250
         self.response_message = "OK - queued as 1337"
+
+    @property
+    def suspect(self):
+        counter = 0
+        while not self._suspect and counter < 10:
+            time.sleep(0.5)
+        return self._suspect
+
+    @suspect.setter
+    def suspect(self, newsus):
+        self._suspect = newsus
 
     def serve(self):
         from fuglu.shared import Suspect
