@@ -441,9 +441,11 @@ SQL Example for mysql:
         msg['To'] = suspect.from_address
 
         msgcontent = msg.as_string()
-        bounce.send_template_string(
+        queueid = bounce.send_template_string(
             suspect.from_address, msgcontent, suspect, dict())
         self.log_bounce(suspect, vacation)
+        self.logger.info('%s sent autoresponder bounce to %s with queueid %s' % (suspect.id, suspect.from_address, queueid))
+        suspect.set_tag('Vacation.bounce.queueid', queueid)
         return msgcontent
 
     def log_bounce(self, suspect, vacation):

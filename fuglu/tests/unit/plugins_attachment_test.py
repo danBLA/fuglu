@@ -21,6 +21,7 @@ import fuglu
 from fuglu.plugins.attachment import FiletypePlugin, RulesCache
 from fuglu.shared import actioncode_to_string, Suspect, DELETE, DUNNO
 
+
 # we import it here to make sure the test system has the library installed
 import rarfile
 
@@ -483,7 +484,8 @@ class AttachmentPluginTestCaseMockBounce(unittest.TestCase):
     Test setup with bouncing enabled. Don't forget to patch SMTP to prevent actual
     sending mail. Patch SMTP is done putting the mocking decorator:
 
-    @patch("smtplib.SMTP")
+    @patch("smtplib.SMTP") # when working with smtplib directly
+    @patch("fuglu.bounce.FugluSMTPClient" # when using fuglu's smtp client from fuglu.bounce module
 
     in front of the test.
     """
@@ -524,7 +526,7 @@ class AttachmentPluginTestCaseMockBounce(unittest.TestCase):
         os.remove(self.template)
         shutil.rmtree(self.tempdir)
 
-    @patch("smtplib.SMTP")
+    @patch("fuglu.bounce.FugluSMTPClient")
     def test_bounce_withenvsender(self, smtpmock):
         """Reference test bounce is called for setup, next test 'test_bounce_noenvsender' should behave differently."""
 
@@ -556,7 +558,7 @@ class AttachmentPluginTestCaseMockBounce(unittest.TestCase):
         self.assertTrue("().sendmail" in smtpmock_membercalls)
         self.assertTrue("().quit" in smtpmock_membercalls)
 
-    @patch("smtplib.SMTP")
+    @patch("fuglu.bounce.FugluSMTPClient")
     def test_bounce_noenvsender(self, smtpmock):
         """Don't try to send a bounce if original env sender is empty"""
 
