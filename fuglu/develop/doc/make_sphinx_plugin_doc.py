@@ -43,6 +43,7 @@ if __name__ == '__main__':
         domainauth.DKIMSignPlugin(config),
         domainauth.DKIMVerifyPlugin(config),
         domainauth.SPFPlugin(config),
+        domainauth.SenderRewriteScheme(config),
         domainauth.DomainAuthPlugin(config),
 
         # prependers
