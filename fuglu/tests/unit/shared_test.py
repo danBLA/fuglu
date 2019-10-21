@@ -467,6 +467,21 @@ class SuspectTestCase(unittest.TestCase):
         # which is not allowed. So the character that is extracted for "ü" seems to depend on
         # python version, so in this test it is ignored and replaced by {IGNORE}
 
+    def test_with_comment(self):
+        """Test empty from header without validation"""
+        suspect = Suspect('sender@unittests.fuglu.org',
+                          'recipient@unittests.fuglu.org', TESTDATADIR + '/helloworld.eml')
+        msg = suspect.get_message_rep()
+        # delete existing From header
+        del msg["From"]
+        # add new From header
+        msg["From"] = '"AAAAAAAAAAA" <sender@fuglu.org> (BBBBBBBBBBB)'
+        suspect.set_message_rep(msg)
+        sender_list = suspect.parse_from_type_header(header="From")
+
+        # without validation we can still extract the display name and the empty address
+        sender_list = suspect.parse_from_type_header(header="From", validate_mail=False)
+        self.assertEqual([("AAAAAAAAAAA", "sender@fuglu.org")], sender_list)
 
     def test_strip_attachments(self):
         """Test is attachment is stripped and therefore message smaller"""
