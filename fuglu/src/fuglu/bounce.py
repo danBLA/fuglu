@@ -22,9 +22,33 @@ import sys
 from email.utils import formatdate, make_msgid
 from email.header import Header
 import socket
-
+import re
 from fuglu.shared import apply_template, FileList, extract_domain
 from fuglu.stringencode import force_bString
+
+
+class FugluSMTPClient(smtplib.SMTP):
+    """
+    This class patches the sendmail method of SMTPLib so we can get the return message from postfix
+    """
+    queueid = None
+    requeue_rgx = re.compile("""2.0.0 Ok: queued as (?P<requeueid>[A-Za-z0-9]{12,18}|[A-Z0-9]{10,12})""")
+    
+    
+    def _queueid_from_postfixreply(self, logline):
+        queueid = None
+        m = self.requeue_rgx.search(logline)
+        if m is not None:
+            queueid = m.groupdict()['requeueid']
+        return queueid
+        
+        
+    def getreply(self):
+        code, response = smtplib.SMTP.getreply(self)
+        queueid = self._queueid_from_postfixreply(response.decode())
+        if queueid is not None:
+            self.queueid = queueid
+        return code, response
 
 
 class Bounce(object):
@@ -102,7 +126,8 @@ class Bounce(object):
         with open(templatefile) as fp:
             filecontent = fp.read()
 
-        self.send_template_string(recipient, filecontent, suspect, values)
+        queueid = self.send_template_string(recipient, filecontent, suspect, values)
+        return queueid
     
     
     def send_template_string(self, recipient, templatecontent, suspect, values):
@@ -129,10 +154,11 @@ class Bounce(object):
 
         self.logger.debug('Sending bounce message to %s' % recipient)
         fromaddress = "<>"
-        self._send(fromaddress, recipient, message)
+        queueid = self.send(fromaddress, recipient, message)
+        return queueid
     
     
-    def _send(self, fromaddress, toaddress, message):
+    def send(self, fromaddress, toaddress, message):
         """really send message"""
         if self.config.getboolean('main', 'disablebounces'):
             self.logger.info('Bounces are disabled in config - not sending message to %s' % toaddress)
@@ -143,10 +169,16 @@ class Bounce(object):
             self.logger.info('Bounces to this rcpt are disabled - not sending message to %s' % toaddress)
             return
         
-        smtpServer = smtplib.SMTP(self.config.get('main','bindaddress'), self.config.getint('main', 'outgoingport'))
+        smtpServer = FugluSMTPClient(self.config.get('main','bindaddress'), self.config.getint('main', 'outgoingport'))
         helo = self.config.get('main', 'outgoinghelo')
         if helo.strip() == '':
             helo = socket.gethostname()
         smtpServer.helo(helo)
         smtpServer.sendmail(fromaddress, toaddress, message)
         smtpServer.quit()
+        return smtpServer.queueid
+    
+    
+    def _send(self, fromaddress, toaddress, message):
+        """deprecated version of send()"""
+        self.send(fromaddress, toaddress, message)

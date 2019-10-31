@@ -1,0 +1,27 @@
+Content-Type: multipart/related;
+	type="text/html";
+	boundary="====================boundary=========="
+Subject: 7z attachment
+Mime-Version: 1.0
+From: FROM AAAAAAAA <from@aaaaaaaaa.aa>
+To: TO AAAAAAAA <to@aaaaaaaaa.aa>
+Date: Mon, 30 Sep 2019 11:47:24 +0200
+Message-Id: <aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@aaaaaaaaa.aa>
+
+--====================boundary==========
+Content-Transfer-Encoding: 7bit
+Content-Type: text/html;
+	charset=us-ascii
+
+<html><head></head><body></body></html>
+--====================boundary==========
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment;
+	filename=test.7z
+Content-Type: application/octet-stream;
+	name="test.7z"
+
+N3q8ryccAAONNwwtEwAAAAAAAABQAAAAAAAAAIVh2FoAKhoJJ2Qch4pPykz0+BcdLwAAAQQGAAEJ
+EwAHCwEAASMDAQEFXQAAAQAMDwAICgGMLcD6AAAFARETAHQAZQBzAHQALgB0AHgAdAAAABQKAQAA
+M/CPUvLTARUGAQAggLSBAAA=
+--====================boundary==========--
