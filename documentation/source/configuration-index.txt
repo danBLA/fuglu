@@ -320,6 +320,25 @@ With this example pre-queue configuration fuglu will scan for spam, virus and bl
 Running fuglu as a milter
 .........................
 
+Install libmilter Python 2:
+-------------------------------
+
+* Use pip
+::
+
+    pip install libmilter
+
+* or download source from github (https://github.com/crustymonkey/python-libmilter), using master branch and install using "setup.py"
+
+
+
+Install libmilter Python 3
+-------------------------------
+* **Don't** use pip3 to install libmilter from pypi since it will install the python 2 version
+* Download python3 branch from github (https://github.com/crustymonkey/python-libmilter/tree/python3) and install using "setup.py"
+
+Configure
+------------
 To run fuglu as a milter, add ``milter:<portnumber`` to the ``incomingport`` configuration option in fuglu.conf.
 
 ::
@@ -330,7 +349,7 @@ Then enable milters in your MTA. postfix example (main.cf) :
 
 ::
 
-	milter_protocol = 2
+	milter_protocol = 6
 	milter_default_action = accept
 	milter_content_timeout = 30s
 	smtpd_milters=inet:127.0.0.1:10028
