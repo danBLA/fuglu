@@ -1,6 +1,6 @@
-#!/usr/bin/env bash
+#!/usr/bin/env sh
 
-if [[ -z "${DEPLOY_ENV}" ]]; then
+if [ -z "${DEPLOY_ENV}" ]; then
     echo "No deploy, DEPLOY_ENV is not set..."
 else
     echo "tag & push CONTAINER_TEST_IMAGE: ${CONTAINER_TEST_IMAGE}"
