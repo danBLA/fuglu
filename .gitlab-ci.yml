@@ -9,6 +9,7 @@ stages:
   - test_isolated
   - test
   - documentation
+  - deploy
 
 unittests:
   stage: test
@@ -91,3 +92,24 @@ pages:
     - master
     - develop
     - milter
+
+# manual deploy option in gitlab
+docker_deploy:
+  image: docker:19.03.1
+  services:
+    - docker:19.03.1-dind
+  stage: deploy
+
+  variables:
+    DOCKER_TLS_CERTDIR: "/certs"
+    CONTAINER_TEST_IMAGE: $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG
+    CONTAINER_TEST_IMAGE_SHA: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
+    CONTAINER_RELEASE_IMAGE: $CI_REGISTRY_IMAGE:latest
+  script:
+    - 'echo "tag & push CONTAINER_TEST_IMAGE: ${CONTAINER_TEST_IMAGE}"'
+    - 'echo ${CI_COMMIT_SHA} > fuglu.sha'
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker build --tag $CONTAINER_TEST_IMAGE -f docker/fuglu-testenv-contained/Dockerfile.alpine .
+    - docker push $CONTAINER_TEST_IMAGE
+  only:
+    - stack
