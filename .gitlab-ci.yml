@@ -126,7 +126,6 @@ docker_deploy:
   script:
     - echo $PWD
     - ls -a -l
-    - file $PWD/gitlab-ci-deploy.sh
-    - sh $PWD/gitlab-ci-deploy.sh
+    - $SHELL $PWD/gitlab-ci-deploy.sh
   only:
     - stack
