@@ -46,7 +46,7 @@ VOLUME /etc/fuglu
 #10025: standard incoming mail
 #10028: standard milter port
 #10888: debug port
-EXPOSE 10025, 10888, 10028
+EXPOSE 10025 10888 10028
 
 COPY docker/fuglu-testenv-contained/conf/. /etc/fuglu/
 
