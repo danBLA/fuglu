@@ -16,24 +16,32 @@ unittests:
   script:
     - cd fuglu
     - nosetests --rednose tests/unit
+  except:
+    - stack
 
 isolated:
   stage: test_isolated
   script:
     - cd fuglu
     - nosetests --rednose tests/isolated --with-isolation
+  except:
+    - stack
 
 unittests_py3:
   stage: test
   script:
     - cd fuglu
     - nosetests-3.6 --rednose tests/unit
+  except:
+    - stack
 
 isolated_py3:
   stage: test_isolated
   script:
     - cd fuglu
     - nosetests-3.6 --rednose tests/isolated  --with-isolation
+  except:
+    - stack
 
 integrationtests:
   stage: test
@@ -41,6 +49,8 @@ integrationtests:
     - /usr/local/bin/start-services.sh
     - cd fuglu
     - nosetests --rednose tests/integration
+  except:
+    - stack
 
 integrationtests_py3:
   stage: test
@@ -48,6 +58,8 @@ integrationtests_py3:
     - /usr/local/bin/start-services.sh
     - cd fuglu
     - nosetests-3.6 --rednose tests/integration
+  except:
+    - stack
 
 
 # define RSYNC_TARGET in gitlab -> project fuglu -> settings -> variables
@@ -60,6 +72,8 @@ buildfuglu:
     - rename '.dist' '' /etc/fuglu/*.dist
     - mkdir -p /var/log/fuglu
     - chown nobody /var/log/fuglu
+  except:
+    - stack
 
 
 buildfuglu_py3:
@@ -70,6 +84,8 @@ buildfuglu_py3:
     - rename '.dist' '' /etc/fuglu/*.dist
     - mkdir -p /var/log/fuglu
     - chown nobody /var/log/fuglu
+  except:
+    - stack
 
 pages:
   image: alpine
@@ -92,6 +108,8 @@ pages:
     - master
     - develop
     - milter
+  except:
+    - stack
 
 # manual deploy option in gitlab
 docker_deploy:
