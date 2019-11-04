@@ -125,6 +125,6 @@ docker_deploy:
     CONTAINER_RELEASE_IMAGE: $CI_REGISTRY_IMAGE:latest
   script:
     - ls -a
-    - sh ./gitlab-ci-deploy.sh
+    - sh $PWD/gitlab-ci-deploy.sh
   only:
     - stack
