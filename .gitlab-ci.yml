@@ -128,6 +128,7 @@ docker_deploy:
     - echo $USER
     - echo $UID
     - ls -l -a $PWD/.gitlab-ci-deploy.sh
+    - echo $SHELL
     - ls -l -a $SHELL
     - $SHELL $PWD/.gitlab-ci-deploy.sh
   only:
