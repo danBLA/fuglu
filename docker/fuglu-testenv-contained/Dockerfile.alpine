@@ -1,0 +1,53 @@
+FROM python:alpine as fuglu-testenv-py3
+
+ENV PYTHONPATH=/fuglu
+WORKDIR /fuglu
+
+RUN apk add automake autoconf libtool gcc make musl-dev libffi libffi-dev g++ unrar libxml2 libxml2-dev libxslt libxslt-dev libmagic
+RUN BUILD_LIB=1 pip install ssdeep
+
+#--
+# ssdeep installation
+# apk add automake autoconf libtool gcc make musl-dev libffi libffi-dev g++
+# BUILD_LIB=1 pip install ssdeep
+#--
+
+#--
+# lxml installation
+# apk add libxml2 libxml2-dev libxslt libxslt-dev
+# pip install lxml
+
+
+#---
+# we should check if we can use a multistage build to copy the compiled libraries to the
+# new image, so we don't have all dev-tools in the image
+# image size: 427MB
+# image size CentOS based Dockerfile: 1.16GB
+#---
+
+RUN pip install --upgrade pip setuptools wheel
+RUN pip install rarfile rednose sqlalchemy python-magic pyspf py3dns mock ssdeep redis geoip2 beautifulsoup4 lxml pysrs pylzma
+
+# - Install current domainmagic version from master branch
+# - Install python3 branch of libmilter
+RUN pip install distro && \
+    pip install https://gitlab.com/fumail/domainmagic/-/archive/master/domainmagic-master.zip && \
+    pip install https://github.com/crustymonkey/python-libmilter/archive/python3.zip
+
+# with source
+from fuglu-testenv-py3 as fuglu-py3-source
+COPY ./fuglu/src/. /fuglu
+
+# with config
+from fuglu-py3-source as fuglu-py3-configured
+
+VOLUME /etc/fuglu
+
+#10025: standard incoming mail
+#10028: standard milter port
+#10888: debug port
+EXPOSE 10025, 10888, 10028
+
+COPY docker/fuglu-testenv-contained/conf/. /etc/fuglu/
+
+CMD python /fuglu/startscript/fuglu --foreground --lint && python3 /fuglu/startscript/fuglu --foreground
