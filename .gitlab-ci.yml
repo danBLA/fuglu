@@ -111,7 +111,27 @@ pages:
   except:
     - stack
 
-# manual deploy option in gitlab
+# deploy to local registry is the environment variable
+# DEPLOY_ENV is set
+docker_deploy_branch:
+  image: docker:19.03.1
+  services:
+    - docker:19.03.1-dind
+  stage: deploy
+
+  variables:
+    DOCKER_TLS_CERTDIR: "/certs"
+    CONTAINER_TEST_IMAGE: $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG
+    CONTAINER_TEST_IMAGE_SHA: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
+    CONTAINER_RELEASE_IMAGE: $CI_REGISTRY_IMAGE:latest
+  script:
+    - 'echo "DEPLOY_ENV: $DEPLOY_ENV"'
+    - sh $PWD/.gitlab-ci-deploy.sh
+  except:
+    - master
+
+# deploy to local registry is the environment variable
+# DEPLOY_ENV is set
 docker_deploy:
   image: docker:19.03.1
   services:
@@ -124,6 +144,7 @@ docker_deploy:
     CONTAINER_TEST_IMAGE_SHA: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
     CONTAINER_RELEASE_IMAGE: $CI_REGISTRY_IMAGE:latest
   script:
-    - sh $PWD/.gitlab-ci-deploy.sh
+    - 'echo "DEPLOY_ENV: $DEPLOY_ENV"'
+    - sh $PWD/.gitlab-ci-deploy.sh release
   only:
-    - stack
+    - master
