@@ -127,6 +127,7 @@ docker_deploy:
     - env
     - echo $USER
     - echo $UID
+    - ls -l -a $PWD/.gitlab-ci-deploy.sh
     - $SHELL $PWD/.gitlab-ci-deploy.sh
   only:
     - stack
