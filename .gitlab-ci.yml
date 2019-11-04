@@ -124,7 +124,9 @@ docker_deploy:
     CONTAINER_TEST_IMAGE_SHA: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
     CONTAINER_RELEASE_IMAGE: $CI_REGISTRY_IMAGE:latest
   script:
-    - ls -a
+    - echo $PWD
+    - ls -a -l
+    - file $PWD/gitlab-ci-deploy.sh
     - sh $PWD/gitlab-ci-deploy.sh
   only:
     - stack
