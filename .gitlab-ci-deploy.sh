@@ -13,7 +13,7 @@ else
     docker image ls | grep -w $CONTAINER_TEST_IMAGE
     docker image ls | grep -w $CONTAINER_TEST_IMAGE
     docker push $CONTAINER_TEST_IMAGE
-    if [ "$CI_COMMIT_REF_SLUG" == "master" ]; then
+    if [ "$CI_COMMIT_REF_SLUG" = "master" ]; then
       echo "Tagging branch as release image $CONTAINER_RELEASE_IMAGE"
       docker tag $CONTAINER_TEST_IMAGE $CONTAINER_RELEASE_IMAGE
       docker push $CONTAINER_RELEASE_IMAGE
