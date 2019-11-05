@@ -6,7 +6,9 @@ else
     echo "tag & push CONTAINER_TEST_IMAGE: ${CONTAINER_TEST_IMAGE}"
     echo "${CI_COMMIT_SHA}" > fuglu.sha
     docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
-    docker build --tag $CONTAINER_TEST_IMAGE -f docker/fuglu-testenv-contained/Dockerfile.alpine .
+    docker pull $CONTAINER_TEST_IMAGE || docker pull $CONTAINER_RELEASE_IMAGE || true
+    docker build --cache-from $CONTAINER_TEST_IMAGE --cache-from $CONTAINER_CONTAINER_RELEASE_IMAGE  \
+            $CONTAINER_TEST_IMAGE -f docker/fuglu-testenv-contained/Dockerfile.alpine .
     docker image ls | grep -w $CONTAINER_TEST_IMAGE
     docker push $CONTAINER_TEST_IMAGE
     if [ -z "$1" ]; then
