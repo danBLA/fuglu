@@ -127,4 +127,6 @@ docker_deploy:
     CONTAINER_RELEASE_IMAGE: $CI_REGISTRY_IMAGE:latest
   script:
     - 'echo "DEPLOY_ENV: $DEPLOY_ENV"'
+    - 'echo "CI_COMMIT_REF_SLUG: $CI_CIMMIT_REF_SLUG"'
+    - 'echo "CI_COMMIT_SHA: $CI_CIMMIT_SHA"'
     - sh $PWD/.gitlab-ci-deploy.sh
