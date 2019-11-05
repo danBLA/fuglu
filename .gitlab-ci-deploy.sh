@@ -9,6 +9,7 @@ else
     docker pull $CONTAINER_TEST_IMAGE || docker pull $CONTAINER_RELEASE_IMAGE || true
     docker build --cache-from $CONTAINER_TEST_IMAGE --cache-from $CONTAINER_CONTAINER_RELEASE_IMAGE  \
             $CONTAINER_TEST_IMAGE -f docker/fuglu-testenv-contained/Dockerfile.alpine .
+    echo "Image info:"
     docker image ls | grep -w $CONTAINER_TEST_IMAGE
     docker push $CONTAINER_TEST_IMAGE
     if [ -z "$1" ]; then
