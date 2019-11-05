@@ -11,6 +11,7 @@ else
             $CONTAINER_TEST_IMAGE -f docker/fuglu-testenv-contained/Dockerfile.alpine .
     echo "Image info:"
     docker image ls | grep -w $CONTAINER_TEST_IMAGE
+    docker image ls | grep -w $CONTAINER_TEST_IMAGE
     docker push $CONTAINER_TEST_IMAGE
     if [ -z "$1" ]; then
       echo "no extra argument, not creating release tag"
