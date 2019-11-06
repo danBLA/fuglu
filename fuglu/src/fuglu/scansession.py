@@ -331,7 +331,7 @@ class SessionHandler(TrackTimings):
                         retmesg = self.message
                     self.protohandler.discard(retmesg)
                 elif result == REJECT:
-                    retmesg = "Rejected by content scanner"
+                    retmesg = "Rejected by content scanner: (%s)" % suspect.id
                     if self.message is not None:
                         retmesg = self.message
                     self.protohandler.reject(retmesg)
