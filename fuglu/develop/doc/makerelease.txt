@@ -15,11 +15,14 @@ fuglu_conf -m all > conf/fuglu.conf.dist
 
 Make sure all tests pass
 ------------------------
+tests are supposed to run automatically upon push to gitlab.
+to run manually:
+
 cd fuglu/tests
-nosetests-2.7 unit
+nosetests-3.6 unit
 
 #start clamd/spamassassin first
-nosetests-2.7 integration
+nosetests-3.6 integration
 
 fix code style
 ..............
@@ -34,7 +37,7 @@ git tag -a 0.8.0 -m 'tag 0.8.0'
 git push --tags origin master
 
 * build
-python setup.py sdist
+python3 setup.py sdist
 
 * pypi upload
 twine upload dist/fuglu-<new-version>.tar.gz
