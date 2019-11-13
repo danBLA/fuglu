@@ -906,6 +906,29 @@ class SuspectTest(unittest.TestCase):
 
         self.assertEqual(len(expected), len(suspect.att_mgr.get_objectlist(level=1, include_parents=True)))
 
+    def test_suspectintegration_7z(self):
+        """todo"""
+        from fuglu.extensions.filearchives import SEVENZIP_AVAILABLE
+
+        if not SEVENZIP_AVAILABLE > 0:
+            print("=========================================================================")
+            print("== WARNING                                                             ==")
+            print("== Skipping 7z suspect integration test since library is not installed ==")
+            print("=========================================================================")
+            return
+
+        tempfile = join(TESTDATADIR, "7z_attachment.eml")
+
+        suspect = Suspect('sender@unittests.fuglu.org',
+                          'recipient@unittests.fuglu.org', tempfile)
+
+        for attObj in suspect.att_mgr.get_objectlist(level=1, include_parents=True):
+
+            print('* filename         : %s'% attObj.filename)
+            print('  attname          : %s'% attObj.location())
+            print('  contenttype      : %s' % attObj.contenttype)
+            print('  contenttype_mime : %s' % attObj.contenttype_mime)
+
 
 class ConversionTest(unittest.TestCase):
     """Test a problematic mail for decoding errors using attachment manager and no attachment manager as they

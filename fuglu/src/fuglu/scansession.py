@@ -334,6 +334,7 @@ class SessionHandler(TrackTimings):
                     retmesg = "Rejected by content scanner"
                     if self.message is not None:
                         retmesg = self.message
+                    retmesg = "%s (%s)" % (retmsg, suspect.id)
                     self.protohandler.reject(retmesg)
                 elif result == DEFER:
                     message_is_deferred = True

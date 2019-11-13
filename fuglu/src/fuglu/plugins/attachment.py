@@ -504,16 +504,15 @@ The other common template variables are available as well.
                     suspect.tags['FiletypePlugin.errormessage'] = blockinfo
                     if self.sendbounce:
                         if suspect.is_spam() or suspect.is_virus():
-                            self.logger.info(
-                                "%s backscatter prevention: not sending attachment block bounce to %s - the message is tagged spam or virus" % (suspect.id, suspect.from_address))
+                            self.logger.info("%s backscatter prevention: not sending attachment block bounce to %s - the message is tagged spam or virus" % (suspect.id, suspect.from_address))
                         elif not suspect.from_address:
                             self.logger.warning("%s, not sending attachment block bounce to empty recipient" % suspect.id)
                         else:
-                            self.logger.info(
-                                "%s Sending attachment block bounce to %s" % (suspect.id, suspect.from_address))
+                            self.logger.debug("%s sending attachment block bounce to %s" % (suspect.id, suspect.from_address))
                             bounce = Bounce(self.config)
-                            bounce.send_template_file(
-                                suspect.from_address, self.blockedfiletemplate, suspect, dict(blockinfo=blockinfo))
+                            queueid = bounce.send_template_file(suspect.from_address, self.blockedfiletemplate, suspect, dict(blockinfo=blockinfo))
+                            self.logger.info('%s sent attachment block bounce to %s with queueid %s' % (suspect.id, suspect.from_address, queueid))
+                            suspect.set_tag('Attachment.bounce.queueid', queueid)
                     return ATTACHMENT_BLOCK
 
                 if action == 'delete':

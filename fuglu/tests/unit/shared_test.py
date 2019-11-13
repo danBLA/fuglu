@@ -483,6 +483,31 @@ class SuspectTestCase(unittest.TestCase):
         sender_list = suspect.parse_from_type_header(header="From", validate_mail=False)
         self.assertEqual([("AAAAAAAAAAA", "sender@fuglu.org")], sender_list)
 
+    def test_from_type_header_encoded(self):
+        """Test extraction when whole header is encoded, not only displaypart"""
+        suspect = Suspect('sender@unittests.fuglu.org',
+                          'recipient@unittests.fuglu.org', TESTDATADIR + '/helloworld.eml')
+        msg = suspect.get_message_rep()
+
+        fromheader_raw = "Foo Bar <foo.bar@domain.invalid>"
+        print("From header before encoding: %s" % fromheader_raw)
+        fromheader_enc = Header(fromheader_raw, charset='utf-8', header_name="From", continuation_ws=' ').encode()
+        print("From header encoded: %s" % fromheader_enc)
+
+        # delete existing From header
+        del msg["From"]
+        # add new From header
+        msg["From"] = fromheader_enc
+        suspect.set_message_rep(msg)
+
+        # There should be nothing found because only addresses with valid mail are reported
+        receiver_list = suspect.parse_from_type_header(header="From")
+        self.assertEqual(0, len(receiver_list))
+
+        # There should be one address found with everything in displaypart
+        receiver_list = suspect.parse_from_type_header(header="From", validate_mail=False)
+        self.assertEqual([(fromheader_raw, '')], receiver_list)
+
     def test_strip_attachments(self):
         """Test is attachment is stripped and therefore message smaller"""
         suspect = Suspect('sender@unittests.fuglu.org', 'recipient@unittests.fuglu.org', TESTDATADIR + '/6mbzipattachment.eml')

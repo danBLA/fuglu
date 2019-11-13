@@ -4,6 +4,7 @@ import unittestsetup
 from fuglu.stringencode import force_uString, force_bString
 from os.path import join, exists
 import sys
+from io import BytesIO
 
 class FileArchiveHandle(unittest.TestCase):
     def runArchiveChecks(self,handle):
@@ -258,8 +259,8 @@ class FileArchiveHandle(unittest.TestCase):
         finally:
             f.close()
 
-    def test_7zextract(self):
-        """Test rar file extraction"""
+    def test_7zextract_filename(self):
+        """Test 7z file extraction from filename"""
         from fuglu.extensions.filearchives import Archivehandle, SEVENZIP_AVAILABLE
 
         if not SEVENZIP_AVAILABLE > 0:
@@ -278,6 +279,19 @@ class FileArchiveHandle(unittest.TestCase):
         self.runArchiveChecks(handle)
         handle.close()
 
+    def test_7zextract_fileobject(self):
+        """Test 7z file extraction from object"""
+        from fuglu.extensions.filearchives import Archivehandle, SEVENZIP_AVAILABLE
+
+        if not SEVENZIP_AVAILABLE > 0:
+            print("=============================================================")
+            print("== WARNING                                                 ==")
+            print("== Skipping 7z extract test since library is not installed ==")
+            print("=============================================================")
+            return
+
+        archive_filename = join(unittestsetup.TESTDATADIR,"test.7z")
+
         # --
         # use file descriptor
         # --
@@ -288,3 +302,92 @@ class FileArchiveHandle(unittest.TestCase):
             handle.close()
         finally:
             f.close()
+
+    def test_7zextract_bytesio(self):
+        """Test 7z file extraction from object"""
+        from fuglu.extensions.filearchives import Archivehandle, SEVENZIP_AVAILABLE
+
+        if not SEVENZIP_AVAILABLE > 0:
+            print("=============================================================")
+            print("== WARNING                                                 ==")
+            print("== Skipping 7z extract test since library is not installed ==")
+            print("=============================================================")
+            return
+
+        archive_filename = join(unittestsetup.TESTDATADIR, "test.7z")
+
+        # --
+        # use BytesIO as done in attachment manager
+        # --
+        with open(archive_filename, 'rb') as f:
+            buffer = f.read()
+        buffer = BytesIO(buffer)
+        print("Type of buffer sent to Archivehandler is: %s" % type(buffer))
+        handle = Archivehandle('7z', buffer)
+
+        self.runArchiveChecks(handle)
+        handle.close()
+
+    def test_7zextract_bytesio_encrypted(self):
+        """Test 7z file extraction from object (encrypted)"""
+        from fuglu.extensions.filearchives import Archivehandle, SEVENZIP_AVAILABLE
+
+        if not SEVENZIP_AVAILABLE > 0:
+            print("================================================")
+            print("== WARNING                                    ==")
+            print("== Skipping 7z bytesio encrypted extract test ==")
+            print("== since library is not installed             ==")
+            print("================================================")
+            return
+
+        from py7zlib import NoPasswordGivenError
+
+        archive_filename = join(unittestsetup.TESTDATADIR, "test.p_is_secret.7z")
+
+        # --
+        # use BytesIO as done in attachment manager
+        # --
+        with open(archive_filename, 'rb') as f:
+            buffer = f.read()
+        buffer = BytesIO(buffer)
+        handle = Archivehandle('7z', buffer)
+
+        # even though the file is password protected, the filelist is not
+        # so it's possible to extract the file list without an exception
+        archive_flist = handle.namelist()
+        self.assertEqual(["test.txt"],archive_flist)
+
+        # it is however not possible to extract the file
+        with self.assertRaises(NoPasswordGivenError):
+            extracted = handle.extract(archive_flist[0], 500000)
+        handle.close()
+
+    def test_7zextract_bytesio_fullyencrypted(self):
+        """Test 7z file extraction from object (encrypted including filenames)"""
+        from fuglu.extensions.filearchives import Archivehandle, SEVENZIP_AVAILABLE
+
+        if not SEVENZIP_AVAILABLE > 0:
+            print("================================================")
+            print("== WARNING                                    ==")
+            print("== Skipping 7z bytesio encrypted extract test ==")
+            print("== since library is not installed             ==")
+            print("================================================")
+            return
+
+        from py7zlib import NoPasswordGivenError
+
+        archive_filename = join(unittestsetup.TESTDATADIR, "test.enc_filenames.p_is_secret.7z")
+
+        # --
+        # use BytesIO as done in attachment manager
+        # --
+        with open(archive_filename, 'rb') as f:
+            buffer = f.read()
+        buffer = BytesIO(buffer)
+
+        # 7z a test.enc_filenames.p_is_secret.7z -psecret -mhe test.txt
+        # compresses *.txt files to archive .7 z using password "secret". It also encrypts archive headers(-mhe switch),
+        # so filenames will be encrypted. This raises an exception already when creating the handle.
+        with self.assertRaises(NoPasswordGivenError):
+            _ = Archivehandle('7z', buffer)
+
