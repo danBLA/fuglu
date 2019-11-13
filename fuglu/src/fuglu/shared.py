@@ -591,7 +591,7 @@ class Suspect(object):
             b_value = force_bString(u_value)
             hdr = Header(b_value, charset='utf-8', header_name=u_key, continuation_ws=' ')
 
-        hdrline = u"%s: %s\r\n" % (u_key, hdr.encode())
+        hdrline = u"s: %s\r\n" % (u_key, hdr.encode())
         src = force_bString(hdrline) + b_source
         return src
 
@@ -654,18 +654,15 @@ class Suspect(object):
                 from_addresses_raw.append((display, mailaddress))
 
         # validate email
-        if validate_mail:
-            from_addresses_val = []
-            for displayname, mailaddress in from_addresses_raw:
-                if mailaddress and (not Addrcheck().valid(mailaddress)):
-                    if displayname:
-                        displayname += " "+mailaddress
-                    else:
-                        displayname = mailaddress
-                    mailaddress = ""
-                from_addresses_val.append((displayname, mailaddress))
-        else:
-            from_addresses_val = from_addresses_raw
+        from_addresses_val = []
+        for displayname, mailaddress in from_addresses_raw:
+            if mailaddress and (not Addrcheck().valid(mailaddress)):
+                if displayname:
+                    displayname += " "+mailaddress
+                else:
+                    displayname = mailaddress
+                mailaddress = ""
+            from_addresses_val.append((displayname, mailaddress))
 
         # --------- #
         # recombine #
@@ -730,26 +727,30 @@ class Suspect(object):
         else:
             from_addresses_recombined = from_addresses_val
 
+        # again decode display part
+        from_addresses_decoded = [(Suspect.decode_msg_header(display), mail)
+                                  for display, mail in from_addresses_recombined]
+
         # validate email
         if validate_mail:
             from_addresses = []
-            for displayname, mailaddress in from_addresses_recombined:
+            for displayname, mailaddress in from_addresses_decoded:
                 try:
                     isvalid = True
                     if not mailaddress or (not Addrcheck().valid(mailaddress)):
                         isvalid = False
                 except Exception as e:
+                    isvalid = False
                     self.logger.error("%s: Parsing error %s" % (self.id, str(e)))
                     self.logger.exception(e)
-
 
                 if isvalid:
                     from_addresses.append((displayname, mailaddress))
                 else:
-                    self.logger.error("%s, Mail \"%s\" is not valid, display name is \"%s\""
-                                      % (self.id, mailaddress, displayname))
+                    self.logger.info("%s, Mail \"%s\" is not valid, display name is \"%s\""
+                                     % (self.id, mailaddress, displayname))
         else:
-            from_addresses = from_addresses_recombined
+            from_addresses = from_addresses_decoded
 
         return from_addresses
 
