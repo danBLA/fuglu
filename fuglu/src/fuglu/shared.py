@@ -591,7 +591,7 @@ class Suspect(object):
             b_value = force_bString(u_value)
             hdr = Header(b_value, charset='utf-8', header_name=u_key, continuation_ws=' ')
 
-        hdrline = u"s: %s\r\n" % (u_key, hdr.encode())
+        hdrline = u"%s: %s\r\n" % (u_key, hdr.encode())
         src = force_bString(hdrline) + b_source
         return src
 
