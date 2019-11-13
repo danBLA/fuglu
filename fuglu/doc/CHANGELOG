@@ -1,3 +1,14 @@
+-- Fuglu 0.10.3 2019-11-13
+ * ClamAV fix for infinite loop
+ * Improvements for multiline attachment filenames
+ * Include suspect id in reject response
+
+Developers:
+ * sssp refactor and unit tests
+ * more tests for 7z-archives
+ * on bounce, save postfix queue-id as tag
+ * improvements decodeing from-type headers
+
 -- Fuglu 0.10.1 and 0.10.2, 2019-07-31
  * switch python3 testing from 3.4 to 3.6
  * allows to define custom conf.d (in fuglu config file or as runtime parameter)
