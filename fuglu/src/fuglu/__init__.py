@@ -16,6 +16,6 @@
 from fuglu.utils.version import get_version, VERSION_ALPHA, VERSION_BETA, VERSION_RC, VERSION_FINAL
 
 
-FUGLU_VERSION = (0, 10, 2, VERSION_FINAL, 0)
+FUGLU_VERSION = (0, 10, 5, VERSION_FINAL, 0)
 
 __version__ = get_version()
