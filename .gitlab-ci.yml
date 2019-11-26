@@ -32,16 +32,12 @@ unittests_py3:
   script:
     - cd fuglu
     - nosetests-3.6 --rednose tests/unit
-  except:
-    - stack
 
 isolated_py3:
   stage: test_isolated
   script:
     - cd fuglu
     - nosetests-3.6 --rednose tests/isolated  --with-isolation
-  except:
-    - stack
 
 integrationtests:
   stage: test
@@ -58,8 +54,6 @@ integrationtests_py3:
     - /usr/local/bin/start-services.sh
     - cd fuglu
     - nosetests-3.6 --rednose tests/integration
-  except:
-    - stack
 
 
 # define RSYNC_TARGET in gitlab -> project fuglu -> settings -> variables
