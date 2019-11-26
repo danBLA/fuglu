@@ -22,10 +22,10 @@ requires: pydns (or alternatively dnspython if only dkim is used)
 requires: pysrs
 """
 
-from fuglu.shared import (ScannerPlugin, apply_template, DUNNO, FileList, string_to_actioncode, get_default_cache,
-                          extract_domain, Suspect)
+from fuglu.shared import ScannerPlugin, apply_template, DUNNO, FileList, string_to_actioncode, get_default_cache, extract_domain
 from fuglu.extensions.sql import get_session, SQL_EXTENSION_ENABLED
 from fuglu.extensions.dnsquery import DNSQUERY_EXTENSION_ENABLED
+from fuglu.stringencode import force_bString
 import logging
 import os
 import re
@@ -49,14 +49,10 @@ except ImportError:
     pass
 
 try:
-    import pkg_resources
-    pkg_resources.get_distribution("dkimpy")
     from dkim import DKIM, sign, Simple, Relaxed, DKIMException
     if DNSQUERY_EXTENSION_ENABLED:
         DKIMPY_AVAILABLE = True
 except ImportError:
-    pass
-except Exception:
     pass
 
 try:
@@ -64,7 +60,7 @@ try:
     if DNSQUERY_EXTENSION_ENABLED and (IPADDR_AVAILABLE or IPADDRESS_AVAILABLE):
         PYSPF_AVAILABLE = True
 except ImportError:
-    pass
+    spf = None
 
 try:
     import SRS
@@ -147,15 +143,16 @@ It is currently recommended to leave both header and body canonicalization as 'r
 
         }
         self.logger = self._logger()
-
+    
+    
     def __str__(self):
         return "DKIM Verify"
-
+    
+    
     def examine(self, suspect):
         if not DKIMPY_AVAILABLE:
             suspect.debug("dkimpy not available, can not check")
-            suspect.set_tag(
-                'DKIMVerify.skipreason', 'dkimpy library not available')
+            suspect.set_tag('DKIMVerify.skipreason', 'dkimpy library not available')
             return DUNNO
 
         source = suspect.get_original_source()
@@ -168,13 +165,13 @@ It is currently recommended to leave both header and body canonicalization as 'r
         try:
             valid = d.verify()
         except DKIMException as de:
-            self.logger.warning("%s: DKIM validation failed: %s" %
-                                (suspect.id, str(de)))
+            self.logger.warning("%s: DKIM validation failed: %s" % (suspect.id, str(de)))
             valid = False
 
         suspect.set_tag("DKIMVerify.sigvalid", valid)
         return DUNNO
-
+    
+    
     def lint(self):
         if not DKIMPY_AVAILABLE:
             print("Missing dependency: dkimpy https://launchpad.net/dkimpy")
@@ -208,12 +205,6 @@ Setting up your keys:
 
 
 If fuglu handles both incoming and outgoing mails you should make sure that this plugin is skipped for incoming mails
-
-
-known issues:
-
- - setting canonicalizeheaders = simple will cause invalid signature.
- - signbodylength causes a crash in dkimlib "TypeError: sequence item 1: expected string, int found"
 
     """
 
@@ -252,8 +243,10 @@ known issues:
             },
         }
 
+
     def __str__(self):
         return "DKIM Sign"
+
 
     def examine(self, suspect):
         if not DKIMPY_AVAILABLE:
@@ -267,8 +260,7 @@ known issues:
         selector = apply_template(self.config.get(self.section, 'selector'), suspect, addvalues)
 
         if domain is None:
-            self.logger.error(
-                "%s: Failed to extract From-header domain for DKIM signing" % suspect.id)
+            self.logger.error("%s: Failed to extract From-header domain for DKIM signing" % suspect.id)
             return DUNNO
 
         privkeyfile = apply_template(self.config.get(self.section, 'privatekeyfile'), suspect, addvalues)
@@ -276,7 +268,9 @@ known issues:
             self.logger.error("%s: DKIM signing failed for domain %s, private key not found: %s" %
                                  (suspect.id, domain, privkeyfile))
             return DUNNO
-        privkeycontent = open(privkeyfile, 'r').read()
+        
+        with open(privkeyfile, 'br') as f:
+            privkeycontent = f.read()
 
         canH = Simple
         canB = Simple
@@ -293,13 +287,14 @@ known issues:
             inc_headers = headerconfig.strip().split(',')
 
         blength = self.config.getboolean(self.section, 'signbodylength')
-
-        dkimhdr = sign(message, selector, domain, privkeycontent, canonicalize=canon,
-                       include_headers=inc_headers, length=blength, logger=suspect.get_tag('debugfile'))
-        if dkimhdr.startswith('DKIM-Signature: '):
+        
+        dkimhdr = sign(message, force_bString(selector), force_bString(domain), privkeycontent,
+                       canonicalize=canon, include_headers=inc_headers, length=blength, logger=suspect.get_tag('debugfile'))
+        if dkimhdr.startswith(b'DKIM-Signature: '):
             dkimhdr = dkimhdr[16:]
 
         suspect.addheader('DKIM-Signature', dkimhdr, immediate=True)
+
 
     def lint(self):
         all_ok = self.check_config()
@@ -345,7 +340,7 @@ in combination with other factors to take action (for example a "DMARC" plugin c
         if not PYSPF_AVAILABLE:
             suspect.debug("pyspf not available, can not check")
             self.logger.warning(
-                "%s: SPF Check skipped, pyspf unavailable" % (suspect.id))
+                "%s: SPF Check skipped, pyspf unavailable" % suspect.id)
             suspect.set_tag('SPF.status', 'skipped')
             suspect.set_tag("SPF.explanation", 'missing dependency')
             return DUNNO
@@ -354,7 +349,7 @@ in combination with other factors to take action (for example a "DMARC" plugin c
         if clientinfo is None:
             suspect.debug("client info not available for SPF check")
             self.logger.warning(
-                "%s: SPF Check skipped, could not get client info" % (suspect.id))
+                "%s: SPF Check skipped, could not get client info" % suspect.id)
             suspect.set_tag('SPF.status', 'skipped')
             suspect.set_tag(
                 "SPF.explanation", 'could not extract client information')
@@ -414,7 +409,8 @@ This plugin depends on tags written by SPFPlugin and DKIMVerifyPlugin, so they m
         }
         self.logger = self._logger()
         self.filelist = FileList(filename=None, strip=True, skip_empty=True, skip_comments=True, lowercase=True)
-
+    
+    
     def examine(self, suspect):
         self.filelist.filename = self.config.get(self.section, 'domainsfile')
         checkdomains = self.filelist.get_list()
@@ -442,21 +438,24 @@ This plugin depends on tags written by SPFPlugin and DKIMVerifyPlugin, so they m
         failaction = self.config.get(self.section, 'failaction')
         actioncode = string_to_actioncode(failaction, self.config)
 
-        values = dict(
-            header_from_domain=header_from_domain)
+        values = dict(header_from_domain=header_from_domain)
         message = apply_template(self.config.get(self.section, 'rejectmessage'), suspect, values)
         return actioncode, message
-
+    
+    
     def flag_as_spam(self, suspect):
         suspect.tags['spam']['domainauth'] = True
-
+    
+    
     def __str__(self):
         return "DomainAuth"
-
+    
+    
     def lint(self):
         allok = self.check_config() and self.lint_file()
         return allok
-
+    
+    
     def lint_file(self):
         filename = self.config.get(self.section, 'domainsfile')
         if not os.path.exists(filename):
