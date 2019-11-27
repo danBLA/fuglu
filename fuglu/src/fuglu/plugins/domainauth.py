@@ -140,7 +140,7 @@ It is currently recommended to leave both header and body canonicalization as 'r
     def __init__(self, config, section=None):
         ScannerPlugin.__init__(self, config, section)
         self.requiredvars = {
-
+        
         }
         self.logger = self._logger()
     
@@ -154,21 +154,23 @@ It is currently recommended to leave both header and body canonicalization as 'r
             suspect.debug("dkimpy not available, can not check")
             suspect.set_tag('DKIMVerify.skipreason', 'dkimpy library not available')
             return DUNNO
-
+        
         source = suspect.get_original_source()
         if "dkim-signature" not in suspect.get_message_rep():
             suspect.set_tag('DKIMVerify.skipreason', 'not dkim signed')
+            suspect.write_sa_temp_header('X-DKIMVerify', 'unsigned')
             suspect.debug("No dkim signature header found")
             return DUNNO
         d = DKIM(source, logger=suspect.get_tag('debugfile'))
-
+        
         try:
             valid = d.verify()
         except DKIMException as de:
             self.logger.warning("%s: DKIM validation failed: %s" % (suspect.id, str(de)))
             valid = False
-
+        
         suspect.set_tag("DKIMVerify.sigvalid", valid)
+        suspect.write_sa_temp_header('X-DKIMVerify', 'valid' if valid else 'invalid')
         return DUNNO
     
     
@@ -177,7 +179,7 @@ It is currently recommended to leave both header and body canonicalization as 'r
             print("Missing dependency: dkimpy https://launchpad.net/dkimpy")
             print("(also requires either dnspython or pydns)")
             return False
-
+        
         return self.check_config()
 
 # test:
@@ -216,27 +218,27 @@ If fuglu handles both incoming and outgoing mails you should make sure that this
                 'description': "Location of the private key file. supports standard template variables plus additional ${header_from_domain} which extracts the domain name from the From: -Header",
                 'default': "/etc/fuglu/dkim/${header_from_domain}.key",
             },
-
+            
             'canonicalizeheaders': {
                 'description': "Type of header canonicalization (simple or relaxed)",
                 'default': "relaxed",
             },
-
+            
             'canonicalizebody': {
                 'description': "Type of body canonicalization (simple or relaxed)",
                 'default': "relaxed",
             },
-
+            
             'selector': {
                 'description': 'selector to use when signing, supports templates',
                 'default': 'default',
             },
-
+            
             'signheaders': {
                 'description': 'comma separated list of headers to sign. empty string=sign all headers',
                 'default': 'From,Reply-To,Subject,Date,To,CC,Resent-Date,Resent-From,Resent-To,Resent-CC,In-Reply-To,References,List-Id,List-Help,List-Unsubscribe,List-Subscribe,List-Post,List-Owner,List-Archive',
             },
-
+            
             'signbodylength': {
                 'description': 'include l= tag in dkim header',
                 'default': 'False',
@@ -253,28 +255,27 @@ If fuglu handles both incoming and outgoing mails you should make sure that this
             suspect.debug("dkimpy not available, can not check")
             self.logger.error("DKIM signing skipped - missing dkimpy library")
             return DUNNO
-
+        
         message = suspect.get_source()
         domain = extract_from_domain(suspect)
         addvalues = dict(header_from_domain=domain)
         selector = apply_template(self.config.get(self.section, 'selector'), suspect, addvalues)
-
+        
         if domain is None:
             self.logger.error("%s: Failed to extract From-header domain for DKIM signing" % suspect.id)
             return DUNNO
-
+        
         privkeyfile = apply_template(self.config.get(self.section, 'privatekeyfile'), suspect, addvalues)
         if not os.path.isfile(privkeyfile):
-            self.logger.error("%s: DKIM signing failed for domain %s, private key not found: %s" %
-                                 (suspect.id, domain, privkeyfile))
+            self.logger.debug("%s: DKIM signing failed for domain %s, private key not found: %s" % (suspect.id, domain, privkeyfile))
             return DUNNO
         
         with open(privkeyfile, 'br') as f:
             privkeycontent = f.read()
-
+        
         canH = Simple
         canB = Simple
-
+        
         if self.config.get(self.section, 'canonicalizeheaders').lower() == 'relaxed':
             canH = Relaxed
         if self.config.get(self.section, 'canonicalizebody').lower() == 'relaxed':
@@ -285,7 +286,7 @@ If fuglu handles both incoming and outgoing mails you should make sure that this
             inc_headers = None
         else:
             inc_headers = headerconfig.strip().split(',')
-
+        
         blength = self.config.getboolean(self.section, 'signbodylength')
         
         dkimhdr = sign(message, force_bString(selector), force_bString(domain), privkeycontent,
