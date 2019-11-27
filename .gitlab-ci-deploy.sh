@@ -4,7 +4,7 @@ if [ -z "${DEPLOY_ENV}" ]; then
     echo "No deploy, DEPLOY_ENV is not set..."
 else
     echo "tag & push CONTAINER_TEST_IMAGE: ${CONTAINER_TEST_IMAGE}"
-    echo "${CI_COMMIT_SHA}" > fuglu.sha
+    echo "${CI_COMMIT_SHA}" > fuglu/src/fuglu.sha
     docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
     docker pull $CONTAINER_TEST_IMAGE || docker pull $CONTAINER_RELEASE_IMAGE || true
     docker build --cache-from $CONTAINER_TEST_IMAGE --cache-from $CONTAINER_RELEASE_IMAGE  \
