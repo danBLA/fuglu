@@ -265,8 +265,7 @@ If fuglu handles both incoming and outgoing mails you should make sure that this
 
         privkeyfile = apply_template(self.config.get(self.section, 'privatekeyfile'), suspect, addvalues)
         if not os.path.isfile(privkeyfile):
-            self.logger.error("%s: DKIM signing failed for domain %s, private key not found: %s" %
-                                 (suspect.id, domain, privkeyfile))
+            self.logger.debug("%s: DKIM signing failed for domain %s, private key not found: %s" % (suspect.id, domain, privkeyfile))
             return DUNNO
         
         with open(privkeyfile, 'br') as f:
