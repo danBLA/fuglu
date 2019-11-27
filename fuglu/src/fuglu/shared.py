@@ -1105,6 +1105,25 @@ class Suspect(object):
             new_src = new_src[:maxsize]
 
         return force_bString(new_src)
+    
+    
+    def write_sa_temp_header(self, header, value, plugin='SAPlugin'):
+        """
+        Write a temporary pseudo header. This is used by e.g. SAPlugin to pass extra information to external services
+        :param header: pseudo header name
+        :param value: pseudo header value
+        :param plugin: name of destination plugin. defaults to SAPlugin
+        :return: None
+        """
+        hdr = "%s: %s" % (header, value)
+        tag = self.get_tag('%s.tempheader' % plugin)
+        if isinstance(tag, list):
+            tag.append(hdr)
+        elif tag is None:
+            tag = [hdr, ]
+        else:  # str/unicode
+            tag = "%s\r\n%s" % (tag, hdr)
+        self.set_tag('%s.tempheader' % plugin, tag)
 
 
 def strip_address(address):

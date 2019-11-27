@@ -356,7 +356,8 @@ Tags:
                 suspect.debug( 'Could not read spam score from header %s' % spamheader)
             return isspam, spamscore, spamheader
         return isspam, spamscore, spamheader
-
+    
+    
     def examine(self, suspect):
         # check if someone wants to skip sa checks
         if suspect.get_tag('SAPlugin.skip') is True:
