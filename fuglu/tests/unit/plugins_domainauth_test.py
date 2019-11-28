@@ -22,8 +22,8 @@ class SPFTestCase(unittest.TestCase):
 
     def setUp(self):
         config = RawConfigParser()
-        config.add_section('SPFCheck')
-        config.set('SPFCheck', 'max_lookups', '10')
+        config.add_section('SPFPlugin')
+        config.set('SPFPlugin', 'max_lookups', '10')
         
         self.candidate = SPFPlugin(config)
 
