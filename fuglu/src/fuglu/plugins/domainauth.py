@@ -20,6 +20,7 @@ requires: dkimpy (not pydkim!!)
 requires: pyspf
 requires: pydns (or alternatively dnspython if only dkim is used)
 requires: pysrs
+requires: pynacl (rare dependeny of dkimpy)
 """
 
 from fuglu.shared import ScannerPlugin, apply_template, DUNNO, FileList, string_to_actioncode, get_default_cache, extract_domain
@@ -168,6 +169,10 @@ It is currently recommended to leave both header and body canonicalization as 'r
         except DKIMException as de:
             self.logger.warning("%s: DKIM validation failed: %s" % (suspect.id, str(de)))
             valid = False
+        except NameError as ne:
+            self.logger.warning("%s: DKIM validation failed due to missing dependency: %s" % (suspect.id, str(ne)))
+            suspect.set_tag('DKIMVerify.skipreason', 'plugin error')
+            return DUNNO
         
         suspect.set_tag("DKIMVerify.sigvalid", valid)
         suspect.write_sa_temp_header('X-DKIMVerify', 'valid' if valid else 'invalid')
@@ -360,11 +365,17 @@ in combination with other factors to take action (for example a "DMARC" plugin c
         
         spf.MAX_LOOKUP = self.config.getint(self.section, 'max_lookups')
         helo, ip, revdns = clientinfo
-        result, explanation = spf.check2(ip, suspect.from_address, helo)
-        suspect.set_tag("SPF.status", result)
-        suspect.set_tag("SPF.explanation", explanation)
-        suspect.write_sa_temp_header('X-SPFCheck', result)
-        suspect.debug("SPF status: %s (%s)" % (result, explanation))
+        try:
+            result, explanation = spf.check2(ip, suspect.from_address, helo)
+            suspect.set_tag("SPF.status", result)
+            suspect.set_tag("SPF.explanation", explanation)
+            suspect.write_sa_temp_header('X-SPFCheck', result)
+            suspect.debug("SPF status: %s (%s)" % (result, explanation))
+        except Exception as e:
+            suspect.set_tag('SPF.status', 'skipped')
+            suspect.set_tag("SPF.explanation", str(e))
+            self.logger.error('%s SPF check failed for %s due to %s' % (suspect.id, suspect.from_domain, str(e)))
+            
         return DUNNO
     
     
