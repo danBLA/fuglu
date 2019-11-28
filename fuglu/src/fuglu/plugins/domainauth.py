@@ -326,43 +326,48 @@ Tag 'SPF.explanation' contains a human readable explanation of the result
 The plugin does not take any action based on the SPF test result since. Other plugins might use the SPF result
 in combination with other factors to take action (for example a "DMARC" plugin could use this information)
     """
-
+    
     def __init__(self, config, section=None):
         ScannerPlugin.__init__(self, config, section)
         self.requiredvars = {
-
+            'max_lookups': {
+                'default': '10',
+                'description': 'maximum number of lookups (RFC defaults to 10)',
+            }
         }
         self.logger = self._logger()
-
+    
+    
     def __str__(self):
         return "SPF Check"
-
+    
+    
     def examine(self, suspect):
         if not PYSPF_AVAILABLE:
             suspect.debug("pyspf not available, can not check")
-            self.logger.warning(
-                "%s: SPF Check skipped, pyspf unavailable" % suspect.id)
+            self.logger.warning("%s: SPF Check skipped, pyspf unavailable" % suspect.id)
             suspect.set_tag('SPF.status', 'skipped')
             suspect.set_tag("SPF.explanation", 'missing dependency')
             return DUNNO
-
+        
         clientinfo = suspect.get_client_info(self.config)
         if clientinfo is None:
             suspect.debug("client info not available for SPF check")
-            self.logger.warning(
-                "%s: SPF Check skipped, could not get client info" % suspect.id)
+            self.logger.warning("%s: SPF Check skipped, could not get client info" % suspect.id)
             suspect.set_tag('SPF.status', 'skipped')
-            suspect.set_tag(
-                "SPF.explanation", 'could not extract client information')
+            suspect.set_tag("SPF.explanation", 'could not extract client information')
             return DUNNO
-
+        
+        spf.MAX_LOOKUP = self.config.getint(self.section, 'max_lookups')
         helo, ip, revdns = clientinfo
         result, explanation = spf.check2(ip, suspect.from_address, helo)
         suspect.set_tag("SPF.status", result)
         suspect.set_tag("SPF.explanation", explanation)
+        suspect.write_sa_temp_header('X-SPFCheck', result)
         suspect.debug("SPF status: %s (%s)" % (result, explanation))
         return DUNNO
-
+    
+    
     def lint(self):
         all_ok = self.check_config()
         
@@ -378,7 +383,6 @@ in combination with other factors to take action (for example a "DMARC" plugin c
             print("Missing dependency: no supported ip address libary found: ipaddr or ipaddress")
             all_ok = False
             
-
         return all_ok
 
 
