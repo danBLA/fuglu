@@ -165,17 +165,20 @@ It is currently recommended to leave both header and body canonicalization as 'r
         d = DKIM(source, logger=suspect.get_tag('debugfile'))
         
         try:
-            valid = d.verify()
-        except DKIMException as de:
-            self.logger.warning("%s: DKIM validation failed: %s" % (suspect.id, str(de)))
-            valid = False
+            try:
+                valid = d.verify()
+            except DKIMException as de:
+                self.logger.warning("%s: DKIM validation failed: %s" % (suspect.id, str(de)))
+                valid = False
+            suspect.set_tag("DKIMVerify.sigvalid", valid)
+            suspect.write_sa_temp_header('X-DKIMVerify', 'valid' if valid else 'invalid')
         except NameError as ne:
             self.logger.warning("%s: DKIM validation failed due to missing dependency: %s" % (suspect.id, str(ne)))
             suspect.set_tag('DKIMVerify.skipreason', 'plugin error')
-            return DUNNO
-        
-        suspect.set_tag("DKIMVerify.sigvalid", valid)
-        suspect.write_sa_temp_header('X-DKIMVerify', 'valid' if valid else 'invalid')
+        except Exception as e:
+            self.logger.error("%s: DKIM validation failed: %s" % (suspect.id, str(e)))
+            suspect.set_tag('DKIMVerify.skipreason', 'plugin error')
+            
         return DUNNO
     
     
