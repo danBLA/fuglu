@@ -21,7 +21,11 @@ class SPFTestCase(unittest.TestCase):
         return s
 
     def setUp(self):
-        self.candidate = SPFPlugin(None)
+        config = RawConfigParser()
+        config.add_section('SPFPlugin')
+        config.set('SPFPlugin', 'max_lookups', '10')
+        
+        self.candidate = SPFPlugin(config)
 
     def tearDown(self):
         pass
