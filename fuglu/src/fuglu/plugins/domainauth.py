@@ -20,6 +20,7 @@ requires: dkimpy (not pydkim!!)
 requires: pyspf
 requires: pydns (or alternatively dnspython if only dkim is used)
 requires: pysrs
+requires: pynacl (rare dependeny of dkimpy)
 """
 
 from fuglu.shared import ScannerPlugin, apply_template, DUNNO, FileList, string_to_actioncode, get_default_cache, extract_domain
@@ -168,6 +169,10 @@ It is currently recommended to leave both header and body canonicalization as 'r
         except DKIMException as de:
             self.logger.warning("%s: DKIM validation failed: %s" % (suspect.id, str(de)))
             valid = False
+        except NameError as ne:
+            self.logger.warning("%s: DKIM validation failed due to missing dependency: %s" % (suspect.id, str(ne)))
+            suspect.set_tag('DKIMVerify.skipreason', 'plugin error')
+            return DUNNO
         
         suspect.set_tag("DKIMVerify.sigvalid", valid)
         suspect.write_sa_temp_header('X-DKIMVerify', 'valid' if valid else 'invalid')
