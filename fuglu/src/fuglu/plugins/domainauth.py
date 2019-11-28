@@ -360,11 +360,17 @@ in combination with other factors to take action (for example a "DMARC" plugin c
         
         spf.MAX_LOOKUP = self.config.getint(self.section, 'max_lookups')
         helo, ip, revdns = clientinfo
-        result, explanation = spf.check2(ip, suspect.from_address, helo)
-        suspect.set_tag("SPF.status", result)
-        suspect.set_tag("SPF.explanation", explanation)
-        suspect.write_sa_temp_header('X-SPFCheck', result)
-        suspect.debug("SPF status: %s (%s)" % (result, explanation))
+        try:
+            result, explanation = spf.check2(ip, suspect.from_address, helo)
+            suspect.set_tag("SPF.status", result)
+            suspect.set_tag("SPF.explanation", explanation)
+            suspect.write_sa_temp_header('X-SPFCheck', result)
+            suspect.debug("SPF status: %s (%s)" % (result, explanation))
+        except Exception as e:
+            suspect.set_tag('SPF.status', 'skipped')
+            suspect.set_tag("SPF.explanation", str(e))
+            self.logger.error('%s SPF check failed for %s due to %s' % (suspect.id, suspect.from_domain, str(e)))
+            
         return DUNNO
     
     
