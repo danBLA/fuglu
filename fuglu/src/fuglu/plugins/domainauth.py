@@ -30,6 +30,7 @@ from fuglu.stringencode import force_bString
 import logging
 import os
 import re
+import time
 
 DKIMPY_AVAILABLE = False
 PYSPF_AVAILABLE = False
@@ -346,7 +347,8 @@ class SPFPlugin(ScannerPlugin):
     """**EXPERIMENTAL**
 This plugin checks the SPF status and sets tag 'SPF.status' to one of the official states 'pass', 'fail', 'neutral',
 'softfail, 'permerror', 'temperror' or 'skipped' if the SPF check could not be peformed.
-Tag 'SPF.explanation' contains a human readable explanation of the result
+Tag 'SPF.explanation' contains a human readable explanation of the result.
+Additionally information to be used by SA plugin is added
 
 The plugin does not take any action based on the SPF test result since. Other plugins might use the SPF result
 in combination with other factors to take action (for example a "DMARC" plugin could use this information)
@@ -365,11 +367,29 @@ in combination with other factors to take action (for example a "DMARC" plugin c
                 'default': '',
                 'description': 'File containing a list of domains (one per line) which are not checked'
             },
+            'temperror_retries': {
+                'default': '3',
+                'description': 'maximum number of retries on temp error',
+            },
+            'temperror_sleep': {
+                'default': '3',
+                'description': 'waiting interval between retries on temp error',
+            },
         }
     
     
     def __str__(self):
         return "SPF Check"
+    
+    
+    def _spf_lookup(self, ip, from_address, helo, retries=3):
+        spf.MAX_LOOKUP = self.config.getint(self.section, 'max_lookups')
+        result, explanation = spf.check2(ip, from_address, helo)
+        if result == 'temperror' and retries>0:
+            time.sleep(self.config.getint(self.section, 'temperror_sleep'))
+            retries -= 1
+            result, explanation = self._spf_lookup(ip, from_address, helo, retries)
+        return result, explanation
     
     
     def examine(self, suspect):
@@ -396,10 +416,10 @@ in combination with other factors to take action (for example a "DMARC" plugin c
             suspect.set_tag("SPF.explanation", 'could not extract client information')
             return DUNNO
         
-        spf.MAX_LOOKUP = self.config.getint(self.section, 'max_lookups')
         helo, ip, revdns = clientinfo
+        retries = self.config.getint(self.section, 'temperror_retries')
         try:
-            result, explanation = spf.check2(ip, suspect.from_address, helo)
+            result, explanation = self._spf_lookup(ip, suspect.from_address, helo, retries)
             suspect.set_tag("SPF.status", result)
             suspect.set_tag("SPF.explanation", explanation)
             suspect.write_sa_temp_header('X-SPFCheck', result)
