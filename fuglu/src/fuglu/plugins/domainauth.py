@@ -140,10 +140,14 @@ It is currently recommended to leave both header and body canonicalization as 'r
 
     def __init__(self, config, section=None):
         ScannerPlugin.__init__(self, config, section)
-        self.requiredvars = {
-        
-        }
         self.logger = self._logger()
+        self.skiplist = FileList(filename=None, strip=True, skip_empty=True, skip_comments=True, lowercase=True)
+        self.requiredvars = {
+            'skiplist': {
+                'default': '',
+                'description': 'File containing a list of domains (one per line) which are not checked'
+            },
+        }
     
     
     def __str__(self):
@@ -154,6 +158,19 @@ It is currently recommended to leave both header and body canonicalization as 'r
         if not DKIMPY_AVAILABLE:
             suspect.debug("dkimpy not available, can not check")
             suspect.set_tag('DKIMVerify.skipreason', 'dkimpy library not available')
+            return DUNNO
+        
+        hdr_from_domain = extract_from_domain(suspect)
+        if not hdr_from_domain:
+            self.logger.debug('%s DKIM Verification skipped, no header from address')
+            suspect.set_tag("DKIMVerify.skipreason", 'no header from address')
+            return DUNNO
+            
+        self.skiplist.filename = self.config.get(self.section, 'skiplist')
+        skiplist = self.skiplist.get_list()
+        if hdr_from_domain in skiplist:
+            self.logger.debug('%s DKIM Verification skipped, sender domain skiplisted')
+            suspect.set_tag("DKIMVerify.skipreason", 'sender domain skiplisted')
             return DUNNO
         
         source = suspect.get_original_source()
@@ -337,13 +354,18 @@ in combination with other factors to take action (for example a "DMARC" plugin c
     
     def __init__(self, config, section=None):
         ScannerPlugin.__init__(self, config, section)
+        self.logger = self._logger()
+        self.skiplist = FileList(filename=None, strip=True, skip_empty=True, skip_comments=True, lowercase=True)
         self.requiredvars = {
             'max_lookups': {
                 'default': '10',
                 'description': 'maximum number of lookups (RFC defaults to 10)',
-            }
+            },
+            'skiplist': {
+                'default': '',
+                'description': 'File containing a list of domains (one per line) which are not checked'
+            },
         }
-        self.logger = self._logger()
     
     
     def __str__(self):
@@ -356,6 +378,14 @@ in combination with other factors to take action (for example a "DMARC" plugin c
             self.logger.warning("%s: SPF Check skipped, pyspf unavailable" % suspect.id)
             suspect.set_tag('SPF.status', 'skipped')
             suspect.set_tag("SPF.explanation", 'missing dependency')
+            return DUNNO
+        
+        self.skiplist.filename = self.config.get(self.section, 'skiplist')
+        checkdomains = self.skiplist.get_list()
+        if suspect.from_domain in checkdomains:
+            self.logger.debug('%s SPF Check skipped, sender domain skiplisted')
+            suspect.set_tag('SPF.status', 'skipped')
+            suspect.set_tag("SPF.explanation", 'sender domain skiplisted')
             return DUNNO
         
         clientinfo = suspect.get_client_info(self.config)
@@ -478,7 +508,7 @@ This plugin depends on tags written by SPFPlugin and DKIMVerifyPlugin, so they m
     def lint_file(self):
         filename = self.config.get(self.section, 'domainsfile')
         if not os.path.exists(filename):
-            print("domains file %s not found" % (filename))
+            print("domains file %s not found" % filename)
             return False
         return True
 
