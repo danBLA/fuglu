@@ -27,6 +27,7 @@ from fuglu.shared import ScannerPlugin, apply_template, DUNNO, FileList, string_
 from fuglu.extensions.sql import get_session, SQL_EXTENSION_ENABLED
 from fuglu.extensions.dnsquery import DNSQUERY_EXTENSION_ENABLED
 from fuglu.stringencode import force_bString
+from fuglu.logtools import PrependLoggerMsg
 import logging
 import os
 import re
@@ -179,7 +180,12 @@ It is currently recommended to leave both header and body canonicalization as 'r
             suspect.write_sa_temp_header('X-DKIMVerify', 'unsigned')
             suspect.debug("No dkim signature header found")
             return DUNNO
-        d = DKIM(source, logger=suspect.get_tag('debugfile'))
+        debugfile = suspect.get_tag('debugfile')
+        if debugfile:
+            d = DKIM(source, logger=debugfile)
+        else:
+            # use the local logger of the plugin but prepend the fuglu id
+            d = DKIM(source, logger=PrependLoggerMsg(self.logger, prepend=suspect.id))
         
         try:
             try:
