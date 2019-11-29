@@ -25,6 +25,8 @@ class SPFTestCase(unittest.TestCase):
         config.add_section('SPFPlugin')
         config.set('SPFPlugin', 'max_lookups', '10')
         config.set('SPFPlugin', 'skiplist', '')
+        config.set('SPFPlugin', 'temperror_retries', '')
+        config.set('SPFPlugin', 'temperror_sleep', '')
         
         self.candidate = SPFPlugin(config)
 
