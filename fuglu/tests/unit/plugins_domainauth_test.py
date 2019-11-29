@@ -24,6 +24,7 @@ class SPFTestCase(unittest.TestCase):
         config = RawConfigParser()
         config.add_section('SPFPlugin')
         config.set('SPFPlugin', 'max_lookups', '10')
+        config.set('SPFPlugin', 'skiplist', '')
         
         self.candidate = SPFPlugin(config)
 
