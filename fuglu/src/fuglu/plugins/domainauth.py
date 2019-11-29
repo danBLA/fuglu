@@ -196,7 +196,7 @@ It is currently recommended to leave both header and body canonicalization as 'r
             self.logger.warning("%s: DKIM validation failed due to missing dependency: %s" % (suspect.id, str(ne)))
             suspect.set_tag('DKIMVerify.skipreason', 'plugin error')
         except Exception as e:
-            self.logger.error("%s: DKIM validation failed: %s" % (suspect.id, str(e)))
+            self.logger.warning("%s: DKIM validation failed: %s" % (suspect.id, str(e)))
             suspect.set_tag('DKIMVerify.skipreason', 'plugin error')
             
         return DUNNO
@@ -429,7 +429,7 @@ in combination with other factors to take action (for example a "DMARC" plugin c
         except Exception as e:
             suspect.set_tag('SPF.status', 'skipped')
             suspect.set_tag("SPF.explanation", str(e))
-            self.logger.error('%s SPF check failed for %s due to %s' % (suspect.id, suspect.from_domain, str(e)))
+            self.logger.warning('%s SPF check failed for %s due to %s' % (suspect.id, suspect.from_domain, str(e)))
             
         return DUNNO
     
