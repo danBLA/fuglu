@@ -364,3 +364,29 @@ def createPIDinfo():
         infoString += 'parent process: %u, ' % os.getppid()
     infoString += 'process id: %u' % os.getpid()
     return infoString
+
+
+class PrependLoggerMsg(object):
+    """Prepend something to all log messages of original logger, for example fuglu id"""
+    def __init__(self, origlogger, prepend, prependseparator=" "):
+        self._origlogger = origlogger
+        self.prepend = prepend
+        self.prependseparator = prependseparator
+
+    def debug(self, msg, *args, **kwargs):
+        self._origlogger.debug("%s%s%s" % (self.prepend, self.prependseparator, msg), *args, **kwargs)
+
+    def info(self, msg, *args, **kwargs):
+        self._origlogger.info("%s%s%s" % (self.prepend, self.prependseparator, msg), *args, **kwargs)
+
+    def warning(self, msg, *args, **kwargs):
+        self._origlogger.warning("%s%s%s" % (self.prepend, self.prependseparator, msg), *args, **kwargs)
+
+    def error(self, msg, *args, **kwargs):
+        self._origlogger.error("%s%s%s" % (self.prepend, self.prependseparator, msg), *args, **kwargs)
+
+    def exception(self, msg, *args, **kwargs):
+        self._origlogger.exception("%s%s%s" % (self.prepend, self.prependseparator, msg), *args, **kwargs)
+
+    def critical(self, msg, *args, **kwargs):
+        self._origlogger.critical("%s%s%s" % (self.prepend, self.prependseparator, msg), *args, **kwargs)
