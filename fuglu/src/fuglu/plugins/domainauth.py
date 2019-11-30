@@ -182,7 +182,7 @@ It is currently recommended to leave both header and body canonicalization as 'r
             suspect.debug("No dkim signature header found")
             return DUNNO
         # use the local logger of the plugin but prepend the fuglu id
-        d = DKIM(source, logger=PrependLoggerMsg(self.logger, prepend=suspect.id))
+        d = DKIM(source, logger=PrependLoggerMsg(self.logger, prepend=suspect.id, maxlevel=logging.INFO))
         
         try:
             try:
