@@ -1,12 +1,20 @@
 import unittest
 import logging
-import io
+try:
+    from cStringIO import StringIO
+except ImportError:
+    try:
+        from StringIO import StringIO
+    except ImportError:
+        from io import StringIO
+
+
 from fuglu.logtools import LoggingContext, PrependLoggerMsg
 
 class TestPrependLogger(unittest.TestCase):
 
     def test_basesetup(self):
-        logstream = io.StringIO()
+        logstream = StringIO()
         loghandler = logging.StreamHandler(stream=logstream)
         loghandler.setLevel(logging.DEBUG)
         loghandler.setFormatter(logging.Formatter("%(levelname)s %(message)s"))
@@ -31,7 +39,7 @@ class TestPrependLogger(unittest.TestCase):
         self.assertEqual(expected, loglines)
 
     def test_prepend(self):
-        logstream = io.StringIO()
+        logstream = StringIO()
         loghandler = logging.StreamHandler(stream=logstream)
         loghandler.setLevel(logging.DEBUG)
         loghandler.setFormatter(logging.Formatter("%(levelname)s %(message)s"))
@@ -57,7 +65,7 @@ class TestPrependLogger(unittest.TestCase):
         self.assertEqual(expected, loglines)
 
     def test_prepend_separator(self):
-        logstream = io.StringIO()
+        logstream = StringIO()
         loghandler = logging.StreamHandler(stream=logstream)
         loghandler.setLevel(logging.DEBUG)
         loghandler.setFormatter(logging.Formatter("%(levelname)s %(message)s"))
@@ -83,7 +91,7 @@ class TestPrependLogger(unittest.TestCase):
         self.assertEqual(expected, loglines)
 
     def test_prepend_maxmin(self):
-        logstream = io.StringIO()
+        logstream = StringIO()
         loghandler = logging.StreamHandler(stream=logstream)
         loghandler.setLevel(logging.DEBUG)
         loghandler.setFormatter(logging.Formatter("%(levelname)s %(message)s"))
