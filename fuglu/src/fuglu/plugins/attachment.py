@@ -28,12 +28,6 @@ import sys
 import email
 from threading import Lock
 
-try:
-    FileNotFoundError
-except NameError:
-    # no FileNotFoundError in Py2, use IOError instead
-    FileNotFoundError = IOError
-
 FUATT_NAMESCONFENDING = "-filenames.conf"
 FUATT_CTYPESCONFENDING = "-filetypes.conf"
 FUATT_ARCHIVENAMESCONFENDING = "-archivenames.conf"

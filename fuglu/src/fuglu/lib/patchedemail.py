@@ -1,4 +1,4 @@
-import sys
+# -*- coding: utf-8 -*-
 from email.message import Message
 from email.mime.multipart import MIMEMultipart
 from email.generator import Generator

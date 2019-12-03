@@ -19,14 +19,10 @@
 from fuglu.shared import ScannerPlugin, DUNNO, DEFER, Suspect, string_to_actioncode, apply_template
 from fuglu.stringencode import force_uString
 from fuglu.extensions.sql import DBConfig
-import re
 import json
 import tempfile
 import os
-try:
-    from httplib import HTTPConnection
-except ImportError:
-    from http.client import HTTPConnection
+from http.client import HTTPConnection
 
 
 

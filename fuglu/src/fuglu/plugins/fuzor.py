@@ -20,18 +20,10 @@ import re
 import sys
 import logging
 import socket
-try:
-    from email import message_from_bytes
-except:
-    from email import message_from_string as message_from_bytes
-
+from email import message_from_bytes
 from fuglu.shared import ScannerPlugin, AppenderPlugin, SuspectFilter, DUNNO
 from fuglu.extensions.redisext import RedisKeepAlive, redis, ENABLED as REDIS_ENABLED
-if sys.version_info > (3,):
-    from fuglu.lib.patchedemail import PatchedMessage
-else:
-    from email.message import Message as PatchedMessage
-
+from fuglu.lib.patchedemail import PatchedMessage
 
 
 class FuzorMixin(object):

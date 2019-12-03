@@ -23,26 +23,19 @@ import time
 import socket
 import uuid
 import threading
-
-try:
-    from collections.abc import Mapping
-except ImportError:
-    from collections import Mapping
-
+from collections.abc import Mapping
 from fuglu.addrcheck import Addrcheck
 from fuglu.stringencode import force_uString, force_bString
 from fuglu.mailattach import Mailattachment_mgr
-
-if sys.version_info > (3,):
-    from fuglu.lib.patchedemail import PatchedMessage, PatchedMIMEMultipart
-else:
-    from email.message import Message as PatchedMessage
-    from email.mime.multipart import MIMEMultipart as PatchedMIMEMultipart
-
-try:
-    from html.parser import HTMLParser
-except ImportError:
-    from HTMLParser import HTMLParser
+from fuglu.lib.patchedemail import PatchedMessage, PatchedMIMEMultipart
+from html.parser import HTMLParser
+import email
+import re
+import configparser
+import datetime
+from string import Template
+from email.header import Header, decode_header
+from email.utils import getaddresses
 
 HAVE_BEAUTIFULSOUP = False
 try:
@@ -50,17 +43,6 @@ try:
     HAVE_BEAUTIFULSOUP = True
 except ImportError:
     pass
-
-import email
-import re
-try:
-    import configparser
-except ImportError:
-    import ConfigParser as configparser
-import datetime
-from string import Template
-from email.header import Header, decode_header
-from email.utils import getaddresses
 
 # constants
 

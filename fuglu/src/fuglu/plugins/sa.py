@@ -24,11 +24,7 @@ import email
 import re
 import os
 import sys
-if sys.version_info > (3,):
-    from fuglu.lib.patchedemail import PatchedMessage, PatchedMIMEMultipart
-else:
-    from email.message import Message as PatchedMessage
-    from email.mime.multipart import MIMEMultipart as PatchedMIMEMultipart
+from fuglu.lib.patchedemail import PatchedMessage
 
 
 GTUBE = """Date: Mon, 08 Sep 2008 17:33:54 +0200

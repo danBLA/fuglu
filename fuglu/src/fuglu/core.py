@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 #   Copyright 2009-2019 Oli Schacher, Fumail Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,8 +14,6 @@
 # limitations under the License.
 #
 
-from __future__ import print_function
-
 import code
 import datetime
 import inspect
@@ -27,7 +26,7 @@ import sys
 import threading
 import time
 import traceback
-
+import configparser
 import fuglu.procpool
 from fuglu import __version__ as FUGLU_VERSION
 from fuglu.connectors.esmtpconnector import ESMTPServer
@@ -40,11 +39,6 @@ from fuglu.shared import (HAVE_BEAUTIFULSOUP, Suspect, default_template_values)
 from fuglu.stats import StatsThread
 from fuglu.stringencode import force_bString, force_uString
 from fuglu.threadpool import ThreadPool
-
-try:
-    import configparser
-except ImportError:
-    import ConfigParser as configparser
 
 
 #--------------------#

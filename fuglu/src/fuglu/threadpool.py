@@ -1,3 +1,4 @@
+# -*- coding: UTF-8 -*-
 #   Copyright 2009-2019 Oli Schacher, Fumail Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,15 +17,13 @@
 #
 import threading
 import time
-try:
-    import queue
-except ImportError:
-    import Queue as queue
+import queue
 import logging
 import weakref
 import importlib
 from fuglu.protocolbase import compress_task, uncompress_task
 from fuglu.scansession import SessionHandler
+
 
 class ThreadPool(threading.Thread):
 
