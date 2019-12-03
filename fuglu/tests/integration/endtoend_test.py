@@ -8,6 +8,8 @@ import time
 import smtplib
 import mock
 import re
+import logging
+import sys
 from email.mime.text import MIMEText
 from configparser import RawConfigParser
 from io import StringIO
@@ -470,9 +472,6 @@ class EndtoEndBaseTestCase(unittest.TestCase):
         # give fuglu time to start listener
         time.sleep(1)
 
-        import logging
-        import sys
-
         root = logging.getLogger()
         root.setLevel(logging.DEBUG)
         ch = logging.StreamHandler(sys.stdout)
@@ -489,21 +488,7 @@ class EndtoEndBaseTestCase(unittest.TestCase):
 
         self.assertEqual(250, code)
         print("%s"%msg)
-        if (3,) <= sys.version_info < (3, 5):
-            smtpclient.close()
-            # NO SMTPUTF8 provided in smtpconnector for python >=3 and python < 3.5
-            try:
-                self.assertNotIn("SMTPUTF8", msg, "SMTPUTF8 should NOT be provided for your Python version")
-            except AttributeError:
-                self.assertTrue("SMTPUTF8" not in msg)
-            print("WARNING: Test \"test_SMTPUTF8_E2E\" skipped!")
-            return
-        else:
-            try:
-                self.assertIn("SMTPUTF8", msg)
-            except AttributeError:
-                self.assertTrue("SMTPUTF8" in msg)
-
+        self.assertIn("SMTPUTF8", msg)
 
         testunicodemessage = u"""Hello Wörld!\r
 Don't där yü tschänsch äny of mai baits or iwen remüv ön!"""
