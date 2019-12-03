@@ -10,19 +10,19 @@ stages:
   - test
   - documentation
 
-unittests_py3:
+unittests:
   stage: test
   script:
     - cd fuglu
     - nosetests-3.6 --rednose tests/unit
 
-isolated_py3:
+isolated:
   stage: test_isolated
   script:
     - cd fuglu
     - nosetests-3.6 --rednose tests/isolated  --with-isolation
 
-integrationtests_py3:
+integrationtests:
   stage: test
   script:
     - /usr/local/bin/start-services.sh
@@ -32,7 +32,7 @@ integrationtests_py3:
 
 # define RSYNC_TARGET in gitlab -> project fuglu -> settings -> variables
 
-buildfuglu_py3:
+buildfuglu:
   stage: build
   script:
     - cd fuglu
