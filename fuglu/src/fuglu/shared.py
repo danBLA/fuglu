@@ -523,20 +523,14 @@ class Suspect(object):
             str
         """
 
-        if sys.version_info > (3,):
-            connector = u""
-        else:
-            # Python 2 removes the spaces between the encoded header parts
-            connector = u" "
-
         try:
-            headerstring = connector.join(
+            headerstring = u''.join(
                 [force_uString(x[0], encodingGuess=x[1], errors=decode_errors) for x in decode_header(header)]
             )
         except TypeError:
             # if input is bytes (Py3) we end here
             header_unicode = force_uString(header)
-            headerstring = u"".join(
+            headerstring = u''.join(
                 [force_uString(x[0], encodingGuess=x[1], errors=decode_errors) for x in decode_header(header_unicode)]
             )
         except Exception as e:
@@ -820,32 +814,18 @@ class Suspect(object):
             return self._msgrep
 
         if self.source is not None:
-            if sys.version_info > (3,):
-                # Python 3 and larger
-                # the basic "str" type is unicode
-                if isinstance(self.source, str):
-                    msgrep = email.message_from_string(self.source, _class=PatchedMessage)
-                else:
-                    msgrep = email.message_from_bytes(self.source, _class=PatchedMessage)
+            if isinstance(self.source, str):
+                msgrep = email.message_from_string(self.source, _class=PatchedMessage)
             else:
-                # Python 2.x
-                msgrep = email.message_from_string(self.source)
+                msgrep = email.message_from_bytes(self.source, _class=PatchedMessage)
 
             self._msgrep = msgrep
             return msgrep
         else:
-            if sys.version_info > (3,):
-                # Python 3 and larger
-                # file should be binary...
-
-                # IMPORTANT: It is possible to use email.message_from_file BUT this will automatically replace
-                #            '\r\n' in the message (_payload) by '\n' and the endtoend_test.py will fail!
-                tmpSource = self.get_original_source()
-                msgrep = email.message_from_bytes(tmpSource, _class=PatchedMessage)
-            else:
-                # Python 2.x
-                with open(self.tempfile, 'r') as fh:
-                    msgrep = email.message_from_file(fh)
+            # IMPORTANT: It is possible to use email.message_from_file BUT this will automatically replace
+            #            '\r\n' in the message (_payload) by '\n' and the endtoend_test.py will fail!
+            tmpSource = self.get_original_source()
+            msgrep = email.message_from_bytes(tmpSource, _class=PatchedMessage)
             self._msgrep = msgrep
             return msgrep
 
@@ -866,16 +846,10 @@ class Suspect(object):
         Keyword Args:
             att_mgr_reset (bool): Reset the attachment manager
         """
-        if sys.version_info > (3,):
-            # Python 3 and larger
-            # stick to bytes...
-            try:
-                self.set_source(msgrep.as_bytes(),att_mgr_reset=att_mgr_reset)
-            except AttributeError:
-                self.set_source(force_bString(msgrep.as_string()),att_mgr_reset=att_mgr_reset)
-        else:
-            # Python 2.x
-            self.set_source(msgrep.as_string(),att_mgr_reset=att_mgr_reset)
+        try:
+            self.set_source(msgrep.as_bytes(),att_mgr_reset=att_mgr_reset)
+        except AttributeError:
+            self.set_source(force_bString(msgrep.as_string()),att_mgr_reset=att_mgr_reset)
 
         # order is important, set_source sets source to None
         self._msgrep = msgrep

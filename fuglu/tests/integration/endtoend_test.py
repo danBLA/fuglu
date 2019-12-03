@@ -18,7 +18,7 @@ import fuglu
 from fuglu.lib.patcheddkimlib import verify, sign
 from fuglu.core import MainController
 from fuglu.scansession import SessionHandler
-from fuglu.stringencode import force_uString,force_bString, sendmail_address
+from fuglu.stringencode import force_uString, force_bString
 from fuglu.connectors.smtpconnector import FUSMTPClient
 
 
@@ -237,8 +237,8 @@ class ReinjectErrorTestCase(unittest.TestCase):
         self.smtp.response_message = '5.4.0 Error: too many hops'
 
         try:
-            smtpclient.sendmail(sendmail_address(env_sender),
-                                sendmail_address(env_recipients),
+            smtpclient.sendmail(force_uString(env_sender),
+                                force_uString(env_recipients),
                                 force_bString(msgstring))
         except smtplib.SMTPDataError as e:
             self.assertEqual(self.smtp.response_code, e.smtp_code)
@@ -330,8 +330,8 @@ class ReinjectTmpErrorTestCase(unittest.TestCase):
         self.smtp.response_message = '4.5.1 Internal error'
 
         try:
-            smtpclient.sendmail(sendmail_address(env_sender),
-                                sendmail_address(env_recipients),
+            smtpclient.sendmail(force_uString(env_sender),
+                                force_uString(env_recipients),
                                 force_bString(msgstring))
         except smtplib.SMTPDataError as e:
             self.assertEqual(self.smtp.response_code, e.smtp_code)
@@ -503,8 +503,8 @@ Don't där yü tschänsch äny of mai baits or iwen remüv ön!"""
         # envelope sender/recipients
         env_sender = u'sänder@fuglu.org'
         env_recipients = [u'röcipient@fuglu.org', u'récipiènt2@fuglu.org']
-        smtpclient.sendmail(sendmail_address(env_sender),
-                            sendmail_address(env_recipients),
+        smtpclient.sendmail(force_uString(env_sender),
+                            force_uString(env_recipients),
                             force_bString(msgstring), mail_options=["SMTPUTF8"])
         smtpclient.quit()
 

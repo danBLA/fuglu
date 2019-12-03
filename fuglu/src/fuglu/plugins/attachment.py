@@ -24,7 +24,6 @@ import re
 import os
 import os.path
 import logging
-import sys
 import email
 from threading import Lock
 
@@ -435,22 +434,17 @@ The other common template variables are available as well.
     
     def asciionly(self, stri):
         """return stri with all non-ascii chars removed"""
-        if sys.version_info > (3,):
-            if isinstance(stri, str):
-                return stri.encode('ascii', 'ignore').decode()
-            elif isinstance(stri, bytes):  # python3
-                # A bytes object therefore already ascii, but not a string yet
-                return stri.decode('ascii', 'ignore')
+        if isinstance(stri, str):
+            return stri.encode('ascii', 'ignore').decode()
+        elif isinstance(stri, bytes):  # python3
+            # A bytes object therefore already ascii, but not a string yet
+            return stri.decode('ascii', 'ignore')
         return "".join([x for x in stri if ord(x) < 128])
     
     
     def _tostr(self, stri):
-        if sys.version_info < (3,):
-            if not isinstance(stri, str): # python 2 unicode object
-                stri = stri.encode('utf-8', 'ignore')
-        else:
-            if isinstance(stri, bytes): # python3 bytes object
-                stri = stri.decode('utf-8', 'ignore')
+        if isinstance(stri, bytes): # python3 bytes object
+            stri = stri.decode('utf-8', 'ignore')
         return stri
     
     
@@ -483,7 +477,7 @@ The other common template variables are available as well.
             prog = re.compile(regex, re.I)
             if self.extremeverbosity:
                 self.logger.debug('%s Attachment %s Rule %s' % (suspect.id, obj, regex))
-            if isinstance(obj, bytes) and sys.version_info > (3,):
+            if isinstance(obj, bytes):
                 obj = obj.decode('UTF-8', 'ignore')
             if prog.search(obj):
                 self.logger.debug('%s Rulematch: Attachment=%s Rule=%s Description=%s Action=%s' % (
@@ -684,11 +678,6 @@ The other common template variables are available as well.
                                 namelist = attObj.fileslist_archive
                                 
                             for name in namelist:
-                                # rarfile returns unicode objects which mess up
-                                # generated bounces
-                                if sys.version_info[0] == 2:
-                                    # Py3 defaults to unicode
-                                    name = self.asciionly(name)
                                 res = self.matchMultipleSets(
                                     [user_archive_names, domain_archive_names, default_archive_names], name, suspect, name)
                                 if res == ATTACHMENT_SILENTDELETE:

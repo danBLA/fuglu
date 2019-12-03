@@ -132,21 +132,10 @@ def force_uString(inputstring,encodingGuess="utf-8", errors="strict"):
         return [force_uString(item, encodingGuess=encodingGuess, errors=errors) for item in inputstring]
 
     try:
-        if sys.version_info > (3,):
-            # Python 3 and larger
-            # the basic "str" type is unicode
-            if isinstance(inputstring,str):
-                return inputstring
-            else:
-                return try_decoding(inputstring, encodingGuess=encodingGuess, errors=errors)
+        if isinstance(inputstring,str):
+            return inputstring
         else:
-            # Python 2.x
-            # the basic "str" type is bytes, unicode
-            # has its own type "unicode"
-            if isinstance(inputstring, unicode):
-                return inputstring
-            else:
-                return try_decoding(inputstring, encodingGuess=encodingGuess, errors=errors)
+            return try_decoding(inputstring, encodingGuess=encodingGuess, errors=errors)
     except (AttributeError, TypeError) as e:
         # Input might not be bytes but a number which is then
         # expected to be converted to unicode
@@ -157,14 +146,7 @@ def force_uString(inputstring,encodingGuess="utf-8", errors="strict"):
         else:
             logger.debug("decoding failed using guess %s for object of type %s with message %s"
                          % (encodingGuess, str(type(inputstring)), str(e)))
-
-        if sys.version_info < (3,):
-            try:
-                return unicode(inputstring)
-            except (NameError, ValueError, TypeError, UnicodeEncodeError, UnicodeDecodeError) as e:
-                logger.debug("Could not convert using 'unicode' -> error %s" % str(e))
-                pass
-
+        
         try:
             return str(inputstring)
         except (NameError, ValueError, TypeError, UnicodeEncodeError, UnicodeDecodeError) as e:
@@ -202,26 +184,13 @@ def force_bString(inputstring,encoding="utf-8",checkEncoding=False):
         return [force_bString(item) for item in inputstring]
 
     try:
-        if sys.version_info > (3,):
-            # Python 3 and larger
-            # the basic "str" type is unicode
-            if isinstance(inputstring, bytes):
-                # string is already a byte string
-                # since basic string type is unicode
-                b_outString = inputstring
-            else:
-                # encode
-                b_outString = try_encoding(inputstring,encoding)
+        if isinstance(inputstring, bytes):
+            # string is already a byte string
+            # since basic string type is unicode
+            b_outString = inputstring
         else:
-            # Python 2.x
-            # the basic "str" type is bytes, unicode
-            # has its own type "unicode"
-            if isinstance(inputstring,str):
-                # string is already a byte string
-                b_outString = inputstring
-            else:
-                # encode
-                b_outString = try_encoding(inputstring,encoding)
+            # encode
+            b_outString = try_encoding(inputstring,encoding)
     except (AttributeError, ValueError):
         # we end up here if the input is not a unicode/string
         # just try to first create a string and then encode it
@@ -282,45 +251,6 @@ def force_cfromb(bytes_iteratable):
         raise AttributeError("Type: %s is not str and not bytes"%(type(bytes_iteratable)))
 
 
-def sendmail_address(addresses):
-    """
-    Prepare mail address for sendmail. This needs special attention
-    since if there are non-ascii characters, Py2 needs the address to be
-    encoded.
-
-    Args:
-        addresses (str,unicode,list): address or list of addresses
-
-    Returns:
-        (unicode,bytes,list): (list of) formatted address
-
-    """
-    # for python 3, just force unicode
-    if sys.version_info > (3,):
-        return force_uString(addresses)
-
-    # Actually it will only work correctly since python 3.5
-    # due to problems in smtplib.py. However I only tested Python 3.4
-    # The smtpconnector will just not allow SMTPUTF8 for Python < 3.5 and >= 3
-
-    # -------- #
-    # Python 2 #
-    # -------- #
-    if isinstance(addresses, list):
-        return [sendmail_address(addr) for addr in addresses]
-
-    # at this point it should be a (unicode) string
-    assert isinstance(addresses, (str, unicode))
-
-    try:
-        # If there's a problem to encode with ascii charset, don't change anything
-        # It will be handled by sendmail correctly
-        ascii_converted = addresses.encode("ascii","strict")
-        return addresses
-    except UnicodeEncodeError:
-        # Encode
-        return force_bString(addresses, encoding="utf-8")
-
 class EncodingTrialError(object):
     # list of Py-3.7 encodings
     all_encodings_list = ['utf-8', 'ascii', 'big5', 'big5hkscs', 'cp037',
@@ -363,10 +293,7 @@ class EncodingTrialError(object):
             list(str) : list containing all encodings which passed the test
 
         """
-        if sys.version_info > (3,):
-            assert isinstance(bytestring, bytes)
-        else:
-            assert isinstance(bytestring, str)
+        assert isinstance(bytestring, bytes)
 
         positive = []
         for enc in EncodingTrialError.all_encodings_list:
@@ -375,12 +302,8 @@ class EncodingTrialError(object):
                 test_decoded = bytestring.decode(enc, "strict")
                 test_reencoded = test_decoded.encode(enc, "strict")
 
-                if sys.version_info > (3,):
-                    if not (isinstance(test_decoded, str) and isinstance(test_reencoded, bytes)):
-                        raise TypeError()
-                else:
-                    if not (isinstance(test_decoded, unicode) and isinstance(test_reencoded, str)):
-                        raise TypeError()
+                if not (isinstance(test_decoded, str) and isinstance(test_reencoded, bytes)):
+                    raise TypeError()
 
                 if bytestring == test_reencoded:
                     positive.append(enc)

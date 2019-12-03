@@ -18,7 +18,6 @@
 from configparser import RawConfigParser
 from io import StringIO
 import logging
-import sys
 import traceback
 import weakref
 from fuglu.shared import default_template_values
@@ -156,7 +155,4 @@ class DBConfig(RawConfigParser):
             return result[0]
 
     def parentget(self, section, option, **kwargs):
-        if sys.version_info < (3, 2):
-            return RawConfigParser.get(self, section, option)
-        else:
-            return RawConfigParser.get(self, section, option, **kwargs)
+        return RawConfigParser.get(self, section, option, **kwargs)
