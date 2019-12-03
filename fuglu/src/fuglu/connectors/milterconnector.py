@@ -16,7 +16,6 @@
 #
 
 import logging
-import traceback
 import socket
 import sys
 
@@ -583,9 +582,9 @@ class MilterSession(lm.MilterProtocol):
         """
         option_fuglu = True if smfif_option & self._opts else False
         option_mta = True if smfif_option & self._mtaOpts else False
-        if client is "fuglu":
+        if client == "fuglu":
             return option_fuglu
-        elif client is "mta":
+        elif client == "mta":
             return option_mta
         else:
             return option_fuglu and option_mta
