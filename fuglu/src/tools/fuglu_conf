@@ -1,4 +1,5 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
+# -*- coding: UTF-8 -*-
 
 #   Copyright 2009-2019 Oli Schacher, Fumail Project
 #
@@ -20,10 +21,7 @@
 from optparse import OptionParser
 import sys
 import os
-try:
-    import configparser
-except ImportError:
-    import ConfigParser as configparser
+import configparser
 import io
 import logging
 import inspect
@@ -50,13 +48,13 @@ def cloneConfig(config):
     config.write(tmpfile)
     theClone = configparser.RawConfigParser()
     tmpfile.seek(0)
-    theClone.readfp(tmpfile)
+    theClone.read_file(tmpfile)
     return theClone
 
 
 def config_equals(default, actual):
     """return true if default and actual mean the same thing, eg. """
-    if default == None:
+    if default is None:
         default = ""
     default = default.strip().lower()
     actual = actual.strip().lower()
@@ -93,7 +91,7 @@ def print_overrides(defaultconfig, userconfig, controller):
                         have_printed_section = True
 
                     pdef = defaultval
-                    if defaultval == None or defaultval.strip() == '':
+                    if defaultval is None or defaultval.strip() == '':
                         pdef = 'empty'
                     MAXCHARS = 15
                     if len(pdef) > MAXCHARS:
@@ -102,7 +100,7 @@ def print_overrides(defaultconfig, userconfig, controller):
                     pval = userval
                     # check if confidential
                     meta = get_config_meta(controller, sec, opt)
-                    if pval.strip() != '' and meta != None and 'confidential' in meta and meta['confidential']:
+                    if pval.strip() != '' and meta is not None and 'confidential' in meta and meta['confidential']:
                         pval = "***REDACTED***"
 
                     print("%s=%s (def: %s)" % (opt, pval, pdef))
@@ -112,7 +110,7 @@ def make_config(controller, onlysection=None):
     config = controller.config
 
     for sec in config.sections():
-        if onlysection != None and sec != onlysection:
+        if onlysection is not None and sec != onlysection:
             continue
 
         print("\n[%s]" % sec)
@@ -121,7 +119,7 @@ def make_config(controller, onlysection=None):
         for opt, val in config.items(sec):
             buff = ""
             meta, order = get_config_meta(controller, sec, opt)
-            if meta != None and 'description' in meta:
+            if meta is not None and 'description' in meta:
                 desc = '\n#'.join(meta['description'].split('\n'))
                 buff += '\n#%s' % desc
 
@@ -173,7 +171,7 @@ def extract_option_order(obj, option):
     counter = 0
     for line in sourcelines:
         m = re.match(r'''\s+['"](?P<name>[a-zA-Z_]+)['"]\s?:\s?{''', line)
-        if m != None:
+        if m is not None:
             srcopt = m.groups()[0]
             counter += 1
             if option == srcopt:
@@ -210,7 +208,7 @@ if __name__ == '__main__':
     if not os.path.exists(fugluconfigfile):
         stderr("""Configfile (%s) not found. """ % fugluconfigfile)
         sys.exit(1)
-    readconfig = userconfig.readfp(open(fugluconfigfile))
+    readconfig = userconfig.read_file(open(fugluconfigfile))
     # load conf.d
     if os.path.isdir(dconfdir):
         filelist = os.listdir(dconfdir)

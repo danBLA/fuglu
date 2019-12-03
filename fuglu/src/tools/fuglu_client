@@ -1,4 +1,5 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
+# -*- coding: UTF-8 -*-
 
 #   Copyright 2009-2019 Oli Schacher, Fumail Project
 #
@@ -17,7 +18,6 @@
 
 
 # This tool is used to filter messages in fuglu from the command line
-from __future__ import print_function
 
 import argparse
 from fuglu.scansession import SessionHandler
@@ -30,11 +30,8 @@ import os
 import tempfile
 import logging
 import socket
+import configparser
 
-try:
-    import configparser
-except ImportError:
-    import ConfigParser as configparser
 
 class DummySocket(object):
     def __init__(self):
@@ -119,7 +116,7 @@ class ConsoleInterface(object):
                 """Configfile (%s) not found. Please create it by renaming the .dist file and modifying it to your needs""" % theconfigfile)
             sys.exit(1)
         with open(theconfigfile) as fp:
-            config.readfp(fp)
+            config.read_file(fp)
         # load conf.d
         if theconfigfile == '/etc/fuglu/fuglu.conf' and dconfdir and os.path.isdir(dconfdir):
             filelist = os.listdir(dconfdir)

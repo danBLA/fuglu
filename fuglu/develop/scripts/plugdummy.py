@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # run a plugin with a dummy suspect without a running fuglu daemon
 
 import optparse
@@ -6,33 +6,12 @@ import sys
 import logging
 import os
 import email
-
-try:
-    import configparser as ConfigParser
-except ImportError:
-    import ConfigParser
-
-try:
-    from email.message import Message
-except ImportError:
-    from email import Message
-
-try:
-    from email.header import Header
-except ImportError:
-    from email import Header
-try:
-    from email.mime.text import MIMEText
-except ImportError:
-    from email.MIMEText import MIMEText
-
-try:
-    from email.utils import formatdate
-except ImportError:
-    from email.Utils import formatdate
-
-from fuglu.shared import Suspect, ScannerPlugin, DUNNO, actioncode_to_string,\
-    AppenderPlugin, PrependerPlugin
+import configparser as ConfigParser
+from email.message import Message
+from email.header import Header
+from email.mime.text import MIMEText
+from email.utils import formatdate
+from fuglu.shared import Suspect, ScannerPlugin, DUNNO, actioncode_to_string, AppenderPlugin, PrependerPlugin
 from fuglu.core import MainController
 
 
