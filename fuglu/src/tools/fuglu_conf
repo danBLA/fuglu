@@ -41,10 +41,7 @@ def print_config(config):
 
 
 def cloneConfig(config):
-    if sys.version_info > (3,):
-        tmpfile = io.StringIO()
-    else:
-        tmpfile = io.BytesIO()
+    tmpfile = io.StringIO()
     config.write(tmpfile)
     theClone = configparser.RawConfigParser()
     tmpfile.seek(0)

@@ -156,10 +156,7 @@ if __name__ == '__main__':
             msgcontent = sys.stdin.read()
         else:
             msgcontent = open(opts.eml, 'rb').read()
-        if sys.version_info > (3,):
-            mailmessage = email.message_from_bytes(msgcontent)
-        else:
-            mailmessage = email.message_from_string(msgcontent)
+        mailmessage = email.message_from_bytes(msgcontent)
     else:
         if opts.body:
             if opts.body == '-':
@@ -189,11 +186,8 @@ if __name__ == '__main__':
     # create tempfile...
     tmpfile = '/tmp/fuglu_dummy_message_in.eml'
 
-    if sys.version_info > (3,):
-        # Python 3
-        open(tmpfile, 'wb').write(mailmessage.as_bytes())
-    else:
-        open(tmpfile, 'w').write(mailmessage.as_string())
+    with open(tmpfile, 'wb') as f:
+        f.write(mailmessage.as_bytes())
 
     logging.info("Input file created as %s" % tmpfile)
     suspect = Suspect(opts.sender, opts.recipients[0], tmpfile)
@@ -239,7 +233,7 @@ if __name__ == '__main__':
         else:
             result = ans
 
-        if result == None:
+        if result is None:
             result = DUNNO
 
         logging.info("Result: %s %s", actioncode_to_string(result), message)
