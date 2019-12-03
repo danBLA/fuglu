@@ -1,10 +1,7 @@
+# -*- coding: utf-8 -*-
 from unittestsetup import TESTDATADIR
 import unittest
-try:
-    from configparser import RawConfigParser
-except ImportError:
-    from ConfigParser import RawConfigParser
-
+from configparser import RawConfigParser
 from fuglu.shared import Suspect, ScannerPlugin, PrependerPlugin, AppenderPlugin, DUNNO
 from fuglu.core import MainController
 from fuglu.scansession import SessionHandler

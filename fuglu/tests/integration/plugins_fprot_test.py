@@ -1,17 +1,14 @@
+# -*- coding: UTF-8 -*-
 import integrationtestsetup
 import unittest
 from fuglu.plugins.fprot import FprotPlugin
-
+from configparser import RawConfigParser
 import logging
 
 
 class FprotTestCase(unittest.TestCase):
 
     def setUp(self):
-        try:
-            from configparser import RawConfigParser
-        except ImportError:
-            from ConfigParser import RawConfigParser
         config = RawConfigParser()
         config.add_section('FprotPlugin')
         config.set('FprotPlugin', 'host', 'localhost')

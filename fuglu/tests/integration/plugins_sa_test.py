@@ -1,8 +1,10 @@
+# -*- coding: UTF-8 -*-
 import integrationtestsetup
 import unittest
 from fuglu.plugins.sa import SAPlugin
 import os
-from fuglu.shared import ScannerPlugin, DELETE, DUNNO, DEFER, REJECT, Suspect, string_to_actioncode, apply_template
+from fuglu.shared import DUNNO, REJECT, Suspect
+from configparser import RawConfigParser
 
 
 class SAPluginTestCase(unittest.TestCase):
@@ -10,10 +12,6 @@ class SAPluginTestCase(unittest.TestCase):
     """Testcases for the Stub Plugin"""
 
     def setUp(self):
-        try:
-            from configparser import RawConfigParser
-        except ImportError:
-            from ConfigParser import RawConfigParser
         config = RawConfigParser()
         config.add_section('main')
         config.set('main', 'prependaddedheaders', 'X-Fuglu-')

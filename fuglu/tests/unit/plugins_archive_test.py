@@ -1,14 +1,9 @@
+# -*- coding: UTF-8 -*-
 from unittestsetup import TESTDATADIR
-
 import unittest
 import tempfile
 import os
-
-try:
-    from configparser import RawConfigParser
-except ImportError:
-    from ConfigParser import RawConfigParser
-
+from configparser import RawConfigParser
 from fuglu.plugins.archive import ArchivePlugin
 
 

@@ -10,18 +10,8 @@ import sys
 import datetime
 from fuglu.stringencode import force_uString, force_bString
 from email.header import Header
-
-try:
-    from configparser import ConfigParser
-except ImportError:
-    from ConfigParser import ConfigParser
-
-try:
-    from unittest.mock import patch
-    from unittest.mock import MagicMock
-except ImportError:
-    from mock import patch
-    from mock import MagicMock
+from configparser import ConfigParser
+from unittest.mock import patch
 
 # expected return types
 #

@@ -12,18 +12,8 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import email.utils
 from fuglu.shared import Suspect
-
-try:
-    from unittest.mock import patch
-except ImportError:
-    from mock import patch
-
-try:
-    #py2
-    import ConfigParser
-except ImportError:
-    #py3
-    import configparser as ConfigParser
+from unittest.mock import patch
+import configparser as ConfigParser
 
 HAVE_BEAUTIFULSOUP = False
 try:

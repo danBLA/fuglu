@@ -1,8 +1,10 @@
+# -*- coding: UTF-8 -*-
 import integrationtestsetup
 import unittest
 from fuglu.plugins.sssp import SSSPPlugin
 from fuglu.shared import Suspect, actioncode_to_string
 import email
+from configparser import RawConfigParser
 
 
 class SSSPPluginTestCase(unittest.TestCase):
@@ -10,11 +12,6 @@ class SSSPPluginTestCase(unittest.TestCase):
     """Testcases for the Stub Plugin"""
 
     def setUp(self):
-        try:
-            from configparser import RawConfigParser
-        except ImportError:
-            from ConfigParser import RawConfigParser
-        import os
         config = RawConfigParser()
         config.add_section('main')
         config.add_section('virus')

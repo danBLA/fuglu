@@ -9,10 +9,7 @@ from fuglu.shared import Suspect, create_filehash, SuspectFilter
 from unittestsetup import TESTDATADIR
 from fuglu.stringencode import force_uString, force_bString
 import hashlib
-try:
-    from html.parser import HTMLParser
-except ImportError:
-    from HTMLParser import HTMLParser
+from html.parser import HTMLParser
 from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText

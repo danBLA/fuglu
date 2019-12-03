@@ -9,22 +9,9 @@ import smtplib
 import mock
 import re
 from email.mime.text import MIMEText
-
-try:
-    from configparser import RawConfigParser
-except ImportError:
-    from ConfigParser import RawConfigParser
-
-try:
-    from cStringIO import StringIO
-except ImportError:
-    from io import StringIO
-
-try:
-    from subprocess import getstatusoutput
-except ImportError:
-    from commands import getstatusoutput
-
+from configparser import RawConfigParser
+from io import StringIO
+from subprocess import getstatusoutput
 import fuglu
 from fuglu.lib.patcheddkimlib import verify, sign
 from fuglu.core import MainController

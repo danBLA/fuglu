@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 import unittestsetup
+import os
 import fuglu
 import unittest
 from datetime import datetime, timedelta
-
+from configparser import RawConfigParser
 from fuglu.plugins.vacation import VacationPlugin, VacationCache, Vacation, metadata
 
 
@@ -12,11 +13,6 @@ class VacationTestCase(unittest.TestCase):
     """Testcases for the Stub Plugin"""
 
     def setUp(self):
-        import os
-        try:
-            from configparser import RawConfigParser
-        except ImportError:
-            from ConfigParser import RawConfigParser
         testfile = "/tmp/vacation_test.db"
         if os.path.exists(testfile):
             os.remove(testfile)

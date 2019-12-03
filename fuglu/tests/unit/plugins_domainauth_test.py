@@ -1,12 +1,9 @@
+# -*- coding: UTF-8 -*-
 import unittest
 import unittestsetup
-
 from fuglu.shared import Suspect, DUNNO, REJECT
 from fuglu.plugins.domainauth import SPFPlugin, SpearPhishPlugin, SenderRewriteScheme, SRS_AVAILABLE
-try:
-    from configparser import RawConfigParser
-except ImportError:
-    from ConfigParser import RawConfigParser
+from configparser import RawConfigParser
 import tempfile
 import os
 
