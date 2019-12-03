@@ -118,30 +118,16 @@ class ConversionTest(unittest.TestCase):
                                                       "ForceUStringError which has a good error message"):
             out = force_uString(WithStrNone())
 
-        if sys.version_info > (3,):
-            with self.assertRaises(ForceUStringError, msg="If str returns bytes Py3 will have a problem "
-                                                          "whereas str equals bytes in Py2"):
-                out = force_uString(WithStr())
+        with self.assertRaises(ForceUStringError, msg="If str returns bytes Py3 will have a problem "
+                                                      "whereas str equals bytes in Py2"):
+            out = force_uString(WithStr())
 
-        if sys.version_info < (3,):
-            with self.assertRaises(ForceUStringError, msg="If unicode returns a string with non-unicode "
-                                                          "chars this should raise a TypeError exception"
-                                                          "containing a good error message"):
-                out = force_uString(WithUnicodeStr())
-        else:
-            out = force_uString(WithUnicodeStr())
+        out = force_uString(WithUnicodeStr())
 
         # if __repr__ returns a string with unicode chars it's not a problem because first
         # unicode/str are used
         out = force_uString(WithRepr())
-
-        if sys.version_info < (3,):
-            with self.assertRaises(ForceUStringError, msg="If unicode returns a string with non-unicode "
-                                                          "chars this should raise a TypeError exception"
-                                                          "containing a good error message"):
-                out = force_uString(WithUnicodeStrRepr())
-        else:
-            out = force_uString(WithUnicodeStrRepr())
+        out = force_uString(WithUnicodeStrRepr())
 
 
 class TestTrialError(unittest.TestCase):
