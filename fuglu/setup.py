@@ -4,7 +4,7 @@ import os
 import sys
 from setuptools import find_packages, setup
 
-if sys.version_info > (3,6):
+if sys.version_info < (3,6):
     print('Python >= 3.6 required. Python %s.%s found' % (sys.version_info[0], sys.version_info[1]))
     sys.exit(1)
 
