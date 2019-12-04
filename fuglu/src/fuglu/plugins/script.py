@@ -18,7 +18,6 @@ from fuglu.shared import ScannerPlugin, DUNNO, ACCEPT, DELETE, DEFER, REJECT, ac
 import os
 import traceback
 import time
-import sys
 import runpy
 
 
@@ -150,11 +149,7 @@ Example script:
         )
 
         try:
-            if sys.version_info < (2, 7):
-                execfile(filename, scriptenv)
-            else:
-                scriptenv = runpy.run_path(filename, scriptenv)
-
+            scriptenv = runpy.run_path(filename, scriptenv)
             action = scriptenv['action']
             message = scriptenv['message']
         except Stopped as stp:

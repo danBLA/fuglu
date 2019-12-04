@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 # deploy:
 #./make_sphinx_plugin_doc.py > /path/to/fuglu.gh-pages/source/includedplugins-autogen.txt
 # cd /path/to/fuglu.gh-pages/
@@ -19,10 +19,7 @@ sys.path.insert(0, '../../src')
 
 import fuglu
 from fuglu.plugins import *
-try:
-    from configparser import RawConfigParser
-except ImportError:
-    from ConfigParser import RawConfigParser
+from configparser import RawConfigParser
 
 
 if __name__ == '__main__':

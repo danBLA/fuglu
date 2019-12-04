@@ -1,11 +1,6 @@
 # -*- coding: UTF-8 -*-
 import unittest
-
-try:
-    from configparser import RawConfigParser
-except ImportError:
-    from ConfigParser import RawConfigParser
-
+from configparser import RawConfigParser
 import logging
 import sys
 

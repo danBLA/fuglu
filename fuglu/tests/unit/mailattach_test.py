@@ -1,6 +1,5 @@
 # -*- coding: UTF-8 -*-
 import unittest
-import sys
 import email
 from os.path import join
 from os.path import basename
@@ -9,10 +8,7 @@ from fuglu.shared import Suspect, create_filehash, SuspectFilter
 from unittestsetup import TESTDATADIR
 from fuglu.stringencode import force_uString, force_bString
 import hashlib
-try:
-    from html.parser import HTMLParser
-except ImportError:
-    from HTMLParser import HTMLParser
+from html.parser import HTMLParser
 from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -26,19 +22,11 @@ class MailattachmentMgrTest(unittest.TestCase):
 
         tempfile = join(TESTDATADIR, "nestedarchive.eml")
 
-        if sys.version_info > (3,):
-            # Python 3 and larger
-            # file should be binary...
-
-            # IMPORTANT: It is possible to use email.message_from_bytes BUT this will automatically replace
-            #            '\r\n' in the message (_payload) by '\n' and the endtoend_test.py will fail!
-            with open(tempfile, 'rb') as fh:
-                source = fh.read()
-            msgrep = email.message_from_bytes(source)
-        else:
-            # Python 2.x
-            with open(tempfile, 'r') as fh:
-                msgrep = email.message_from_file(fh)
+        # IMPORTANT: It is possible to use email.message_from_bytes BUT this will automatically replace
+        #            '\r\n' in the message (_payload) by '\n' and the endtoend_test.py will fail!
+        with open(tempfile, 'rb') as fh:
+            source = fh.read()
+        msgrep = email.message_from_bytes(source)
         m_attach_mgr = Mailattachment_mgr(msgrep, "test_fuglu_id")
         fnames_base_level = sorted(["nestedarchive.tar.gz", "unnamed.txt"])
         fnames_first_level = sorted(["level1.tar.gz", "level0.txt", "unnamed.txt"])
@@ -84,19 +72,11 @@ class MailattachmentMgrTest(unittest.TestCase):
 
         tempfile = join(TESTDATADIR, "rarfile_empty_dir.eml")
 
-        if sys.version_info > (3,):
-            # Python 3 and larger
-            # file should be binary...
-
-            # IMPORTANT: It is possible to use email.message_from_bytes BUT this will automatically replace
-            #            '\r\n' in the message (_payload) by '\n' and the endtoend_test.py will fail!
-            with open(tempfile, 'rb') as fh:
-                source = fh.read()
-            msgrep = email.message_from_bytes(source)
-        else:
-            # Python 2.x
-            with open(tempfile, 'r') as fh:
-                msgrep = email.message_from_file(fh)
+        # IMPORTANT: It is possible to use email.message_from_bytes BUT this will automatically replace
+        #            '\r\n' in the message (_payload) by '\n' and the endtoend_test.py will fail!
+        with open(tempfile, 'rb') as fh:
+            source = fh.read()
+        msgrep = email.message_from_bytes(source)
 
         m_attach_mgr = Mailattachment_mgr(msgrep, "test_fuglu_id")
 
@@ -1173,11 +1153,8 @@ class IsAttachmentTest(unittest.TestCase):
                     fil.read(),
                     Name=basename(f)
                 )
-            if sys.version_info > (3,):
-                hdr = Header('attachment', header_name="Content-Disposition", continuation_ws=' ')
-                part["Content-Disposition"] = hdr
-            else:
-                part.add_header("Content-Disposition", "attachment", filename=basename(f))
+            hdr = Header('attachment', header_name="Content-Disposition", continuation_ws=' ')
+            part["Content-Disposition"] = hdr
             msg.attach(part)
 
         suspect = Suspect("from@fuglu.unittest", "to@fuglu.unittest", "/dev/null")
@@ -1336,11 +1313,6 @@ class ProblematicCase(unittest.TestCase):
     def test_bad_base64(self):
         """Test bad base64 decoding for mail with missing char in base64 encoded inline image"""
 
-        if sys.version_info < (3, 3):
-            print("Test only valid for Python 3.3 and newer, older Python doesn't know the email"
-                  "defects needed for these tests...")
-            return
-
         tempfile = join(TESTDATADIR, "inline_image_broken2.eml")
 
         suspect = Suspect('sender@unittests.fuglu.org',
@@ -1363,11 +1335,6 @@ class ProblematicCase(unittest.TestCase):
 
     def test_bad_base64_2(self):
         """Test mail with base64 encoded inline attachment where message ends in base64, without final MIME boundary"""
-
-        if sys.version_info < (3, 3):
-            print("Test only valid for Python 3.3 and newer, older Python doesn't know the email"
-                  "defects needed for these tests...")
-            return
 
         tempfile = join(TESTDATADIR, "inline_image_broken.eml")
 

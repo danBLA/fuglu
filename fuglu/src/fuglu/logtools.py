@@ -15,7 +15,6 @@
 #
 #
 #
-from __future__ import print_function
 import logging
 import logging.handlers
 import logging.config
@@ -24,10 +23,6 @@ import multiprocessing
 import signal
 import sys
 
-try:
-    FileNotFoundError
-except NameError:
-    FileNotFoundError = IOError
 
 def logFactoryProcess(listenerQueue,logQueue):
     """

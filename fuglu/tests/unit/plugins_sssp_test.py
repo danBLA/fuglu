@@ -1,25 +1,10 @@
+# -*- coding: UTF-8 -*-
 from unittestsetup import TESTDATADIR
-
 import unittest
-import tempfile
-import os
-
-try:
-    from configparser import RawConfigParser
-except ImportError:
-    from ConfigParser import RawConfigParser
-
+from configparser import RawConfigParser
 from fuglu.plugins.sssp import SSSPPlugin
-from fuglu.shared import Suspect
-from email.message import Message
-from email.header import Header
-
-try:
-    from unittest.mock import patch
-    from unittest.mock import MagicMock
-except ImportError:
-    from mock import patch
-    from mock import MagicMock
+from unittest.mock import patch
+from unittest.mock import MagicMock
 
 
 class SSSPTestCase(unittest.TestCase):

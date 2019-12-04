@@ -18,7 +18,6 @@ import smtplib
 import logging
 import os
 import email
-import sys
 from email.utils import formatdate, make_msgid
 from email.header import Header
 import socket
@@ -76,16 +75,7 @@ class Bounce(object):
     def _add_required_headers(self, recipient, messagecontent):
         """add headers required for sending automated mail"""
 
-        if sys.version_info > (3,):
-            # Python 3 and larger
-            # Use bytes so message_from_bytes will not screw around with
-            # the encoding
-            msgrep = email.message_from_bytes(force_bString(messagecontent))
-        else:
-            # Python 2.x
-            msgrep = email.message_from_string(force_bString(messagecontent)) # byte-encode otherwise older python (<= 2.6)
-                                                                              # will screw up the message because it assumes
-                                                                              # a non-encode bytes string as input.
+        msgrep = email.message_from_bytes(force_bString(messagecontent))
         msgrep.set_charset("utf-8") # define unicode because the messagecontent is unicode
 
         if not 'to' in msgrep:

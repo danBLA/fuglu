@@ -18,7 +18,6 @@
 # For normal use, just import the class "Archivehandle". Check class description
 # for more information how to use the class.
 
-import sys
 import zipfile
 import tarfile
 import re
@@ -123,61 +122,13 @@ class Archive_int(object):
 class Archive_zip(Archive_int):
     def __init__(self,filedescriptor,archivename=None):
         super(Archive_zip, self).__init__(filedescriptor, archivename)
-
-        if sys.version_info < (2, 7):
-            try:
-                # As far as I understand this fix is needed for bytes like objects (io.BytesIO).
-                # The routine will fail with AttributeError or IOError or something else for
-                # other inputs. For example in the unittests, a filename is sent in which does
-                # not have read/truncate/... attributes.
-                filedescriptor = Archive_zip.fix_python26_zipfile_bug(filedescriptor)
-            except Exception:
-                pass
         self._handle = zipfile.ZipFile(filedescriptor)
         if self._archivename is None:
             try:
                 self._archivename = os.path.basename(str(filedescriptor))
             except Exception:
                 self._archivename = "generic.zip"
-
-    @staticmethod
-    def fix_python26_zipfile_bug(zipFileContainer):
-        """
-
-        "http://stackoverflow.com/questions/3083235/unzipping-file-results-in-badzipfile-file-is-not-a-zip-file/21996397#21996397"
-
-        HACK: See http://bugs.python.org/issue10694
-        The zip file generated is correct, but because of extra data after the 'central directory' section,
-        Some version of python (and some zip applications) can't read the file. By removing the extra data,
-        we ensure that all applications can read the zip without issue.
-        The ZIP format: http://www.pkware.com/documents/APPNOTE/APPNOTE-6.3.0.TXT
-        Finding the end of the central directory:
-          http://stackoverflow.com/questions/8593904/how-to-find-the-position-of-central-directory-in-a-zip-file
-          http://stackoverflow.com/questions/20276105/why-cant-python-execute-a-zip-archive-passed-via-stdin
-        This second link is only loosely related, but echos the first,
-        "processing a ZIP archive often requires backwards seeking"
-
-        Args:
-            zipFileContainer (file-like object):
-
-        Returns:
-            modified zip-file bytes content
-
-        """
-
-        content = zipFileContainer.read()
-        # reverse find: this string of bytes is the end of the zip's central
-        # directory.
-        pos = content.rfind('\x50\x4b\x05\x06')
-        if pos > 0:
-            # +20: see section V.I in 'ZIP format' link above.
-            zipFileContainer.seek(pos + 20)
-            zipFileContainer.truncate()
-            # Zip file comment length: 0 byte length; tell zip applications to
-            # stop reading.
-            zipFileContainer.write('\x00\x00')
-            zipFileContainer.seek(0)
-        return zipFileContainer
+                
 
     def namelist(self):
         """ Get archive file list
@@ -362,67 +313,34 @@ class Archive_7z(Archive_int):
                 pass
         self._fdescriptor = None
 
+
 class Archive_gz(Archive_int):
     def __init__(self, filedescriptor, archivename=None):
         super(Archive_gz, self).__init__(filedescriptor, archivename)
         self._filesize = None
-        if sys.version_info > (3,):
-            # --
-            # Python 3 gzip.open handles both filename and file object
-            # --
-            self._handle = gzip.open(filedescriptor)
-            if isinstance(filedescriptor,(str,bytes)):
-                try:
-                    self._archivename = os.path.basename(str(filedescriptor))
-                except Exception:
-                    self._archivename = "generic.gz"
-            else:
-                if self._archivename is None:
-                    # if there is not archive name defined yet
-                    try:
-                        # eventually it is possible to get the filename from
-                        # the GzipFile object
-                        self._archivename = os.path.basename(self._handle.name)
-                        if not self._archivename:
-                            # If input is io.BytesIO then the name attribute
-                            # stores an empty string, set generic
-                            self._archivename = "generic.gz"
-                    except Exception:
-                        # any error, set generic
-                        self._archivename = "generic.gz"
-        else:
+        # --
+        # Python 3 gzip.open handles both filename and file object
+        # --
+        self._handle = gzip.open(filedescriptor)
+        if isinstance(filedescriptor,(str,bytes)):
             try:
-                # --
-                # Python 2 gzip.open expects a filename
-                # --
-                self._handle = gzip.open(filedescriptor)
-                # Python 2
-                if self._archivename is None:
-                    try:
-                        self._archivename = os.path.basename(str(filedescriptor))
-                    except Exception:
+                self._archivename = os.path.basename(str(filedescriptor))
+            except Exception:
+                self._archivename = "generic.gz"
+        else:
+            if self._archivename is None:
+                # if there is not archive name defined yet
+                try:
+                    # eventually it is possible to get the filename from
+                    # the GzipFile object
+                    self._archivename = os.path.basename(self._handle.name)
+                    if not self._archivename:
+                        # If input is io.BytesIO then the name attribute
+                        # stores an empty string, set generic
                         self._archivename = "generic.gz"
-
-            except TypeError as e:
-                # --
-                # Python 2 if input is a file object
-                # --
-
-                # if input is not a filename there's a type error
-                self._handle = gzip.GzipFile(fileobj=filedescriptor,mode='rb')
-                if self._archivename is None:
-                    # if there is not archive name defined yet
-                    try:
-                        # eventually it is possible to get the filename from
-                        # the GzipFile object
-                        self._archivename = os.path.basename(self._handle.name)
-                        if not self._archivename:
-                            # If input is io.BytesIO then the name attribute
-                            # stores an empty string, set generic
-                            self._archivename = "generic.gz"
-                    except Exception:
-                        # any error, set generic
-                        self._archivename = "generic.gz"
+                except Exception:
+                    # any error, set generic
+                    self._archivename = "generic.gz"
 
     def namelist(self):
         """ Get archive file list

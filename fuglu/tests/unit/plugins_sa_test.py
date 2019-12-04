@@ -1,21 +1,8 @@
+# -*- coding: UTF-8 -*-
 from unittestsetup import TESTDATADIR
-
 import unittest
-import tempfile
-import os
-
-try:
-    from unittest.mock import patch
-    from unittest.mock import MagicMock
-except ImportError:
-    from mock import patch
-    from mock import MagicMock
-
-try:
-    from configparser import RawConfigParser
-except ImportError:
-    from ConfigParser import RawConfigParser
-
+from unittest.mock import MagicMock
+from configparser import RawConfigParser
 from fuglu.plugins.sa import SAPlugin
 from fuglu.shared import Suspect, DUNNO
 from email.message import Message

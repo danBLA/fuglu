@@ -17,10 +17,7 @@
 #
 
 import mimetypes
-import threading
-from email.header import decode_header
 import email
-import sys
 import logging
 import weakref
 import hashlib
@@ -630,10 +627,7 @@ class Mailattachment(Cachelimits):
             (str): string with object information
 
         """
-        if sys.version_info > (3,):
-            element_of = u" \u2208 "
-        else:
-            element_of = u" IS_IN "
+        element_of = u" \u2208 "
         return u"""
 Filename     : %s        
 Size (bytes) : %s    
@@ -668,13 +662,6 @@ class Mailattachment_mgr(object):
         myclass = self.__class__.__name__
         loggername = "fuglu.%s" % myclass
         self.logger = logging.getLogger(loggername)
-
-        try:
-            # Python 2
-            maxinteger = sys.maxint
-        except AttributeError:
-            # Python 3
-            maxinteger = sys.maxsize
 
         # to limit the size of the attachment cache
         self._current_att_cache = 0

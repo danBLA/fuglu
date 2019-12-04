@@ -2,8 +2,11 @@
 import glob
 import os
 import sys
-
 from setuptools import find_packages, setup
+
+if sys.version_info < (3,6):
+    print('Python >= 3.6 required. Python %s.%s found' % (sys.version_info[0], sys.version_info[1]))
+    sys.exit(1)
 
 sys.path.insert(0, 'src')
 FUGLU_VERSION = __import__('fuglu').get_version()

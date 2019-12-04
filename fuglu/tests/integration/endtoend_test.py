@@ -8,28 +8,17 @@ import time
 import smtplib
 import mock
 import re
+import logging
+import sys
 from email.mime.text import MIMEText
-
-try:
-    from configparser import RawConfigParser
-except ImportError:
-    from ConfigParser import RawConfigParser
-
-try:
-    from cStringIO import StringIO
-except ImportError:
-    from io import StringIO
-
-try:
-    from subprocess import getstatusoutput
-except ImportError:
-    from commands import getstatusoutput
-
+from configparser import RawConfigParser
+from io import StringIO
+from subprocess import getstatusoutput
 import fuglu
 from fuglu.lib.patcheddkimlib import verify, sign
 from fuglu.core import MainController
 from fuglu.scansession import SessionHandler
-from fuglu.stringencode import force_uString,force_bString, sendmail_address
+from fuglu.stringencode import force_uString, force_bString
 from fuglu.connectors.smtpconnector import FUSMTPClient
 
 
@@ -248,8 +237,8 @@ class ReinjectErrorTestCase(unittest.TestCase):
         self.smtp.response_message = '5.4.0 Error: too many hops'
 
         try:
-            smtpclient.sendmail(sendmail_address(env_sender),
-                                sendmail_address(env_recipients),
+            smtpclient.sendmail(force_uString(env_sender),
+                                force_uString(env_recipients),
                                 force_bString(msgstring))
         except smtplib.SMTPDataError as e:
             self.assertEqual(self.smtp.response_code, e.smtp_code)
@@ -341,8 +330,8 @@ class ReinjectTmpErrorTestCase(unittest.TestCase):
         self.smtp.response_message = '4.5.1 Internal error'
 
         try:
-            smtpclient.sendmail(sendmail_address(env_sender),
-                                sendmail_address(env_recipients),
+            smtpclient.sendmail(force_uString(env_sender),
+                                force_uString(env_recipients),
                                 force_bString(msgstring))
         except smtplib.SMTPDataError as e:
             self.assertEqual(self.smtp.response_code, e.smtp_code)
@@ -483,9 +472,6 @@ class EndtoEndBaseTestCase(unittest.TestCase):
         # give fuglu time to start listener
         time.sleep(1)
 
-        import logging
-        import sys
-
         root = logging.getLogger()
         root.setLevel(logging.DEBUG)
         ch = logging.StreamHandler(sys.stdout)
@@ -502,21 +488,7 @@ class EndtoEndBaseTestCase(unittest.TestCase):
 
         self.assertEqual(250, code)
         print("%s"%msg)
-        if (3,) <= sys.version_info < (3, 5):
-            smtpclient.close()
-            # NO SMTPUTF8 provided in smtpconnector for python >=3 and python < 3.5
-            try:
-                self.assertNotIn("SMTPUTF8", msg, "SMTPUTF8 should NOT be provided for your Python version")
-            except AttributeError:
-                self.assertTrue("SMTPUTF8" not in msg)
-            print("WARNING: Test \"test_SMTPUTF8_E2E\" skipped!")
-            return
-        else:
-            try:
-                self.assertIn("SMTPUTF8", msg)
-            except AttributeError:
-                self.assertTrue("SMTPUTF8" in msg)
-
+        self.assertIn("SMTPUTF8", msg)
 
         testunicodemessage = u"""Hello Wörld!\r
 Don't där yü tschänsch äny of mai baits or iwen remüv ön!"""
@@ -531,8 +503,8 @@ Don't där yü tschänsch äny of mai baits or iwen remüv ön!"""
         # envelope sender/recipients
         env_sender = u'sänder@fuglu.org'
         env_recipients = [u'röcipient@fuglu.org', u'récipiènt2@fuglu.org']
-        smtpclient.sendmail(sendmail_address(env_sender),
-                            sendmail_address(env_recipients),
+        smtpclient.sendmail(force_uString(env_sender),
+                            force_uString(env_recipients),
                             force_bString(msgstring), mail_options=["SMTPUTF8"])
         smtpclient.quit()
 

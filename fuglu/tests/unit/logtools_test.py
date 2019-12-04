@@ -1,14 +1,7 @@
+# -*- coding: UTF-8 -*-
 import unittest
 import logging
-try:
-    from cStringIO import StringIO
-except ImportError:
-    try:
-        from StringIO import StringIO
-    except ImportError:
-        from io import StringIO
-
-
+from io import StringIO
 from fuglu.logtools import LoggingContext, PrependLoggerMsg
 
 class TestPrependLogger(unittest.TestCase):

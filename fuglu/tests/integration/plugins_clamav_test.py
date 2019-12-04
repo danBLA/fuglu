@@ -1,12 +1,8 @@
+# -*- coding: UTF-8 -*-
 import integrationtestsetup
 import unittest
 from fuglu.plugins.clamav import ClamavPlugin
-
-try:
-    from configparser import RawConfigParser
-except ImportError:
-    from ConfigParser import RawConfigParser
-
+from configparser import RawConfigParser
 from fuglu.shared import Suspect, actioncode_to_string
 import os
 import email

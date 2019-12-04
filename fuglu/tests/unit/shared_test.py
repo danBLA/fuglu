@@ -10,18 +10,8 @@ import sys
 import datetime
 from fuglu.stringencode import force_uString, force_bString
 from email.header import Header
-
-try:
-    from configparser import ConfigParser
-except ImportError:
-    from ConfigParser import ConfigParser
-
-try:
-    from unittest.mock import patch
-    from unittest.mock import MagicMock
-except ImportError:
-    from mock import patch
-    from mock import MagicMock
+from configparser import ConfigParser
+from unittest.mock import patch
 
 # expected return types
 #
@@ -179,16 +169,15 @@ class SuspectTestCase(unittest.TestCase):
         """Development: check if fix is still needed!"""
 
         # see "test_message_flatten" test
-        if sys.version_info > (3,):
-            with patch('fuglu.shared.PatchedMessage', wraps=email.message.Message):
-                suspect = Suspect('sender@unittests.fuglu.org',
-                              'recipient@unittests.fuglu.org', TESTDATADIR + '/contentproblem.eml')
-                mailobj = suspect.get_message_rep()
-                with self.assertRaises(KeyError, msg="If there's no KeyError anymore change the import shared.py "
-                                                     "-> PatchedMessage is not needed for versions > (%u,%u,%u)"
-                                                     % (sys.version_info.major, sys.version_info.minor,
-                                                        sys.version_info.micro)):
-                    mailstr = mailobj.as_string()
+        with patch('fuglu.shared.PatchedMessage', wraps=email.message.Message):
+            suspect = Suspect('sender@unittests.fuglu.org',
+                          'recipient@unittests.fuglu.org', TESTDATADIR + '/contentproblem.eml')
+            mailobj = suspect.get_message_rep()
+            with self.assertRaises(KeyError, msg="If there's no KeyError anymore change the import shared.py "
+                                                 "-> PatchedMessage is not needed for versions > (%u,%u,%u)"
+                                                 % (sys.version_info.major, sys.version_info.minor,
+                                                    sys.version_info.micro)):
+                mailstr = mailobj.as_string()
 
     def test_suspect_decode_msg_header(self):
         """Test static function "decode_msg_header" of suspect"""
@@ -327,19 +316,7 @@ class SuspectTestCase(unittest.TestCase):
         print(source)
 
         found_mail_list = suspect.parse_from_type_header()
-        if sys.version_info < (3,):
-            self.assertEqual(1, len(found_mail_list))
-            modlist = []
-            for i,j in found_mail_list:
-                # remove spaces in display name because it is not consistent within Python2
-                # and therefore not suited for testing
-                i = i.replace(' ','')
-                modlist.append((i,j))
-
-            self.assertEqual([(u'sänder'.replace(' ', ''),
-                               u'sender@unittests.fuglu.org')], modlist)
-        else:
-            self.assertEqual([(u'sänder', u'sender@unittests.fuglu.org')], found_mail_list)
+        self.assertEqual([(u'sänder', u'sender@unittests.fuglu.org')], found_mail_list)
 
     def test_unicode_to_noencoding(self):
         """Test parsing of to header with unicode in display name but no encoding"""
@@ -1023,21 +1000,9 @@ class StaticFunctionTests(unittest.TestCase):
 
     @staticmethod
     def old_add_header_use_python_mail(content, header_name, header_value):
-        try:
-            # Py3
-            msgrep = email.message_from_bytes(content)
-        except AttributeError:
-            # Py2 doesn not have method 'message_from_bytes'
-            msgrep = email.message_from_string(content)
-
+        msgrep = email.message_from_bytes(content)
         msgrep.add_header(header_name, header_value)
-        try:
-            # Py3
-            msg = msgrep.as_bytes()
-        except AttributeError:
-            # Py2 doesn not have method 'as_bytes'
-            # use 'force_bString' here so output is consistently bytes Py2/3
-            msg = force_bString(msgrep.as_string())
+        msg = msgrep.as_bytes()
         return msg
 
     def test_prepend_ascii_header_to_source(self):
@@ -1066,13 +1031,8 @@ class StaticFunctionTests(unittest.TestCase):
         source1 = Suspect.prepend_header_to_source("fancy-test-header", u"Fänsi Välju", msg_bstring)
         source2 = StaticFunctionTests.old_add_header_use_python_mail(msg_bstring, "fancy-test-header", u"Fänsi Välju")
 
-        try:
-            self.assertIn(expected, source1)
-            self.assertIn(expected, source2)
-        except AttributeError:
-            # python 2.6
-            self.assertTrue(expected in source1)
-            self.assertTrue(expected in source2)
+        self.assertIn(expected, source1)
+        self.assertIn(expected, source2)
 
         print(source1[:20])
         print(source2[:20])
@@ -1089,27 +1049,10 @@ class StaticFunctionTests(unittest.TestCase):
         expected = b'fancy-test-header: Fancy Value'
 
         source1 = Suspect.prepend_header_to_source("fancy-test-header", u"Fancy Value", msg_bstring)
-        try:
-            self.assertIn(expected, source1)
-        except AttributeError:
-            # python 2.6
-            self.assertTrue(expected in source1)
-
-        # it is
-        if sys.version_info > (3,):
-            with self.assertRaises(UnicodeEncodeError, msg="Test can be changed if newer Python "
-                                                           "version don't create an exception anymore"):
-                source2 = StaticFunctionTests.old_add_header_use_python_mail(msg_bstring,
-                                                                             "fancy-test-header",
-                                                                             u"Fancy Value")
-        else:
-            # no problem with Py2
+        self.assertIn(expected, source1)
+        with self.assertRaises(UnicodeEncodeError, msg="Test can be changed if newer Python "
+                                                       "version don't create an exception anymore"):
             source2 = StaticFunctionTests.old_add_header_use_python_mail(msg_bstring,
                                                                          "fancy-test-header",
                                                                          u"Fancy Value")
-            try:
-                self.assertIn(expected, source2)
-            except AttributeError:
-                # python 2.6
-                self.assertTrue(expected in source2)
 

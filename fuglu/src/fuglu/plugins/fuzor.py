@@ -17,21 +17,12 @@
 #
 import hashlib
 import re
-import sys
 import logging
 import socket
-try:
-    from email import message_from_bytes
-except:
-    from email import message_from_string as message_from_bytes
-
+from email import message_from_bytes
 from fuglu.shared import ScannerPlugin, AppenderPlugin, SuspectFilter, DUNNO
 from fuglu.extensions.redisext import RedisKeepAlive, redis, ENABLED as REDIS_ENABLED
-if sys.version_info > (3,):
-    from fuglu.lib.patchedemail import PatchedMessage
-else:
-    from email.message import Message as PatchedMessage
-
+from fuglu.lib.patchedemail import PatchedMessage
 
 
 class FuzorMixin(object):
@@ -114,18 +105,16 @@ class FuzorMixin(object):
                 print("Redis version found %s" % ".".join([str(i) for i in redisversion]))
             except Exception:
                 print("Could not extract package version.")
-                if sys.version_info > (3,):
-                    print("Make sure you have minimum %s installed" % ".".join([str(i) for i in py3minversion]))
+                print("Make sure you have minimum %s installed" % ".".join([str(i) for i in py3minversion]))
             else:
-                if sys.version_info > (3,):
-                    for min, avail in zip(py3minversion, redisversion):
-                        if avail < min:
-                            ok = False
-                        elif avail > min:
-                            ok = True
-                            break
-                    if not ok:
-                        print("Please update. Minimum version %s" % ".".join([str(i) for i in py3minversion]))
+                for minv, avail in zip(py3minversion, redisversion):
+                    if avail < minv:
+                        ok = False
+                    elif avail > minv:
+                        ok = True
+                        break
+                if not ok:
+                    print("Please update. Minimum version %s" % ".".join([str(i) for i in py3minversion]))
 
         if self.config.getboolean(self.section, 'stripoversize'):
             maxsize = self.config.getint(self.section, 'maxsize')
@@ -501,6 +490,7 @@ class RedisBackend(object):
 
 if __name__ == '__main__':
     import email
+    import sys
     mymsg = email.message_from_file(sys.stdin)
     mydigest = FuzorDigest(mymsg)
     print("Pre-digest: %s" % mydigest.predigest)
