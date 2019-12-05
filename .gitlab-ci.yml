@@ -65,7 +65,7 @@ pages:
     - milter
 
 
-# deploy to local registry is the environment variable
+# deploy to local registry if the environment variable
 # DEPLOY_ENV is set
 docker_deploy:
   image: docker:19.03.1
