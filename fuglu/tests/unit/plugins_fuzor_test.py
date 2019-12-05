@@ -149,7 +149,7 @@ class FuzorRedisTest(unittest.TestCase):
 
         configfile =b"""
 [FuzorCheck]
-redis=tmpRedisDB:6379:1
+redis=redis:6379:1
 ttl=10
 timeout=1
 headername=X-FuZor

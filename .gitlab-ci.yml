@@ -1,8 +1,7 @@
-image: danbla/fuglutestenv
+image: alpine
 
 services:
    - name: redis:latest
-     alias: tmpRedisDB
 
 stages:
   - build
@@ -10,6 +9,12 @@ stages:
   - test
   - documentation
   - deploy
+
+variables:
+  DOCKER_TLS_CERTDIR: "/certs"
+  CONTAINER_TEST_IMAGE: $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG
+  CONTAINER_TEST_IMAGE_SHA: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
+  CONTAINER_RELEASE_IMAGE: $CI_REGISTRY_IMAGE:latest
 
 unittests:
   stage: test
@@ -26,24 +31,10 @@ isolated:
 integrationtests:
   stage: test
   script:
-    - /usr/local/bin/start-services.sh
     - cd fuglu
     - nosetests-3.6 --rednose tests/integration
 
-
-# define RSYNC_TARGET in gitlab -> project fuglu -> settings -> variables
-
-buildfuglu:
-  stage: build
-  script:
-    - cd fuglu
-    - python3 setup.py build_py -d /tmp/build install --force
-    - rename '.dist' '' /etc/fuglu/*.dist
-    - mkdir -p /var/log/fuglu
-    - chown nobody /var/log/fuglu
-
 pages:
-  image: alpine
   stage: documentation
   script:
     - mkdir public
@@ -73,13 +64,53 @@ docker_deploy:
     - docker:19.03.1-dind
   stage: deploy
 
-  variables:
-    DOCKER_TLS_CERTDIR: "/certs"
-    CONTAINER_TEST_IMAGE: $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG
-    CONTAINER_TEST_IMAGE_SHA: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
-    CONTAINER_RELEASE_IMAGE: $CI_REGISTRY_IMAGE:latest
   script:
     - 'echo "DEPLOY_ENV: $DEPLOY_ENV"'
     - 'echo "CI_COMMIT_REF_SLUG: $CI_COMMIT_REF_SLUG"'
     - 'echo "CI_COMMIT_SHA: $CI_COMMIT_SHA"'
     - sh $PWD/.gitlab-ci-deploy.sh
+
+docker_fuglu:
+  image: docker:19.03.1
+  services:
+    - docker:19.03.1-dind
+  stage: build
+
+  script:
+    - 'echo "Building fuglu image"'
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker pull $CONTAINER_TEST_IMAGE || docker pull $CONTAINER_RELEASE_IMAGE || true
+    - docker build --cache-from $CONTAINER_TEST_IMAGE --cache-from $CONTAINER_RELEASE_IMAGE -t $CONTAINER_TEST_IMAGE_SHA -f docker/fuglu-testenv-contained/Dockerfile.alpine .
+    - 'echo "Image info:"'
+    - docker image ls | grep -w $CONTAINER_REGISTRY_IMAGE_SHA
+    - docker push $CONTAINER_REGISTRY_IMAGE_SHA
+
+docker_spamd:
+  image: docker:19.03.1
+  services:
+    - docker:19.03.1-dind
+  stage: build
+
+  script:
+    - 'echo "Building spamd image"'
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker pull $CI_REGISTRY_IMAGE:spamd || true
+    - docker build --cache-from $CI_REGISTRY_IMAGE:spamd -t $CI_REGISTRY_IMAGE:spamd -f docker/spamd/Dockerfile docker/spamd/.
+    - 'echo "Image info:"'
+    - docker image ls | grep -w $CONTAINER_REGISTRY_IMAGE:spamd
+    - docker push $CONTAINER_REGISTRY_IMAGE:spamd
+
+docker_clamd:
+  image: docker:19.03.1
+  services:
+    - docker:19.03.1-dind
+  stage: build
+
+  script:
+    - 'echo "Building clamd image"'
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker pull $CI_REGISTRY_IMAGE:clamd || true
+    - docker build --cache-from $CI_REGISTRY_IMAGE:clamd -t $CI_REGISTRY_IMAGE:spamd -f docker/clamd/Dockerfile docker/clamd/.
+    - 'echo "Image info:"'
+    - docker image ls | grep -w $CONTAINER_REGISTRY_IMAGE:clamd
+    - docker push $CONTAINER_REGISTRY_IMAGE:clamd

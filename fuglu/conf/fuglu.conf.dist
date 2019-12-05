@@ -300,7 +300,7 @@ enabledarchivetypes=
 [ClamavPlugin]
 
 #hostname where clamd runs
-host=localhost
+host=clamd
 
 #tcp port number or path to clamd.sock for unix domain sockets
 #example /var/lib/clamav/clamd.sock or on ubuntu: /var/run/clamav/clamd.ctl 

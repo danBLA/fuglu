@@ -17,7 +17,7 @@ class SAPluginTestCase(unittest.TestCase):
         config.set('main', 'prependaddedheaders', 'X-Fuglu-')
 
         config.add_section('SAPlugin')
-        config.set('SAPlugin', 'host', '127.0.0.1')
+        config.set('SAPlugin', 'host', 'spamd')
         config.set('SAPlugin', 'port', '783')
         config.set('SAPlugin', 'timeout', '5')
         config.set('SAPlugin', 'retries', '3')

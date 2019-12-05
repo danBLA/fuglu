@@ -3,7 +3,7 @@ FROM python:alpine as fuglu-testenv-py3
 ENV PYTHONPATH=/fuglu
 WORKDIR /fuglu
 
-RUN apk add automake autoconf libtool gcc make musl-dev libffi libffi-dev g++ unrar libxml2 libxml2-dev libxslt libxslt-dev libmagic
+RUN apk add automake autoconf libtool gcc make musl-dev libffi libffi-dev g++ unrar libxml2 libxml2-dev libxslt libxslt-dev libmagic openssl
 RUN BUILD_LIB=1 pip install ssdeep
 
 #--
@@ -26,7 +26,7 @@ RUN BUILD_LIB=1 pip install ssdeep
 #---
 
 RUN pip install --upgrade pip setuptools wheel
-RUN pip install rarfile rednose sqlalchemy python-magic pyspf py3dns mock ssdeep redis geoip2 beautifulsoup4 lxml pysrs pylzma
+RUN pip install rarfile rednose sqlalchemy python-magic pyspf py3dns mock ssdeep redis geoip2 beautifulsoup4 lxml pysrs pylzma nose
 
 # - Install current domainmagic version from master branch
 # - Install python3 branch of libmilter
