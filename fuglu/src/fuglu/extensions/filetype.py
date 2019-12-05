@@ -110,7 +110,7 @@ class Typemagic_MIME_pythonmagic(MIME_types_base):
 
     def get_buffertype(self,buffercontent):
         btype = magic.from_buffer(buffercontent, mime=True)
-        if isinstance(btype, bytes) and sys.version_info > (3,):
+        if isinstance(btype, bytes):
             btype = btype.decode('UTF-8', 'ignore')
         return btype
 

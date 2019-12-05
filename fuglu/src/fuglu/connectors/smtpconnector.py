@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 #   Copyright 2009-2019 Oli Schacher, Fumail Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,12 +20,11 @@ import socket
 import tempfile
 import os
 import re
-import sys
 
 from fuglu.shared import Suspect, apply_template
 from fuglu.protocolbase import ProtocolHandler, BasicTCPServer
 from email.header import Header
-from fuglu.stringencode import force_bString, force_uString, sendmail_address
+from fuglu.stringencode import force_bString, force_uString
 
 
 def buildmsgsource(suspect):
@@ -115,8 +115,8 @@ class SMTPHandler(ProtocolHandler):
                 client.helo(helo)
 
             # for sending, make sure the string to sent is byte string
-            client.sendmail(sendmail_address(suspect.from_address),
-                            sendmail_address(suspect.recipients),
+            client.sendmail(force_uString(suspect.from_address),
+                            force_uString(suspect.recipients),
                             force_bString(msgcontent),
                             mail_options=mail_options)
             # if we did not get an exception so far, we can grab the server answer using the patched client
@@ -235,10 +235,7 @@ class SMTPSession(object):
         self.tempfilename = None
         self.tempfile = None
         self.smtpoptions = set()
-        if (3,) <= sys.version_info < (3, 5):
-            self.ehlo_options = ["8BITMIME"]
-        else:
-            self.ehlo_options = ["SMTPUTF8", "8BITMIME"]
+        self.ehlo_options = ["SMTPUTF8", "8BITMIME"]
 
     
     def endsession(self, code, message):

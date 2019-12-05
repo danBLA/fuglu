@@ -2,13 +2,7 @@
 from integrationtestsetup import TESTDATADIR, CONFDIR, DummySMTPServer
 
 import unittest
-
-try:
-    from configparser import RawConfigParser
-except ImportError:
-    from ConfigParser import RawConfigParser
-
-
+from configparser import RawConfigParser
 import logging
 import sys
 import time
@@ -17,6 +11,7 @@ import threading
 from fuglu.core import MainController
 from email.mime.text import MIMEText
 from nose.tools import timed
+
 
 def setup_module():
     loglevel = logging.DEBUG

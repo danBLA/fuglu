@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 #
-from fuglu.shared import AVScannerPlugin, DUNNO, DEFER, string_to_actioncode, apply_template
+from fuglu.shared import AVScannerPlugin, DUNNO
 import socket
 import struct
 import re
@@ -273,10 +273,7 @@ Tags:
 if __name__ == '__main__':
     import logging
     logging.basicConfig(level=logging.DEBUG)
-    try:
-        from configparser import RawConfigParser
-    except ImportError:
-        from ConfigParser import RawConfigParser
+    from configparser import RawConfigParser
     config = RawConfigParser()
     sec = 'dev'
     config.add_section(sec)

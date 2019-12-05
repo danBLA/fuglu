@@ -1,12 +1,9 @@
+# -*- coding: UTF-8 -*-
 import unittest
 import unittestsetup
-
 from fuglu.shared import Suspect, DUNNO, REJECT
 from fuglu.plugins.domainauth import SPFPlugin, SpearPhishPlugin, SenderRewriteScheme, SRS_AVAILABLE
-try:
-    from configparser import RawConfigParser
-except ImportError:
-    from ConfigParser import RawConfigParser
+from configparser import RawConfigParser
 import tempfile
 import os
 
@@ -21,7 +18,14 @@ class SPFTestCase(unittest.TestCase):
         return s
 
     def setUp(self):
-        self.candidate = SPFPlugin(None)
+        config = RawConfigParser()
+        config.add_section('SPFPlugin')
+        config.set('SPFPlugin', 'max_lookups', '10')
+        config.set('SPFPlugin', 'skiplist', '')
+        config.set('SPFPlugin', 'temperror_retries', '10')
+        config.set('SPFPlugin', 'temperror_sleep', '10')
+        
+        self.candidate = SPFPlugin(config)
 
     def tearDown(self):
         pass

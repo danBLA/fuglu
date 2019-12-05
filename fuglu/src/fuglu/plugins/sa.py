@@ -23,12 +23,7 @@ import socket
 import email
 import re
 import os
-import sys
-if sys.version_info > (3,):
-    from fuglu.lib.patchedemail import PatchedMessage, PatchedMIMEMultipart
-else:
-    from email.message import Message as PatchedMessage
-    from email.mime.multipart import MIMEMultipart as PatchedMIMEMultipart
+from fuglu.lib.patchedemail import PatchedMessage
 
 
 GTUBE = """Date: Mon, 08 Sep 2008 17:33:54 +0200
@@ -364,13 +359,13 @@ Tags:
             self.logger.debug('%s Skipping SA Plugin (requested by previous plugin)' % suspect.id)
             suspect.set_tag('SAPlugin.skipreason', 'requested by previous plugin')
             return DUNNO
-
+        
         runtimeconfig = DBConfig(self.config, suspect)
-
+        
         spamsize = suspect.size
         maxsize = self.config.getint(self.section, 'maxsize')
         strip_oversize = self.config.getboolean(self.section, 'strip_oversize')
-
+        
         if spamsize > maxsize and not strip_oversize:
             self.logger.info('%s Size Skip, %s > %s' % (suspect.id, spamsize, maxsize))
             suspect.debug('Too big for spamchecks. %s > %s' % (spamsize, maxsize))
@@ -378,12 +373,12 @@ Tags:
             suspect.addheader("%sSA-SKIP" % prependheader, 'Too big for spamchecks. %s > %s' % (spamsize, maxsize))
             suspect.set_tag('SAPlugin.skipreason', 'size skip')
             return self.check_sql_blacklist(suspect)
-
+        
         if self.config.getboolean(self.section, 'scanoriginal'):
             content = suspect.get_original_source()
         else:
             content = suspect.get_source()
-
+        
         stripped = False
         if spamsize > maxsize:
             stripped = True
@@ -394,7 +389,7 @@ Tags:
             self.logger.info('%s stripped attachments, body size reduced from %s to %s bytes' % (suspect.id, len(content_orig), len(content)))
         # stick to bytes
         content = force_bString(content)
-
+        
         # prepend temporary headers set by other plugins
         tempheader = suspect.get_tag('SAPlugin.tempheader')
         if tempheader is not None:
@@ -403,7 +398,12 @@ Tags:
             tempheader = tempheader.strip()
             if tempheader != '':
                 content = force_bString(tempheader + '\r\n') + content
-
+        
+        # add envelope sender information
+        msgrep = suspect.get_message_rep()
+        if not 'Return-Path' in msgrep.keys():
+            content = force_bString('Return-Path: %s' % suspect.from_address + '\r\n') + content
+        
         forwardoriginal = self.config.getboolean(self.section, 'forwardoriginal')
         if forwardoriginal:
             ret = self.safilter_report(content, suspect.to_address)
@@ -415,7 +415,7 @@ Tags:
                 return self._problemcode()
             isspam, spamscore, report = ret
             suspect.tags['SAPlugin.report'] = report
-
+        
         else:
             filtered = self.safilter(content, suspect.to_address)
             if filtered is None:
@@ -427,16 +427,10 @@ Tags:
             else:
                 if stripped:
                     # create msgrep of filtered msg
-                    if sys.version_info > (3,):
-                        # Python 3 and larger
-                        # the basic "str" type is unicode
-                        if isinstance(content,str):
-                            msgrep_filtered = email.message_from_string(filtered, _class=PatchedMessage)
-                        else:
-                            msgrep_filtered = email.message_from_bytes(filtered, _class=PatchedMessage)
-                    else:
-                        # Python 2.x
+                    if isinstance(content,str):
                         msgrep_filtered = email.message_from_string(filtered, _class=PatchedMessage)
+                    else:
+                        msgrep_filtered = email.message_from_bytes(filtered, _class=PatchedMessage)
                     header_new = []
                     for h,v in msgrep_filtered.items():
                         header_new.append(force_uString(h).strip() + ': ' + force_uString(v).strip())
@@ -453,17 +447,12 @@ Tags:
                     content = content_orig
                 else:
                     content = filtered
-            if sys.version_info > (3,):
-                # Python 3 and larger
-                # the basic "str" type is unicode
-                if isinstance(content,str):
-                    newmsgrep = email.message_from_string(content, _class=PatchedMessage)
-                else:
-                    newmsgrep = email.message_from_bytes(content, _class=PatchedMessage)
-            else:
-                # Python 2.x
+                    
+            if isinstance(content,str):
                 newmsgrep = email.message_from_string(content, _class=PatchedMessage)
-
+            else:
+                newmsgrep = email.message_from_bytes(content, _class=PatchedMessage)
+            
             # if original content is forwarded there's no need to reset the attachmant
             # manager. Only header have been changed.
             suspect.set_source(content,att_mgr_reset=(not forwardoriginal))
@@ -471,14 +460,14 @@ Tags:
             isspam, spamscore, report = self._extract_spamstatus(newmsgrep, spamheadername, suspect)
             suspect.tags['SAPlugin.report'] = report
             self.logger.debug('suspect %s %s %s %s' % (suspect.id, isspam, spamscore, suspect.get_tag('SAPlugin.report')))
-
+        
         action = DUNNO
         message = None
-
+        
         if isspam:
             self.logger.debug('%s Message is spam' % suspect.id)
             suspect.debug('Message is spam')
-
+            
             configaction = string_to_actioncode(
                 runtimeconfig.get(self.section, 'lowspamaction'), self.config)
             if configaction is not None:
@@ -489,7 +478,7 @@ Tags:
         else:
             self.logger.debug('%s Message is not spam' % suspect.id)
             suspect.debug('Message is not spam')
-
+        
         suspect.tags['spam']['SpamAssassin'] = isspam
         suspect.tags['highspam']['SpamAssassin'] = False
         if spamscore is not None:
@@ -864,6 +853,7 @@ class SALearn(SAPlugin):
 
 
 if __name__ == '__main__':
+    import sys
     if len(sys.argv) <= 1:
         print('need command argument')
         sys.exit(1)

@@ -22,11 +22,7 @@ from fuglu.scansession import SessionHandler
 import traceback
 from multiprocessing.reduction import ForkingPickler
 import os
-try:
-    from StringIO import StringIO
-except ImportError:
-    # Python 3
-    from io import BytesIO as StringIO
+from io import BytesIO
 from fuglu.logtools import createPIDinfo
 
 
@@ -161,7 +157,7 @@ def compress_task(sock, handler_modulename, handler_classname, port):
 
     """
     """ Pickle a socket This is required to pass the socket in multiprocessing"""
-    buf = StringIO()
+    buf = BytesIO()
     ForkingPickler(buf).dump(sock)
     pickled_socket = buf.getvalue()
 

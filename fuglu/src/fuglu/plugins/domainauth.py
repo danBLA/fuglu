@@ -20,15 +20,18 @@ requires: dkimpy (not pydkim!!)
 requires: pyspf
 requires: pydns (or alternatively dnspython if only dkim is used)
 requires: pysrs
+requires: pynacl (rare dependeny of dkimpy)
 """
 
 from fuglu.shared import ScannerPlugin, apply_template, DUNNO, FileList, string_to_actioncode, get_default_cache, extract_domain
 from fuglu.extensions.sql import get_session, SQL_EXTENSION_ENABLED
 from fuglu.extensions.dnsquery import DNSQUERY_EXTENSION_ENABLED
 from fuglu.stringencode import force_bString
+from fuglu.logtools import PrependLoggerMsg
 import logging
 import os
 import re
+import time
 
 DKIMPY_AVAILABLE = False
 PYSPF_AVAILABLE = False
@@ -139,10 +142,14 @@ It is currently recommended to leave both header and body canonicalization as 'r
 
     def __init__(self, config, section=None):
         ScannerPlugin.__init__(self, config, section)
-        self.requiredvars = {
-        
-        }
         self.logger = self._logger()
+        self.skiplist = FileList(filename=None, strip=True, skip_empty=True, skip_comments=True, lowercase=True)
+        self.requiredvars = {
+            'skiplist': {
+                'default': '',
+                'description': 'File containing a list of domains (one per line) which are not checked'
+            },
+        }
     
     
     def __str__(self):
@@ -155,22 +162,43 @@ It is currently recommended to leave both header and body canonicalization as 'r
             suspect.set_tag('DKIMVerify.skipreason', 'dkimpy library not available')
             return DUNNO
         
+        hdr_from_domain = extract_from_domain(suspect)
+        if not hdr_from_domain:
+            self.logger.debug('%s DKIM Verification skipped, no header from address')
+            suspect.set_tag("DKIMVerify.skipreason", 'no header from address')
+            return DUNNO
+            
+        self.skiplist.filename = self.config.get(self.section, 'skiplist')
+        skiplist = self.skiplist.get_list()
+        if hdr_from_domain in skiplist:
+            self.logger.debug('%s DKIM Verification skipped, sender domain skiplisted')
+            suspect.set_tag("DKIMVerify.skipreason", 'sender domain skiplisted')
+            return DUNNO
+        
         source = suspect.get_original_source()
         if "dkim-signature" not in suspect.get_message_rep():
             suspect.set_tag('DKIMVerify.skipreason', 'not dkim signed')
             suspect.write_sa_temp_header('X-DKIMVerify', 'unsigned')
             suspect.debug("No dkim signature header found")
             return DUNNO
-        d = DKIM(source, logger=suspect.get_tag('debugfile'))
+        # use the local logger of the plugin but prepend the fuglu id
+        d = DKIM(source, logger=PrependLoggerMsg(self.logger, prepend=suspect.id, maxlevel=logging.INFO))
         
         try:
-            valid = d.verify()
-        except DKIMException as de:
-            self.logger.warning("%s: DKIM validation failed: %s" % (suspect.id, str(de)))
-            valid = False
-        
-        suspect.set_tag("DKIMVerify.sigvalid", valid)
-        suspect.write_sa_temp_header('X-DKIMVerify', 'valid' if valid else 'invalid')
+            try:
+                valid = d.verify()
+            except DKIMException as de:
+                self.logger.warning("%s: DKIM validation failed: %s" % (suspect.id, str(de)))
+                valid = False
+            suspect.set_tag("DKIMVerify.sigvalid", valid)
+            suspect.write_sa_temp_header('X-DKIMVerify', 'valid' if valid else 'invalid')
+        except NameError as ne:
+            self.logger.warning("%s: DKIM validation failed due to missing dependency: %s" % (suspect.id, str(ne)))
+            suspect.set_tag('DKIMVerify.skipreason', 'plugin error')
+        except Exception as e:
+            self.logger.warning("%s: DKIM validation failed: %s" % (suspect.id, str(e)))
+            suspect.set_tag('DKIMVerify.skipreason', 'plugin error')
+            
         return DUNNO
     
     
@@ -321,48 +349,91 @@ class SPFPlugin(ScannerPlugin):
     """**EXPERIMENTAL**
 This plugin checks the SPF status and sets tag 'SPF.status' to one of the official states 'pass', 'fail', 'neutral',
 'softfail, 'permerror', 'temperror' or 'skipped' if the SPF check could not be peformed.
-Tag 'SPF.explanation' contains a human readable explanation of the result
+Tag 'SPF.explanation' contains a human readable explanation of the result.
+Additionally information to be used by SA plugin is added
 
 The plugin does not take any action based on the SPF test result since. Other plugins might use the SPF result
 in combination with other factors to take action (for example a "DMARC" plugin could use this information)
     """
-
+    
     def __init__(self, config, section=None):
         ScannerPlugin.__init__(self, config, section)
-        self.requiredvars = {
-
-        }
         self.logger = self._logger()
-
+        self.skiplist = FileList(filename=None, strip=True, skip_empty=True, skip_comments=True, lowercase=True)
+        self.requiredvars = {
+            'max_lookups': {
+                'default': '10',
+                'description': 'maximum number of lookups (RFC defaults to 10)',
+            },
+            'skiplist': {
+                'default': '',
+                'description': 'File containing a list of domains (one per line) which are not checked'
+            },
+            'temperror_retries': {
+                'default': '3',
+                'description': 'maximum number of retries on temp error',
+            },
+            'temperror_sleep': {
+                'default': '3',
+                'description': 'waiting interval between retries on temp error',
+            },
+        }
+    
+    
     def __str__(self):
         return "SPF Check"
-
+    
+    
+    def _spf_lookup(self, ip, from_address, helo, retries=3):
+        spf.MAX_LOOKUP = self.config.getint(self.section, 'max_lookups')
+        result, explanation = spf.check2(ip, from_address, helo)
+        if result == 'temperror' and retries>0:
+            time.sleep(self.config.getint(self.section, 'temperror_sleep'))
+            retries -= 1
+            result, explanation = self._spf_lookup(ip, from_address, helo, retries)
+        return result, explanation
+    
+    
     def examine(self, suspect):
         if not PYSPF_AVAILABLE:
             suspect.debug("pyspf not available, can not check")
-            self.logger.warning(
-                "%s: SPF Check skipped, pyspf unavailable" % suspect.id)
+            self.logger.warning("%s: SPF Check skipped, pyspf unavailable" % suspect.id)
             suspect.set_tag('SPF.status', 'skipped')
             suspect.set_tag("SPF.explanation", 'missing dependency')
             return DUNNO
-
+        
+        self.skiplist.filename = self.config.get(self.section, 'skiplist')
+        checkdomains = self.skiplist.get_list()
+        if suspect.from_domain in checkdomains:
+            self.logger.debug('%s SPF Check skipped, sender domain skiplisted')
+            suspect.set_tag('SPF.status', 'skipped')
+            suspect.set_tag("SPF.explanation", 'sender domain skiplisted')
+            return DUNNO
+        
         clientinfo = suspect.get_client_info(self.config)
         if clientinfo is None:
             suspect.debug("client info not available for SPF check")
-            self.logger.warning(
-                "%s: SPF Check skipped, could not get client info" % suspect.id)
+            self.logger.warning("%s: SPF Check skipped, could not get client info" % suspect.id)
             suspect.set_tag('SPF.status', 'skipped')
-            suspect.set_tag(
-                "SPF.explanation", 'could not extract client information')
+            suspect.set_tag("SPF.explanation", 'could not extract client information')
             return DUNNO
-
+        
         helo, ip, revdns = clientinfo
-        result, explanation = spf.check2(ip, suspect.from_address, helo)
-        suspect.set_tag("SPF.status", result)
-        suspect.set_tag("SPF.explanation", explanation)
-        suspect.debug("SPF status: %s (%s)" % (result, explanation))
+        retries = self.config.getint(self.section, 'temperror_retries')
+        try:
+            result, explanation = self._spf_lookup(ip, suspect.from_address, helo, retries)
+            suspect.set_tag("SPF.status", result)
+            suspect.set_tag("SPF.explanation", explanation)
+            suspect.write_sa_temp_header('X-SPFCheck', result)
+            suspect.debug("SPF status: %s (%s)" % (result, explanation))
+        except Exception as e:
+            suspect.set_tag('SPF.status', 'skipped')
+            suspect.set_tag("SPF.explanation", str(e))
+            self.logger.warning('%s SPF check failed for %s due to %s' % (suspect.id, suspect.from_domain, str(e)))
+            
         return DUNNO
-
+    
+    
     def lint(self):
         all_ok = self.check_config()
         
@@ -378,7 +449,6 @@ in combination with other factors to take action (for example a "DMARC" plugin c
             print("Missing dependency: no supported ip address libary found: ipaddr or ipaddress")
             all_ok = False
             
-
         return all_ok
 
 
@@ -460,7 +530,7 @@ This plugin depends on tags written by SPFPlugin and DKIMVerifyPlugin, so they m
     def lint_file(self):
         filename = self.config.get(self.section, 'domainsfile')
         if not os.path.exists(filename):
-            print("domains file %s not found" % (filename))
+            print("domains file %s not found" % filename)
             return False
         return True
 

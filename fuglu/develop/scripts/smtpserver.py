@@ -1,13 +1,12 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 import sys
 import os
 import socket
-import string
 import tempfile
 from fuglu.stringencode import force_bString, force_uString
 
 
-class SMTPServer:
+class SMTPServer(object):
 
     def __init__(self, port=10029, address="127.0.0.1"):
         self.port = port
@@ -42,7 +41,7 @@ class SMTPServer:
                 print('Exception in serve(): %s' % str(e))
 
 
-class SMTPSession:
+class SMTPSession(object):
     ST_INIT = 0
     ST_HELO = 1
     ST_MAIL = 2

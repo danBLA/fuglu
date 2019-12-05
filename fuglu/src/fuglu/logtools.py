@@ -15,7 +15,6 @@
 #
 #
 #
-from __future__ import print_function
 import logging
 import logging.handlers
 import logging.config
@@ -24,10 +23,6 @@ import multiprocessing
 import signal
 import sys
 
-try:
-    FileNotFoundError
-except NameError:
-    FileNotFoundError = IOError
 
 def logFactoryProcess(listenerQueue,logQueue):
     """
@@ -364,3 +359,79 @@ def createPIDinfo():
         infoString += 'parent process: %u, ' % os.getppid()
     infoString += 'process id: %u' % os.getpid()
     return infoString
+
+
+class PrependLoggerMsg(object):
+    """Prepend something to all log messages of original logger, for example fuglu id"""
+    def __init__(self, origlogger, prepend,
+                 prependseparator=" ",
+                 maxlevel=None,
+                 minlevel=None
+                 ):
+        self._origlogger = origlogger
+        self.prepend = prepend
+        self.prependseparator = prependseparator
+        assert minlevel in [logging.DEBUG, logging.WARNING, logging.INFO, logging.ERROR, None]
+        assert maxlevel in [logging.DEBUG, logging.WARNING, logging.INFO, logging.ERROR, None]
+        minlevel = minlevel if minlevel is not None else -1000
+        maxlevel = maxlevel if maxlevel is not None else 1000
+
+        self.debuglevel = max(min(logging.DEBUG, maxlevel), minlevel)
+        self.infolevel= max(min(logging.INFO, maxlevel), minlevel)
+        self.warninglevel= max(min(logging.WARNING, maxlevel), minlevel)
+        self.errorlevel= max(min(logging.ERROR, maxlevel), minlevel)
+        self.criticallevel= max(min(logging.CRITICAL, maxlevel), minlevel)
+
+        self.origroutines = {
+            logging.DEBUG: self._origlogger.debug,
+            logging.INFO: self._origlogger.info,
+            logging.WARNING: self._origlogger.warning,
+            logging.ERROR: self._origlogger.error,
+            logging.CRITICAL: self._origlogger.critical
+        }
+
+    def debug(self, msg, *args, **kwargs):
+        self.origroutines[self.debuglevel]("%s%s%s" % (self.prepend, self.prependseparator, msg), *args, **kwargs)
+
+    def info(self, msg, *args, **kwargs):
+        self.origroutines[self.infolevel]("%s%s%s" % (self.prepend, self.prependseparator, msg), *args, **kwargs)
+
+    def warning(self, msg, *args, **kwargs):
+        self.origroutines[self.warninglevel]("%s%s%s" % (self.prepend, self.prependseparator, msg), *args, **kwargs)
+
+    def error(self, msg, *args, **kwargs):
+        self.origroutines[self.errorlevel]("%s%s%s" % (self.prepend, self.prependseparator, msg), *args, **kwargs)
+
+    def critical(self, msg, *args, **kwargs):
+        self.origroutines[self.criticallevel]("%s%s%s" % (self.prepend, self.prependseparator, msg), *args, **kwargs)
+
+    def exception(self, msg, *args, **kwargs):
+        self._origlogger.exception("%s%s%s" % (self.prepend, self.prependseparator, msg), *args, **kwargs)
+
+    def __getattr__(self, attr):
+        """if attribute doesn't exist __getattr__ is called, redirect to wrapped logger"""
+        return getattr(self._origlogger, attr)
+
+
+class LoggingContext(object):     
+    """to be used for 'with'-statements to temporarily change a logger"""
+    def __init__(self, logger, level=None, handler=None, close=True):     
+        self.logger = logger     
+        self.level = level     
+        self.handler = handler     
+        self.close = close     
+    
+    def __enter__(self):     
+        if self.level is not None:     
+            self.old_level = self.logger.level     
+            self.logger.setLevel(self.level)     
+        if self.handler:     
+            self.logger.addHandler(self.handler)     
+    
+    def __exit__(self, et, ev, tb):     
+        if self.level is not None:     
+            self.logger.setLevel(self.old_level)     
+        if self.handler:     
+            self.logger.removeHandler(self.handler)     
+        if self.handler and self.close:     
+            self.handler.close()

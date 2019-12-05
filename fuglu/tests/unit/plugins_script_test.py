@@ -1,7 +1,9 @@
+# -*- coding: UTF-8 -*-
 import unittest
 from fuglu.plugins.script import ScriptFilter
 import os
-from fuglu.shared import ScannerPlugin, DELETE, DUNNO, DEFER, REJECT, Suspect, string_to_actioncode, apply_template
+from fuglu.shared import DUNNO, REJECT, Suspect
+from configparser import RawConfigParser
 
 
 class ScriptfilterTestCase(unittest.TestCase):
@@ -9,10 +11,6 @@ class ScriptfilterTestCase(unittest.TestCase):
     """Testcases for the Stub Plugin"""
 
     def setUp(self):
-        try:
-            from configparser import RawConfigParser
-        except ImportError:
-            from ConfigParser import RawConfigParser
         config = RawConfigParser()
 
         config.add_section('ScriptFilter')

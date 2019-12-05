@@ -15,21 +15,9 @@
 #
 # Fuglu SQLAlchemy Extension
 #
-try:
-    from configparser import RawConfigParser
-except ImportError:
-    from ConfigParser import RawConfigParser
-
-try:
-    from cStringIO import StringIO
-except ImportError:
-    try:
-        from StringIO import StringIO
-    except ImportError:
-        from io import StringIO
-
+from configparser import RawConfigParser
+from io import StringIO
 import logging
-import sys
 import traceback
 import weakref
 from fuglu.shared import default_template_values
@@ -126,10 +114,7 @@ class DBConfig(RawConfigParser):
         config.write(stringout)
         stringin = StringIO(stringout.getvalue())
         del stringout
-        if sys.version_info < (3, 2):
-            self.readfp(stringin)
-        else:
-            self.read_file(stringin)
+        self.read_file(stringin)
         del stringin
 
     def get(self, section, option, **kwargs):
@@ -170,7 +155,4 @@ class DBConfig(RawConfigParser):
             return result[0]
 
     def parentget(self, section, option, **kwargs):
-        if sys.version_info < (3, 2):
-            return RawConfigParser.get(self, section, option)
-        else:
-            return RawConfigParser.get(self, section, option, **kwargs)
+        return RawConfigParser.get(self, section, option, **kwargs)

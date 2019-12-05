@@ -21,11 +21,7 @@ from fuglu.protocolbase import compress_task, uncompress_task
 from fuglu.scansession import SessionHandler
 from fuglu.stats import Statskeeper, StatDelta
 from fuglu.addrcheck import Addrcheck
-try:
-    from queue import Empty as EmptyQueue
-except ImportError:
-    from Queue import Empty as EmptyQueue
-
+from queue import Empty as EmptyQueue
 import multiprocessing
 import multiprocessing.queues
 import signal

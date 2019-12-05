@@ -1,3 +1,4 @@
+# -*- coding: UTF-8 -*-
 import unittestsetup # has to be here because this is the first test and it modifys the pythonpath
 import unittest
 from fuglu.caching import smart_cached_memberfunc, smart_cached_property, Cachelimits, Cachestats

@@ -26,9 +26,8 @@ import tempfile
 import time
 import os
 import datetime
+from functools import reduce
 
-if sys.version_info > (3,):
-    from functools import reduce
 
 class TrackTimings(object):
     def __init__(self, enable=False, port=-1):

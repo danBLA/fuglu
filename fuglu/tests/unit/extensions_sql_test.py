@@ -1,12 +1,8 @@
+# -*- coding: UTF-8 -*-
 from unittestsetup import TESTDATADIR, CONFDIR
-
 import unittest
 import os
-try:
-    from configparser import RawConfigParser
-except ImportError:
-    from ConfigParser import RawConfigParser
-
+from configparser import RawConfigParser
 from fuglu.shared import Suspect
 from fuglu.extensions.sql import get_session, DBConfig
 

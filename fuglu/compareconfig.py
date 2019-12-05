@@ -1,4 +1,5 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 #   Copyright 2009-2019 Oli Schacher, Fumail Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,13 +18,9 @@
 #
 import sys
 import os
+from configparser import ConfigParser
 
 sys.path.insert(0, 'src')
-try:
-    from configparser import ConfigParser
-except ImportError:
-    from ConfigParser import ConfigParser
-
 from fuglu.funkyconsole import FunkyConsole
 
 fc = FunkyConsole()
@@ -33,14 +30,14 @@ dconfdir = '/etc/fuglu/conf.d'
 
 
 currentconfig = ConfigParser()
-currentconfig.readfp(open(fugluconfigfile))
+currentconfig.read_file(open(fugluconfigfile))
 
 # load conf.d
 if os.path.isdir(dconfdir):
     filelist = os.listdir(dconfdir)
     configfiles = [dconfdir + '/' + c for c in filelist if c.endswith('.conf')]
     readfiles = currentconfig.read(configfiles)
-    print('Read additional files: %s' % (readfiles))
+    print('Read additional files: %s' % readfiles)
 
 newconfig = ConfigParser()
 newconfig.read('conf/fuglu.conf.dist')

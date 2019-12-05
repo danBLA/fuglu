@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 #   Copyright 2009-2019 Oli Schacher, Fumail Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,6 +17,6 @@
 from fuglu.utils.version import get_version, VERSION_ALPHA, VERSION_BETA, VERSION_RC, VERSION_FINAL
 
 
-FUGLU_VERSION = (0, 10, 5, VERSION_FINAL, 0)
+FUGLU_VERSION = (0, 10, 6, VERSION_FINAL, 0)
 
 __version__ = get_version()

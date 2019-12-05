@@ -1,17 +1,15 @@
+# -*- coding: UTF-8 -*-
 import integrationtestsetup
 import unittest
 from fuglu.plugins.icap import ICAPPlugin
 from fuglu.shared import Suspect, actioncode_to_string
 import email
+from configparser import RawConfigParser
 
 
 class ICAPPluginTestCase(unittest.TestCase):
 
     def setUp(self):
-        try:
-            from configparser import RawConfigParser
-        except ImportError:
-            from ConfigParser import RawConfigParser
         config = RawConfigParser()
         config.add_section('main')
         config.add_section('virus')

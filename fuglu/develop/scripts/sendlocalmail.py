@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 import smtplib
 import sys
 smtpServer = smtplib.SMTP('127.0.0.1', 10888)

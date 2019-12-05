@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from fuglu.shared import AVScannerPlugin, string_to_actioncode, DEFER, DUNNO, actioncode_to_string, apply_template
+from fuglu.shared import AVScannerPlugin, string_to_actioncode, DUNNO, actioncode_to_string
 from fuglu.stringencode import force_bString, force_uString
 import socket
 import os

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # This software is provided 'as-is', without any express or implied
 # warranty.  In no event will the author be held liable for any damages
 # arising from the use of this software.
@@ -16,12 +17,11 @@
 #
 # Copyright (c) 2008 Greg Hewgill http://hewgill.com
 
-from __future__ import print_function
 import base64
 import hashlib
 import re
 import time
-from fuglu.stringencode import force_bString, force_uString, force_bfromc, force_cfromb
+from fuglu.stringencode import force_bString, force_bfromc, force_cfromb
 
 __all__ = [
     "Simple",

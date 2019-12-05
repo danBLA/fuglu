@@ -4,15 +4,11 @@ import unittest
 import os
 import threading
 import time
-
-try:
-    from configparser import RawConfigParser
-except ImportError:
-    from ConfigParser import RawConfigParser
-
+from configparser import RawConfigParser
 from fuglu.bounce import Bounce
 from fuglu.shared import Suspect, apply_template
 from fuglu.stringencode import force_bString
+
 
 class BounceEnd2EndTestCase(unittest.TestCase):
 

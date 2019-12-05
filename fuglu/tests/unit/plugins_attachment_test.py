@@ -1,21 +1,12 @@
+# -*- coding: UTF-8 -*-
 from unittestsetup import TESTDATADIR, CONFDIR
-
 import unittest
 import os
 import tempfile
 import shutil
-
-try:
-    from unittest.mock import patch
-    from unittest.mock import MagicMock
-except ImportError:
-    from mock import patch
-    from mock import MagicMock
-
-try:
-    from configparser import RawConfigParser
-except ImportError:
-    from ConfigParser import RawConfigParser
+from unittest.mock import patch
+from unittest.mock import MagicMock
+from configparser import RawConfigParser
 
 import fuglu
 from fuglu.plugins.attachment import FiletypePlugin, RulesCache

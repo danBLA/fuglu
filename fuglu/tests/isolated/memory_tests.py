@@ -20,6 +20,7 @@ import os
 import tempfile
 import shutil
 import gc
+from configparser import RawConfigParser
 try:
     import objgraph
     OBJGRAPH_EXTENSION_ENABLED = True
@@ -29,10 +30,6 @@ except ImportError:
 from fuglu.plugins.attachment import FiletypePlugin, RulesCache
 from fuglu.shared import Suspect, DELETE, DUNNO
 
-try:
-    from configparser import RawConfigParser
-except ImportError:
-    from ConfigParser import RawConfigParser
 
 # Note this test is in "isolated" because the global instance checks
 # objgraph.by_type('Mailattachment_mgr')

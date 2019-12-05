@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # run a plugin with a dummy suspect without a running fuglu daemon
 
 import optparse
@@ -6,33 +6,12 @@ import sys
 import logging
 import os
 import email
-
-try:
-    import configparser as ConfigParser
-except ImportError:
-    import ConfigParser
-
-try:
-    from email.message import Message
-except ImportError:
-    from email import Message
-
-try:
-    from email.header import Header
-except ImportError:
-    from email import Header
-try:
-    from email.mime.text import MIMEText
-except ImportError:
-    from email.MIMEText import MIMEText
-
-try:
-    from email.utils import formatdate
-except ImportError:
-    from email.Utils import formatdate
-
-from fuglu.shared import Suspect, ScannerPlugin, DUNNO, actioncode_to_string,\
-    AppenderPlugin, PrependerPlugin
+import configparser as ConfigParser
+from email.message import Message
+from email.header import Header
+from email.mime.text import MIMEText
+from email.utils import formatdate
+from fuglu.shared import Suspect, ScannerPlugin, DUNNO, actioncode_to_string, AppenderPlugin, PrependerPlugin
 from fuglu.core import MainController
 
 
@@ -177,10 +156,7 @@ if __name__ == '__main__':
             msgcontent = sys.stdin.read()
         else:
             msgcontent = open(opts.eml, 'rb').read()
-        if sys.version_info > (3,):
-            mailmessage = email.message_from_bytes(msgcontent)
-        else:
-            mailmessage = email.message_from_string(msgcontent)
+        mailmessage = email.message_from_bytes(msgcontent)
     else:
         if opts.body:
             if opts.body == '-':
@@ -210,11 +186,8 @@ if __name__ == '__main__':
     # create tempfile...
     tmpfile = '/tmp/fuglu_dummy_message_in.eml'
 
-    if sys.version_info > (3,):
-        # Python 3
-        open(tmpfile, 'wb').write(mailmessage.as_bytes())
-    else:
-        open(tmpfile, 'w').write(mailmessage.as_string())
+    with open(tmpfile, 'wb') as f:
+        f.write(mailmessage.as_bytes())
 
     logging.info("Input file created as %s" % tmpfile)
     suspect = Suspect(opts.sender, opts.recipients[0], tmpfile)
@@ -260,7 +233,7 @@ if __name__ == '__main__':
         else:
             result = ans
 
-        if result == None:
+        if result is None:
             result = DUNNO
 
         logging.info("Result: %s %s", actioncode_to_string(result), message)
