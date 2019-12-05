@@ -17,18 +17,30 @@ variables:
   CONTAINER_RELEASE_IMAGE: $CI_REGISTRY_IMAGE:latest
 
 unittests:
+  image: $CONTAINER_TEST_IMAGE_SHA
+  services:
+    - $CONTAINER_REGISTRY_IMAGE:clamd
+    - $CONTAINER_REGISTRY_IMAGE:spamd
   stage: test
   script:
     - cd fuglu
     - nosetests-3.6 --rednose tests/unit
 
 isolated:
+  image: $CONTAINER_TEST_IMAGE_SHA
+  services:
+    - $CONTAINER_REGISTRY_IMAGE:clamd
+    - $CONTAINER_REGISTRY_IMAGE:spamd
   stage: test_isolated
   script:
     - cd fuglu
     - nosetests-3.6 --rednose tests/isolated  --with-isolation
 
 integrationtests:
+  image: $CONTAINER_TEST_IMAGE_SHA
+  services:
+    - $CONTAINER_REGISTRY_IMAGE:clamd
+    - $CONTAINER_REGISTRY_IMAGE:spamd
   stage: test
   script:
     - cd fuglu
@@ -82,8 +94,8 @@ docker_fuglu:
     - docker pull $CONTAINER_TEST_IMAGE || docker pull $CONTAINER_RELEASE_IMAGE || true
     - docker build --cache-from $CONTAINER_TEST_IMAGE --cache-from $CONTAINER_RELEASE_IMAGE -t $CONTAINER_TEST_IMAGE_SHA -f docker/fuglu-testenv-contained/Dockerfile.alpine .
     - 'echo "Image info:"'
-    - docker image ls | grep -w $CONTAINER_REGISTRY_IMAGE_SHA
-    - docker push $CONTAINER_REGISTRY_IMAGE_SHA
+    - docker image ls | grep -w $CONTAINER_TEST_IMAGE_SHA
+    - docker push $CONTAINER_TEST_IMAGE_SHA
 
 docker_spamd:
   image: docker:19.03.1
@@ -95,7 +107,7 @@ docker_spamd:
     - 'echo "Building spamd image"'
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
     - docker pull $CI_REGISTRY_IMAGE:spamd || true
-    - docker build --cache-from $CI_REGISTRY_IMAGE:spamd -t $CI_REGISTRY_IMAGE:spamd -f docker/spamd/Dockerfile docker/spamd/.
+    - docker build --cache-from $CI_REGISTRY_IMAGE:spamd -t $CI_REGISTRY_IMAGE:spamd -f docker/spamd/Dockerfile .
     - 'echo "Image info:"'
     - docker image ls | grep -w $CONTAINER_REGISTRY_IMAGE:spamd
     - docker push $CONTAINER_REGISTRY_IMAGE:spamd
@@ -110,7 +122,7 @@ docker_clamd:
     - 'echo "Building clamd image"'
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
     - docker pull $CI_REGISTRY_IMAGE:clamd || true
-    - docker build --cache-from $CI_REGISTRY_IMAGE:clamd -t $CI_REGISTRY_IMAGE:spamd -f docker/clamd/Dockerfile docker/clamd/.
+    - docker build --cache-from $CI_REGISTRY_IMAGE:clamd -t $CI_REGISTRY_IMAGE:clamd -f docker/clamd/Dockerfile .
     - 'echo "Image info:"'
     - docker image ls | grep -w $CONTAINER_REGISTRY_IMAGE:clamd
     - docker push $CONTAINER_REGISTRY_IMAGE:clamd
