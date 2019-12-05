@@ -15,6 +15,8 @@ variables:
   CONTAINER_TEST_IMAGE: $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG
   CONTAINER_TEST_IMAGE_SHA: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
   CONTAINER_RELEASE_IMAGE: $CI_REGISTRY_IMAGE:latest
+  CONTAINER_SPAMD: $CONTAINER_REGISTRY_IMAGE:spamd
+  CONTAINER_CLAMD: $CONTAINER_REGISTRY_IMAGE:clamd
 
 unittests:
   image: $CONTAINER_TEST_IMAGE_SHA
@@ -105,10 +107,10 @@ docker_spamd:
   script:
     - 'echo "Building spamd image"'
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
-    - docker pull $CI_REGISTRY_IMAGE:spamd || true
-    - docker build --cache-from $CI_REGISTRY_IMAGE:spamd -t $CI_REGISTRY_IMAGE:spamd -f docker/spamd/Dockerfile .
+    - docker pull $CONTAINER_SPAMD || true
+    - docker build --cache-from $CONTAINER_SPAMD -t $CONTAINER_SPAMD -f docker/spamd/Dockerfile .
     - 'echo "Image info:"'
-    - docker push $CONTAINER_REGISTRY_IMAGE:spamd
+    - docker push $CONTAINER_SPAMD
 
 docker_clamd:
   image: docker:19.03.1
@@ -119,7 +121,7 @@ docker_clamd:
   script:
     - 'echo "Building clamd image"'
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
-    - docker pull $CI_REGISTRY_IMAGE:clamd || true
-    - docker build --cache-from $CI_REGISTRY_IMAGE:clamd -t $CI_REGISTRY_IMAGE:clamd -f docker/clamd/Dockerfile .
+    - docker pull $CONTAINER_CLAMD || true
+    - docker build --cache-from $CONTAINER_CLAMD -t $CONTAINER_CLAMD -f docker/clamd/Dockerfile .
     - 'echo "Image info:"'
-    - docker push $CONTAINER_REGISTRY_IMAGE:clamd
+    - docker push $CONTAINER_CLAMD
