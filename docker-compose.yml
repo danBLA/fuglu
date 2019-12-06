@@ -6,29 +6,22 @@ services:
       context: ./.
       dockerfile: docker/clamd/Dockerfile
     image: fuglu:clamd
+
   spamd:
     build:
       context: ./.
       dockerfile: docker/spamd/Dockerfile
     image: fuglu:spamd
+
+  redis:
+    image: redis:latest
+
   fuglu:
     build:
-      context: docker/fuglu
+      context: ./.
+      dockerfile: docker/fuglu-testenv-contained/Dockerfile.alpine
     image: fuglu:fuglu
     depends_on:
       - clamd
       - spamd
-    volumes:
-      - "./docker/fuglu/conf:/etc/fuglu"
-      - "./fuglu:/fuglu"
-  fuglu2:
-    build:
-      context: docker/fuglu
-      dockerfile: Dockerfile.python2
-    image: fuglu:fuglu2
-    depends_on:
-    - clamd
-    - spamd
-    volumes:
-    - "./docker/fuglu/conf:/etc/fuglu"
-    - "./fuglu:/fuglu"
+      - redis
