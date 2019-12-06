@@ -1,13 +1,18 @@
+from typing import Optional
 from email.message import EmailMessage
 from .message import PatchedGenerator
 from io import StringIO
+from email.policy import Policy
 
 
 class PatchedMessage(EmailMessage):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def as_string(self, unixfrom=False, maxheaderlen=0, policy=None):
+    def as_string(self,
+                  unixfrom: bool = False,
+                  maxheaderlen: int = 0,
+                  policy: Optional[Policy] = None) -> str:
         """
         Return the entire formatted message as a string.
 
