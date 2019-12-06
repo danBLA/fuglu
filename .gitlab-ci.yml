@@ -21,32 +21,38 @@ variables:
 unittests:
   image: $CONTAINER_TEST_IMAGE_SHA
   services:
-    - $CONTAINER_REGISTRY_IMAGE:clamd
-    - $CONTAINER_REGISTRY_IMAGE:spamd
+    - name: $CONTAINER_REGISTRY_IMAGE:clamd
+      alias: clamd
+    - name: $CONTAINER_REGISTRY_IMAGE:spamd
+      alias: spamd
   stage: test
   script:
     - cd fuglu
-    - nosetests-3.6 --rednose tests/unit
+    - nosetests --rednose tests/unit
 
 isolated:
   image: $CONTAINER_TEST_IMAGE_SHA
   services:
-    - $CONTAINER_REGISTRY_IMAGE:clamd
-    - $CONTAINER_REGISTRY_IMAGE:spamd
+    - name: $CONTAINER_REGISTRY_IMAGE:clamd
+      alias: clamd
+    - name: $CONTAINER_REGISTRY_IMAGE:spamd
+      alias: spamd
   stage: test_isolated
   script:
     - cd fuglu
-    - nosetests-3.6 --rednose tests/isolated  --with-isolation
+    - nosetests --rednose tests/isolated  --with-isolation
 
 integrationtests:
   image: $CONTAINER_TEST_IMAGE_SHA
   services:
-    - $CONTAINER_REGISTRY_IMAGE:clamd
-    - $CONTAINER_REGISTRY_IMAGE:spamd
+    - name: $CONTAINER_REGISTRY_IMAGE:clamd
+      alias: clamd
+    - name: $CONTAINER_REGISTRY_IMAGE:spamd
+      alias: spamd
   stage: test
   script:
     - cd fuglu
-    - nosetests-3.6 --rednose tests/integration
+    - nosetests --rednose tests/integration
 
 pages:
   stage: documentation
