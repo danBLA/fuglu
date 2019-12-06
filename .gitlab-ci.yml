@@ -21,9 +21,9 @@ variables:
 unittests:
   image: $CONTAINER_TEST_IMAGE_SHA
   services:
-    - name: $CONTAINER_REGISTRY_IMAGE:clamd
+    - name: $CONTAINER_CLAMD
       alias: clamd
-    - name: $CONTAINER_REGISTRY_IMAGE:spamd
+    - name: $CONTAINER_SPAMD
       alias: spamd
   stage: test
   script:
@@ -33,9 +33,9 @@ unittests:
 isolated:
   image: $CONTAINER_TEST_IMAGE_SHA
   services:
-    - name: $CONTAINER_REGISTRY_IMAGE:clamd
+    - name: $CONTAINER_CLAMD
       alias: clamd
-    - name: $CONTAINER_REGISTRY_IMAGE:spamd
+    - name: $CONTAINER_SPAMD
       alias: spamd
   stage: test_isolated
   script:
@@ -45,9 +45,9 @@ isolated:
 integrationtests:
   image: $CONTAINER_TEST_IMAGE_SHA
   services:
-    - name: $CONTAINER_REGISTRY_IMAGE:clamd
+    - name: $CONTAINER_CLAMD
       alias: clamd
-    - name: $CONTAINER_REGISTRY_IMAGE:spamd
+    - name: $CONTAINER_SPAMD
       alias: spamd
   stage: test
   script:
