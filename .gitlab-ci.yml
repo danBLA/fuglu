@@ -1,11 +1,7 @@
 image: alpine
 
-services:
-   - name: redis:latest
-
 stages:
   - build
-  - test_isolated
   - test
   - documentation
   - deploy
@@ -25,6 +21,8 @@ unittests:
       alias: clamd
     - name: $CONTAINER_SPAMD
       alias: spamd
+    - name: redis:latest
+
   stage: test
   script:
     - cd fuglu
@@ -37,7 +35,7 @@ isolated:
       alias: clamd
     - name: $CONTAINER_SPAMD
       alias: spamd
-  stage: test_isolated
+  stage: test
   script:
     - cd fuglu
     - nosetests --rednose tests/isolated  --with-isolation
@@ -76,19 +74,33 @@ pages:
     - milter
 
 
-# deploy to local registry if the environment variable
-# DEPLOY_ENV is set
-docker_deploy:
+docker_deploy_branch:
   image: docker:19.03.1
   services:
     - docker:19.03.1-dind
   stage: deploy
 
   script:
-    - 'echo "DEPLOY_ENV: $DEPLOY_ENV"'
-    - 'echo "CI_COMMIT_REF_SLUG: $CI_COMMIT_REF_SLUG"'
-    - 'echo "CI_COMMIT_SHA: $CI_COMMIT_SHA"'
-    - sh $PWD/.gitlab-ci-deploy.sh
+    - 'echo "Building fuglu branch image: $CONTAINER_TEST_IMAGE"'
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker pull $CONTAINER_TEST_IMAGE_SHA || true
+    - docker tag $CONTAINER_TEST_IMAGE_SHA $CONTAINER_TEST_IMAGE
+    - docker push $CONTAINER_TEST_IMAGE
+
+docker_deploy_latest:
+  image: docker:19.03.1
+  services:
+    - docker:19.03.1-dind
+  stage: deploy
+
+  script:
+    - 'echo "Building fuglu latest image: $CONTAINER_RELEASE_IMAGE"'
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker pull $CONTAINER_TEST_IMAGE_SHA || true
+    - docker tag $CONTAINER_TEST_IMAGE_SHA $CONTAINER_RELEASE_IMAGE
+    - docker push $CONTAINER_RELEASE_IMAGE
+  only:
+    - master
 
 docker_fuglu:
   image: docker:19.03.1
