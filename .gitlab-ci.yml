@@ -1,48 +1,60 @@
-image: danbla/fuglutestenv
-
-services:
-   - name: redis:latest
-     alias: tmpRedisDB
+image: alpine
 
 stages:
   - build
-  - test_isolated
   - test
   - documentation
+  - deploy
+
+variables:
+  DOCKER_TLS_CERTDIR: "/certs"
+  CONTAINER_TEST_IMAGE: $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG
+  CONTAINER_TEST_IMAGE_SHA: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
+  CONTAINER_RELEASE_IMAGE: $CI_REGISTRY_IMAGE:latest
+  CONTAINER_SPAMD: $CI_REGISTRY_IMAGE:spamd
+  CONTAINER_CLAMD: $CI_REGISTRY_IMAGE:clamd
 
 unittests:
+  image: $CONTAINER_TEST_IMAGE_SHA
+  services:
+    - name: $CONTAINER_CLAMD
+      alias: clamd
+    - name: $CONTAINER_SPAMD
+      alias: spamd
+    - name: redis:latest
+
   stage: test
   script:
     - cd fuglu
-    - nosetests-3.6 --rednose tests/unit
+    - nosetests --rednose tests/unit
 
 isolated:
-  stage: test_isolated
-  script:
-    - cd fuglu
-    - nosetests-3.6 --rednose tests/isolated  --with-isolation
-
-integrationtests:
+  image: $CONTAINER_TEST_IMAGE_SHA
+  services:
+    - name: $CONTAINER_CLAMD
+      alias: clamd
+    - name: $CONTAINER_SPAMD
+      alias: spamd
   stage: test
   script:
-    - /usr/local/bin/start-services.sh
     - cd fuglu
-    - nosetests-3.6 --rednose tests/integration
+    - nosetests --rednose tests/isolated  --with-isolation
 
-
-# define RSYNC_TARGET in gitlab -> project fuglu -> settings -> variables
-
-buildfuglu:
-  stage: build
+integrationtests:
+  image: $CONTAINER_TEST_IMAGE_SHA
+  services:
+    - name: $CONTAINER_CLAMD
+      alias: clamd
+    - name: $CONTAINER_SPAMD
+      alias: spamd
+  stage: test
   script:
+    - apk add nmap
+    - sh .gitlab-ci.wait4services.sh
     - cd fuglu
-    - python3 setup.py build_py -d /tmp/build install --force
-    - rename '.dist' '' /etc/fuglu/*.dist
-    - mkdir -p /var/log/fuglu
-    - chown nobody /var/log/fuglu
+    - nosetests --rednose tests/integration
 
 pages:
-  image: alpine
   stage: documentation
   script:
     - mkdir public
@@ -62,3 +74,74 @@ pages:
     - master
     - develop
     - milter
+
+
+docker_deploy_branch:
+  image: docker:19.03.1
+  services:
+    - docker:19.03.1-dind
+  stage: deploy
+
+  script:
+    - 'echo "Building fuglu branch image: $CONTAINER_TEST_IMAGE"'
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker pull $CONTAINER_TEST_IMAGE_SHA || true
+    - docker tag $CONTAINER_TEST_IMAGE_SHA $CONTAINER_TEST_IMAGE
+    - docker push $CONTAINER_TEST_IMAGE
+
+docker_deploy_latest:
+  image: docker:19.03.1
+  services:
+    - docker:19.03.1-dind
+  stage: deploy
+
+  script:
+    - 'echo "Building fuglu latest image: $CONTAINER_RELEASE_IMAGE"'
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker pull $CONTAINER_TEST_IMAGE_SHA || true
+    - docker tag $CONTAINER_TEST_IMAGE_SHA $CONTAINER_RELEASE_IMAGE
+    - docker push $CONTAINER_RELEASE_IMAGE
+  only:
+    - master
+
+docker_fuglu:
+  image: docker:19.03.1
+  services:
+    - docker:19.03.1-dind
+  stage: build
+
+  script:
+    - 'echo "Building fuglu image"'
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker pull $CONTAINER_TEST_IMAGE || docker pull $CONTAINER_RELEASE_IMAGE || true
+    - docker build --cache-from $CONTAINER_TEST_IMAGE --cache-from $CONTAINER_RELEASE_IMAGE -t $CONTAINER_TEST_IMAGE_SHA -f docker/fuglu-testenv-contained/Dockerfile.alpine .
+    - 'echo "Image info:"'
+    - docker push $CONTAINER_TEST_IMAGE_SHA
+
+docker_spamd:
+  image: docker:19.03.1
+  services:
+    - docker:19.03.1-dind
+  stage: build
+
+  script:
+    - 'echo "Building spamd image"'
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker pull $CONTAINER_SPAMD || true
+    - docker build --cache-from $CONTAINER_SPAMD -t $CONTAINER_SPAMD -f docker/spamd/Dockerfile .
+    - 'echo "Image info:"'
+    - docker push $CONTAINER_SPAMD
+
+docker_clamd:
+  image: docker:19.03.1
+  services:
+    - docker:19.03.1-dind
+  stage: build
+
+  script:
+    - 'echo "Building clamd image"'
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker pull $CONTAINER_CLAMD || true
+    - docker build --cache-from $CONTAINER_CLAMD -t $CONTAINER_CLAMD -f docker/clamd/Dockerfile .
+    - 'echo "Image info:"'
+    - docker push $CONTAINER_CLAMD

@@ -1,0 +1,7 @@
+.git
+*.log
+*.toml
+build
+Dockerfile*
+pip*
+*/*/*.egg-info

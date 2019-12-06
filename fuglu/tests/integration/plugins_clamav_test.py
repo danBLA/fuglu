@@ -19,7 +19,7 @@ class ClamavPluginTestCase(unittest.TestCase):
         config.set('main', 'prependaddedheaders', 'X-Fuglu-')
         config.set('virus', 'defaultvirusaction', 'DELETE')
         config.add_section('ClamavPlugin')
-        config.set('ClamavPlugin', 'host', '127.0.0.1')
+        config.set('ClamavPlugin', 'host', 'clamd')
 
         config.set('ClamavPlugin', 'port', '3310')
         # try local socket:

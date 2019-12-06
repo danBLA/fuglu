@@ -6,6 +6,6 @@ RUN apt-get -y install clamav-daemon
 RUN usermod -a -G tty clamav
 RUN /bin/mkdir /run/clamav && \
   /bin/chown clamav /run/clamav
-COPY clamd.conf /etc/clamav/clamd.conf
+COPY docker/clamd/clamd.conf /etc/clamav/clamd.conf
 RUN /usr/bin/freshclam
 CMD clamd
