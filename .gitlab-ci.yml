@@ -49,6 +49,7 @@ integrationtests:
       alias: spamd
   stage: test
   script:
+    - sh .gitlab-ci.wait4services.sh
     - cd fuglu
     - nosetests --rednose tests/integration
 
