@@ -179,6 +179,20 @@ class SuspectTestCase(unittest.TestCase):
                                                     sys.version_info.micro)):
                 mailstr = mailobj.as_string()
 
+    def test_message_flatten_patchneeded2(self):
+        """Development: check if fix is still needed even using EmailMessage object!"""
+
+        # see "test_message_flatten" test
+        with patch('fuglu.shared.PatchedMessage', wraps=email.message.EmailMessage):
+            suspect = Suspect('sender@unittests.fuglu.org',
+                              'recipient@unittests.fuglu.org', TESTDATADIR + '/contentproblem.eml')
+            mailobj = suspect.get_message_rep()
+            with self.assertRaises(KeyError, msg="If there's no KeyError anymore change the import shared.py "
+                                                 "-> PatchedMessage is not needed for versions > (%u,%u,%u)"
+                                                 % (sys.version_info.major, sys.version_info.minor,
+                                                    sys.version_info.micro)):
+                mailstr = mailobj.as_string()
+
     def test_suspect_decode_msg_header(self):
         """Test static function "decode_msg_header" of suspect"""
         suspect = Suspect('sender@unittests.fuglu.org',
