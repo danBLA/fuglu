@@ -36,6 +36,7 @@ import datetime
 from string import Template
 from email.header import Header, decode_header
 from email.utils import getaddresses
+from .mixins import DefConfigMixin
 
 HAVE_BEAUTIFULSOUP = False
 try:
@@ -1115,15 +1116,13 @@ def extract_domain(address, lowercase=True):
 
 
 
-# it is important that this class explicitly extends from object, or
-# __subclasses__() will not work!
 
-
-class BasicPlugin(object):
+class BasicPlugin(DefConfigMixin):
 
     """Base class for all plugins"""
 
     def __init__(self, config, section=None):
+        super().__init__(config)
         if section is None:
             self.section = self.__class__.__name__
         else:
