@@ -34,7 +34,7 @@ class TestConfigWrapperString(unittest.TestCase):
         var1 = wrap.get("test", "var1")
         print(f"From ConfigWrapper -> var1: {var1}")
         self.assertEqual(var1, "test")
-        self.assertTrue(isinstance(var1, str))
+        self.assertIsInstance(var1, str)
 
     def test_default_string(self):
         """Test if default string variable is returned if variable not defined"""
@@ -58,7 +58,7 @@ class TestConfigWrapperString(unittest.TestCase):
         var1 = wrap.get("test", "var1")
         print(f"From ConfigWrapper -> var1: {var1}")
         self.assertEqual(var1, "<undefined>")
-        self.assertTrue(isinstance(var1, str))
+        self.assertIsInstance(var1, str)
 
     def test_manual_fallback_string(self):
         """Test if explicit fallback string has precedence"""
@@ -82,7 +82,7 @@ class TestConfigWrapperString(unittest.TestCase):
         var1 = wrap.get("test", "var1", fallback="{{manual}}")
         print(f"From ConfigWrapper -> var1: {var1}")
         self.assertEqual(var1, "{{manual}}")
-        self.assertTrue(isinstance(var1, str))
+        self.assertIsInstance(var1, str)
 
     def test_nodefault_exception_string(self):
         """Test if undefined or value without default raises exception"""
@@ -107,7 +107,7 @@ class TestConfigWrapperString(unittest.TestCase):
         with self.assertRaises(NoOptionError):
             _ = wrap.get("test", "var2")
         with self.assertRaises(NoOptionError):
-            _ = wrap.get("test", "var1", "")
+            _ = wrap.get("test", "var1")
 
 
 class TestConfigWrapperInt(unittest.TestCase):
@@ -136,7 +136,7 @@ class TestConfigWrapperInt(unittest.TestCase):
 
         var1 = wrap.getint("test", "var1")
         print(f"From ConfigWrapper -> var1: {var1}")
-        self.assertTrue(isinstance(var1, int))
+        self.assertIsInstance(var1, int)
         self.assertEqual(var1, 10)
 
     def test_default_int(self):
@@ -160,8 +160,39 @@ class TestConfigWrapperInt(unittest.TestCase):
 
         var1 = wrap.getint("test", "var1")
         print(f"From ConfigWrapper -> var1: {var1}")
-        self.assertTrue(isinstance(var1, int))
+        self.assertIsInstance(var1, int)
         self.assertEqual(var1, -1)
+
+    def test_default_realint(self):
+        """
+        Test if default int variable is returned if given as string
+
+        Note:
+        In the configuration file, an int can be given as string,
+        so the string should be converted to an int. For the wrapper
+        a string value has to work as well.
+        """
+        config = RawConfigParser()
+
+        configtext = """
+        [test]
+        """
+        config.read_string(configtext)
+
+        with self.assertRaises(NoOptionError):
+            _ = config.getfloat("test", "var1")
+
+        wrap = ConfigWrapper(config, {
+            "var1": {
+                "default": "1",
+                "description": "this is just a test for int var1"
+            }
+        })
+
+        var1 = wrap.getint("test", "var1")
+        print(f"From ConfigWrapper -> var1: {var1}")
+        self.assertIsInstance(var1, int)
+        self.assertEqual(var1, 1)
 
     def test_manual_fallback_int(self):
         """Test if explicit fallback int has precedence"""
@@ -185,7 +216,7 @@ class TestConfigWrapperInt(unittest.TestCase):
         var1 = wrap.getint("test", "var1", fallback=999)
         print(f"From ConfigWrapper -> var1: {var1}")
         self.assertEqual(var1, 999)
-        self.assertTrue(isinstance(var1, int))
+        self.assertIsInstance(var1, int)
 
     def test_nodefault_exception_int(self):
         """Test if undefined or value without default raises exception"""
@@ -210,7 +241,7 @@ class TestConfigWrapperInt(unittest.TestCase):
         with self.assertRaises(NoOptionError):
             _ = wrap.getint("test", "var2")
         with self.assertRaises(NoOptionError):
-            _ = wrap.getint("test", "var1", "")
+            _ = wrap.getint("test", "var1")
 
 
 class TestConfigWrapperFloat(unittest.TestCase):
@@ -239,7 +270,7 @@ class TestConfigWrapperFloat(unittest.TestCase):
 
         var1 = wrap.getfloat("test", "var1")
         print(f"From ConfigWrapper -> var1: {var1}")
-        self.assertTrue(isinstance(var1, float))
+        self.assertIsInstance(var1, float)
         self.assertEqual(var1, 10.1)
 
     def test_default_float(self):
@@ -263,8 +294,39 @@ class TestConfigWrapperFloat(unittest.TestCase):
 
         var1 = wrap.getfloat("test", "var1")
         print(f"From ConfigWrapper -> var1: {var1}")
-        self.assertTrue(isinstance(var1, float))
+        self.assertIsInstance(var1, float)
         self.assertEqual(var1, -1.1)
+
+    def test_default_realfloat(self):
+        """
+        Test if default float variable is returned if given as string
+
+        Note:
+        In the configuration file, a float can be given as string,
+        so the string should be converted to a float. For the wrapper
+        a string value has to work as well.
+        """
+        config = RawConfigParser()
+
+        configtext = """
+        [test]
+        """
+        config.read_string(configtext)
+
+        with self.assertRaises(NoOptionError):
+            _ = config.getfloat("test", "var1")
+
+        wrap = ConfigWrapper(config, {
+            "var1": {
+                "default": "1.1",
+                "description": "this is just a test for float var1"
+            }
+        })
+
+        var1 = wrap.getfloat("test", "var1")
+        print(f"From ConfigWrapper -> var1: {var1}")
+        self.assertIsInstance(var1, float)
+        self.assertEqual(var1, 1.1)
 
     def test_manual_fallback_float(self):
         """Test if explicit fallback float has precedence"""
@@ -288,7 +350,7 @@ class TestConfigWrapperFloat(unittest.TestCase):
         var1 = wrap.getfloat("test", "var1", fallback=9.99)
         print(f"From ConfigWrapper -> var1: {var1}")
         self.assertEqual(var1, 9.99)
-        self.assertTrue(isinstance(var1, float))
+        self.assertIsInstance(var1, float)
 
     def test_nodefault_exception_float(self):
         """Test if undefined or value without default raises exception"""
@@ -342,7 +404,7 @@ class TestConfigWrapperBool(unittest.TestCase):
 
         var1 = wrap.getboolean("test", "var1")
         print(f"From ConfigWrapper -> var1: {var1}")
-        self.assertTrue(isinstance(var1, bool))
+        self.assertIsInstance(var1, bool)
         self.assertEqual(var1, True)
 
     def test_default_bool(self):
@@ -373,7 +435,7 @@ class TestConfigWrapperBool(unittest.TestCase):
 
         var1 = wrap.getboolean("test", "var1")
         print(f"From ConfigWrapper -> var1: {var1}")
-        self.assertTrue(isinstance(var1, bool))
+        self.assertIsInstance(var1, bool)
         self.assertEqual(var1, False)
 
     def test_default_realbool(self):
@@ -404,7 +466,7 @@ class TestConfigWrapperBool(unittest.TestCase):
 
         var1 = wrap.getboolean("test", "var1")
         print(f"From ConfigWrapper -> var1: {var1}")
-        self.assertTrue(isinstance(var1, bool))
+        self.assertIsInstance(var1, bool)
         self.assertEqual(var1, False)
 
     def test_manual_fallback_bool(self):
@@ -429,7 +491,7 @@ class TestConfigWrapperBool(unittest.TestCase):
         var1 = wrap.getfloat("test", "var1", fallback=True)
         print(f"From ConfigWrapper -> var1: {var1}")
         self.assertTrue(var1)
-        self.assertTrue(isinstance(var1, bool))
+        self.assertIsInstance(var1, bool)
 
     def test_nodefault_exception_bool(self):
         """Test if undefined or value without default raises exception"""

@@ -44,6 +44,23 @@ class Dummy2(ScannerPlugin):
 
         }
 
+
+class Dummy3(ScannerPlugin):
+    """Dummy3 plugin which has a requiredvar without default"""
+    def __init__(self, config, section=None):
+        ScannerPlugin.__init__(self, config, section)
+        self.requiredvars = {
+            'dummy': {
+                'default': 'bla',
+                'description': 'blabla',
+            },
+            'dummy2': {
+                'description': 'this var has to be defined',
+            },
+
+        }
+
+
 def setup_module():
     loglevel = logging.DEBUG
     root = logging.getLogger()
@@ -56,53 +73,82 @@ def setup_module():
 
 
 class TestPropagateDefaultErrors(unittest.TestCase):
+    """Test config propagation and linting for MainController and Plugins"""
 
-    def test_propagate_defaults(self):
-        requiredvars = {
-            'dummy_blockedfile': {
-                'default': '/etc/fuglu/templates/dummy.tmpl',
-                'description': 'Dummy template for nothing',
-            },
-
-            'senddummy': {
-                'default': '1',
-                'description': 'Send dummy',
-            },
-
-            'dummydir': {
-                'default': '/etc/fuglu/dummy',
-                'description': 'directory that contains dummy',
-            },
-        }
-
-        config = RawConfigParser()
-
-        # check for exception
-        with self.assertRaises(ValueError) as e:
-            MainController.propagate_defaults(requiredvars, config)
-
-
-        try:
-            # Py2
-            message = e.exception.message
-        except AttributeError:
-            # Py3
-            message = e.exception.args[0]
-
-        # check exception message
-        self.assertEqual(message, "Defaultsection can not be None if it is actually used!")
-
-    def test(self):
-        # same output as lint
-        # log-level is ERROR
-        #logConfig._configure4screen(logging.ERROR)
+    def test_lint_noproblems(self):
+        """Test lint where config is all fine"""
         lc = logConfig(lint=True)
         lc.configure()
         root = logging.getLogger()
         root.setLevel(logging.ERROR)
 
         config = RawConfigParser()
-        #config.read([TESTDATADIR + '/endtoendbasetest.conf'])
+
+        # -------------#
+        # config: main #
+        # -------------#
+        config.add_section("main")
+        config.set('main', 'plugins', 'controller_tests.Dummy2')
+        config.set('main', 'prependers', '')
+        config.set('main', 'appenders', '')
+
+        mc = MainController(config)
+        errors = mc.lint()
+        self.assertEqual(0, errors)
+
+    def test_lint_nodefault(self):
+        """Plugin with missing required var without default"""
+        lc = logConfig(lint=True)
+        lc.configure()
+        root = logging.getLogger()
+        root.setLevel(logging.ERROR)
+
+        config = RawConfigParser()
+
+        # -------------#
+        # config: main #
+        # -------------#
+        config.add_section("main")
+        config.set('main', 'plugins', 'controller_tests.Dummy3')
+        config.set('main', 'prependers', '')
+        config.set('main', 'appenders', '')
+
+        mc = MainController(config)
+        errors = mc.lint()
+        self.assertEqual(1, errors)
+
+    def test_lint_nodefault_butset(self):
+        """Plugin where missing required var without default is set"""
+        lc = logConfig(lint=True)
+        lc.configure()
+        root = logging.getLogger()
+        root.setLevel(logging.ERROR)
+
+        config = RawConfigParser()
+
+        # -------------#
+        # config: main #
+        # -------------#
+        config.add_section("main")
+        config.set('main', 'plugins', 'controller_tests.Dummy3')
+        config.set('main', 'prependers', '')
+        config.set('main', 'appenders', '')
+
+        config.add_section("Dummy3")
+        config.set('Dummy3', 'dummy2', 'explicit value')
+
+        mc = MainController(config)
+        errors = mc.lint()
+        self.assertEqual(0, errors)
+
+    def test_lint_nosec(self):
+        """Test if plugin with section=None triggers error by default"""
+        lc = logConfig(lint=True)
+        lc.configure()
+        root = logging.getLogger()
+        root.setLevel(logging.ERROR)
+
+        config = RawConfigParser()
 
         # -------------#
         # config: main #
@@ -112,22 +158,23 @@ class TestPropagateDefaultErrors(unittest.TestCase):
         config.set('main', 'prependers', '')
         config.set('main', 'appenders', '')
 
-        # ------------------- #
-        # config: performance #
-        # ------------------- #
-        config.add_section("performance")
-        # minimum scanner threads
-        config.set('performance', 'minthreads', 1)
-        # maximum scanner threads
-        config.set('performance', 'maxthreads', 1)
-        # Method for parallelism, either 'thread' or 'process'
-        config.set('performance', 'backend', 'process')
+        mc = MainController(config)
+        errors = mc.lint()
+        self.assertEqual(1, errors)
+
+    def test_alldefault_lint(self):
+        """Test lint command for default config"""
+        lc = logConfig(lint=True)
+        lc.configure()
+        root = logging.getLogger()
+        root.setLevel(logging.ERROR)
+
+        config = RawConfigParser()
 
         mc = MainController(config)
-        mc.propagate_core_defaults()
+        errors = mc.lint()
+        self.assertEqual(2, errors, "With all default, 1 error for SAPlugin and 1 error for ClamavPlugin are expected")
 
-        mc.lint()
-        self.assertEqual(1, len(mc.plugins))
 
 class TestControlSession(unittest.TestCase):
     """Test filter functions, stick to lowercase for testing because that's the normal use case"""

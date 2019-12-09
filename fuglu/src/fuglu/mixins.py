@@ -35,6 +35,9 @@ class ConfigWrapper:
         """
         if fallback == _UNSET:
             fallback = self._get_fallback(option, **kwargs)
+            if isinstance(fallback, str):
+                # convert using RawConfigParser method which just uses 'int'
+                fallback = int(fallback)
         return self._config.getint(section, option, fallback=fallback, **kwargs)
 
     def getfloat(self, section: str, option: str, fallback=_UNSET, **kwargs):
@@ -44,6 +47,9 @@ class ConfigWrapper:
         """
         if fallback == _UNSET:
             fallback = self._get_fallback(option, **kwargs)
+            if isinstance(fallback, str):
+                # convert using RawConfigParser method which just uses 'float'
+                fallback = float(fallback)
         return self._config.getfloat(section, option, fallback=fallback, **kwargs)
 
     def getboolean(self, section: str, option: str, fallback=_UNSET, **kwargs):
