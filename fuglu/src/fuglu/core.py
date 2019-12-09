@@ -39,6 +39,7 @@ from fuglu.shared import (HAVE_BEAUTIFULSOUP, Suspect, default_template_values)
 from fuglu.stats import StatsThread
 from fuglu.stringencode import force_bString, force_uString
 from fuglu.threadpool import ThreadPool
+from fuglu.mixins import DefConfigMixin
 
 
 #--------------------#
@@ -137,13 +138,8 @@ def check_version_status(lint=False):
                     print(fc.strcolor(message, "yellow"))
 
 
-class MainController(object):
-
+class MainController(DefConfigMixin):
     """main class to startup and control the app"""
-    plugins = []
-    prependers = []
-    appenders = []
-    config = None
 
     def __init__(self, config, logQueue=None, logProcessFacQueue=None, nolog=False):
         """
@@ -159,6 +155,10 @@ class MainController(object):
             logProcessFacQueue (multiprocessing.queue or None): Queue where to put new logging configurations (logtools.logConfig objects)
             nolog (bool): if True set logging level to error which will basically prevent logging
         """
+
+        # initialise mixin
+        DefConfigMixin.__init__(self, config)
+
         self.requiredvars = {
             # main section
             'identifier': {
@@ -540,6 +540,9 @@ class MainController(object):
         self._logProcessFacQueue = logProcessFacQueue
         self.configFileUpdates = None
         self.logConfigFileUpdates = None
+        self.plugins = []
+        self.prependers = []
+        self.appenders = []
 
     @property
     def logQueue(self):
@@ -962,7 +965,7 @@ class MainController(object):
         print("Linting ", fc.strcolor("main configuration", 'cyan'))
         if not self.checkConfig():
             print(fc.strcolor("ERROR", "red"))
-            errors +=1
+            errors += 1
         else:
             print(fc.strcolor("OK", "green"))
 
@@ -1041,7 +1044,7 @@ class MainController(object):
             else:
                 section = defaultsection
                 if defaultsection is None:
-                    raise ValueError("Defaultsection can not be None if it is actually used!")
+                    raise ValueError(f"Option({option}): Defaultsection can not be None if it is actually used!")
 
             default = infodic['default']
 
@@ -1057,61 +1060,12 @@ class MainController(object):
         """
         MainController.propagate_defaults(self.requiredvars, self.config, 'main')
 
-    def propagate_plugin_defaults(self):
-        """propagate defaults from loaded lugins"""
-        #plugins, prependers, appenders
-        allplugs = self.plugins + self.prependers + self.appenders
-        remove_plugin = []
-        for plug in allplugs:
-            if hasattr(plug, 'requiredvars'):
-                requiredvars = getattr(plug, 'requiredvars')
-                if type(requiredvars) == dict:
-                    try:
-                        MainController.propagate_defaults(requiredvars, self.config, plug.section)
-                    except ValueError:
-                        remove_plugin.append(plug)
-
-        if len(remove_plugin) > 0:
-            # if there are problems print then to screen and into log.
-            # The screen output will be ignored in daemon mode but there
-            # are the log messages
-            fc = FunkyConsole()
-
-            msg_string = "Warning: \"None\" plugin section name found in %u plugin%s!" % \
-                         (len(remove_plugin), "s" if len(remove_plugin) > 1 else "")
-
-            print(fc.strcolor(msg_string, "yellow"))
-            self.logger.warning(msg_string)
-
-            for plug in remove_plugin:
-                if plug in self.plugins:
-                    msg_string = "Warning: Removing plugin %s from plugin-list" % plug
-                    self.logger.warning(msg_string)
-                    print(fc.strcolor(msg_string, "yellow"))
-
-                    self.plugins.remove(plug)
-                elif plug in self.prependers:
-                    msg_string = "Warning: Removing plugin %s from prependers-list" % plug
-                    self.logger.warning(msg_string)
-                    print(fc.strcolor(msg_string, "yellow"))
-
-                    self.prepernders.remove(plug)
-                elif plug in self.appenders:
-                    msg_string = "Warning: Removing plugin %s from appenders-list" % plug
-                    self.logger.warning(msg_string)
-                    print(fc.strcolor(msg_string, "yellow"))
-                    self.appenders.remove(plug)
-                else:
-                    msg_string = "Error: Could not remove plugin %s, not found in any list!" % str(plug)
-                    self.logger.error(msg_string)
-                    print(fc.strcolor(msg_string, "red"))
-                    raise ValueError("Plugin %s with bad config section name not found in any list!" % str(plug))
-
     def checkConfig(self):
-        """Check if all requred options are in the config file
+        """Check if all required options without default are in the config file
         Fill missing values with defaults if possible
         """
-        allOK = True
+        all_ok = True
+        fc = FunkyConsole()
         for config, infodic in self.requiredvars.items():
             section = infodic['section']
             try:
@@ -1119,15 +1073,29 @@ class MainController(object):
 
                 if 'validator' in infodic and not infodic["validator"](var):
                     print("Validation failed for [%s] :: %s" % (section, config))
-                    allOK = False
+                    all_ok = False
 
             except configparser.NoSectionError:
-                print("Missing configuration section [%s] :: %s" % (section, config))
-                allOK = False
+                print(fc.strcolor(f"Missing configuration section containing variables without default "
+                                  f"value [{section}] :: {config}", "red"))
+                all_ok = False
             except configparser.NoOptionError:
-                print("Missing configuration value [%s] :: %s" % (section, config))
-                allOK = False
-        return allOK
+                print(fc.strcolor(f"Missing configuration value without default [{section}] :: {config}", "red"))
+                all_ok = False
+                
+        # missing sections -> this is only a warning since section is not required
+        # as long as there are no required variables without default values...
+        if all_ok:
+            missingsections = set()
+            for config, infodic in self.requiredvars.items():
+                section = infodic['section']
+                if section not in missingsections and not self.config.has_section(section):
+                    missingsections.add(section)
+
+            for section in missingsections:
+                print(fc.strcolor(f"Missing configuration section [{section}] :: "
+                              f"All variables will use default values", "yellow"))
+        return all_ok
 
     def load_extensions(self):
         """load fuglu extensions"""
@@ -1145,13 +1113,13 @@ class MainController(object):
 
     def get_component_by_alias(self, pluginalias):
         """Returns the full plugin component from an alias. if this alias is not configured, return the original string"""
-        if not self.config.has_section('PluginAlias'):
-            return pluginalias
 
-        if not self.config.has_option('PluginAlias', pluginalias):
-            return pluginalias
-
-        return self.config.get('PluginAlias', pluginalias)
+        try:
+            pluginalias = self.config.get("PluginAlias", pluginalias)
+        except (configparser.NoSectionError, configparser.NoOptionError):
+            pass
+        
+        return pluginalias
 
     def load_plugins(self):
         """load plugins defined in config"""
@@ -1185,7 +1153,6 @@ class MainController(object):
             self.plugins = newplugins
             self.prependers = newprependers
             self.appenders = newappenders
-            self.propagate_plugin_defaults()
 
         return allOK
 

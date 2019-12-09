@@ -28,6 +28,7 @@ from fuglu.addrcheck import Addrcheck
 from fuglu.stringencode import force_uString, force_bString
 from fuglu.mailattach import Mailattachment_mgr
 from fuglu.lib.patchedemail import PatchedMessage, PatchedMIMEMultipart
+from fuglu.funkyconsole import FunkyConsole
 from html.parser import HTMLParser
 import email
 import re
@@ -36,6 +37,7 @@ import datetime
 from string import Template
 from email.header import Header, decode_header
 from email.utils import getaddresses
+from .mixins import DefConfigMixin
 
 HAVE_BEAUTIFULSOUP = False
 try:
@@ -1115,15 +1117,13 @@ def extract_domain(address, lowercase=True):
 
 
 
-# it is important that this class explicitly extends from object, or
-# __subclasses__() will not work!
 
-
-class BasicPlugin(object):
+class BasicPlugin(DefConfigMixin):
 
     """Base class for all plugins"""
 
     def __init__(self, config, section=None):
+        super().__init__(config)
         if section is None:
             self.section = self.__class__.__name__
         else:
@@ -1147,8 +1147,9 @@ class BasicPlugin(object):
 
     def check_config(self):
         """Print missing / non-default configuration settings"""
-        allOK = True
+        all_ok = True
 
+        fc = FunkyConsole()
         # old config style
         if isinstance(self.requiredvars, (tuple, list)):
             for configvar in self.requiredvars:
@@ -1160,37 +1161,49 @@ class BasicPlugin(object):
                 try:
                     self.config.get(section, config)
                 except configparser.NoOptionError:
-                    print("Missing configuration value [%s] :: %s" % (
-                        section, config))
-                    allOK = False
+                    print(fc.strcolor(f"Missing configuration value without default [{section}] :: {config}", "red"))
+                    all_ok = False
                 except configparser.NoSectionError:
-                    print("Missing configuration section %s" % section)
-                    allOK = False
+                    print(fc.strcolor(f"Missing configuration section containing variables without default "
+                                      f"value [{section}] :: {config}", "red"))
+                    all_ok = False
 
         # new config style
         if isinstance(self.requiredvars, dict):
             for config, infodic in self.requiredvars.items():
-                section = self.section
-                if 'section' in infodic:
-                    section = infodic['section']
+                section = infodic.get("section", self.section)
 
                 try:
                     var = self.config.get(section, config)
                     if 'validator' in infodic:
                         if not infodic["validator"](var):
-                            print("Validation failed for [%s] :: %s" % (
-                                section, config))
-                            allOK = False
+                            print(fc.strcolor(f"Validation failed for [{section}] :: {config}", "red"))
+                            all_ok = False
                 except configparser.NoSectionError:
-                    print("Missing configuration section [%s] :: %s" % (
-                        section, config))
-                    allOK = False
+                    print(fc.strcolor(f"Missing configuration section containing variables without default "
+                                      f"value [{section}] :: {config}", "red"))
+                    all_ok = False
                 except configparser.NoOptionError:
-                    print("Missing configuration value [%s] :: %s" % (
-                        section, config))
-                    allOK = False
+                    print(fc.strcolor(f"Missing configuration value without default [{section}] :: {config}", "red"))
+                    all_ok = False
 
-        return allOK
+        # missing sections -> this is only a warning since section is not required
+        # as long as there are no required variables without default values...
+        if all_ok:
+            missingsections = set()
+            for config, infodic in self.requiredvars.items():
+                section = infodic.get("section", self.section)
+                if section not in missingsections and not self.config.has_section(section):
+                    missingsections.add(section)
+            for section in missingsections:
+                if section is None:
+                    print(fc.strcolor(f"Pogramming error: Configuration section is manually None :: "
+                                      f"Setup 'section' in requiredvars dict!", "red"))
+                    all_ok = False
+                else:
+                    print(fc.strcolor(f"Missing configuration section [{section}] :: "
+                                      f"All variables will use default values", "yellow"))
+        return all_ok
 
     def __str__(self):
         classname = self.__class__.__name__
