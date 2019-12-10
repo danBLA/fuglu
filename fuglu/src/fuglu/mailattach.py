@@ -21,10 +21,12 @@ import email
 import logging
 import weakref
 import hashlib
+from typing import Optional, Union
 from fuglu.extensions.filearchives import Archivehandle
 from fuglu.extensions.filetype import filetype_handler
 from fuglu.caching import smart_cached_property, smart_cached_memberfunc, Cachelimits
 from fuglu.stringencode import force_uString, force_bString
+from fuglu.lib.patchedemail import PatchedMessage
 from io import BytesIO
 
 # workarounds for mimetypes
@@ -54,7 +56,7 @@ class Mailattachment(Cachelimits):
         Constructor
 
         Args:
-            fugluid (): 
+            fugluid (str): fuglu id
             buffer (bytes): buffer containing attachment source
             filename (str): filename of current attachment object
             filesize (int): file size in bytes
@@ -643,7 +645,10 @@ Content type : %s""" % (self.filename,u'(unknown)' if self.filesize is None else
 class Mailattachment_mgr(object):
     """Mail attachment manager"""
 
-    def __init__(self, msgrep, fugluid, section=None, cachelimit=None):
+    def __init__(self,
+                 msgrep: PatchedMessage, fugluid: str, section: Optional[str]=None,
+                 cachelimit: Optional[int]=None, default_filelimit: Optional[int]=None,
+                 max_filelimit: Optional[int]=None):
         """
         Constructor, initialised by message.
 
@@ -651,6 +656,9 @@ class Mailattachment_mgr(object):
             fugluid (): 
             msgrep (email.message.Message): Message to work with
             fugluid (string): fugluid for logging
+            cachelimit (int): cachelimit for keeping attachments during Suspect lifetime
+            default_filelimit (int): default maximum filelimit to extract files if not defined otherwise
+            max_filelimit (int): maximum filelimit to extract files, limiting all other limits
         """
         self._msgrep = msgrep
         self.fugluid = fugluid
@@ -667,8 +675,32 @@ class Mailattachment_mgr(object):
         self._current_att_cache = 0
         self._new_att_cache = 0
         self._cache_limit = cachelimit
+        self._default_filelimit = default_filelimit
+
+        # default limit should be bound by max
+        if max_filelimit is not None and default_filelimit is not None:
+            self._default_filelimit = min(default_filelimit, max_filelimit)
+
+        self._max_filelimit = max_filelimit
         self._mailatt_obj_counter = 0
         self._att_file_dict = None
+
+    def get_maxsize_extract(self, maxsize: Optional[int]):
+        """Get maximum size to extract file from archive applying the various limits."""
+        if maxsize is not None:
+            # input value given
+            pass
+        elif self._default_filelimit is not None:
+            # default limit given
+            maxsize = self._default_filelimit
+        elif self._max_filelimit is not None:
+            # default limit given
+            maxsize = self._max_filelimit
+
+        if maxsize is not None and self._max_filelimit is not None:
+            maxsize = min(maxsize, self._max_filelimit)
+
+        return maxsize
 
     def _increment_ma_objects(self):
         """
@@ -985,7 +1017,7 @@ class Mailattachment_mgr(object):
         """
         file_list = []
         for att_obj in self.get_mailatt_generator():
-            file_list.extend(att_obj.get_fileslist(0, level, maxsize_extract))
+            file_list.extend(att_obj.get_fileslist(0, level, self.get_maxsize_extract(maxsize_extract)))
         return file_list
 
     def get_objectlist(self, level=0, maxsize_extract=None, noextractinfo=None, include_parents=False):
@@ -1007,7 +1039,7 @@ class Mailattachment_mgr(object):
         """
         obj_list = []
         for att_obj in self.get_mailatt_generator():
-            obj_list.extend(att_obj.get_objectlist(0, level, maxsize_extract,
+            obj_list.extend(att_obj.get_objectlist(0, level, self.get_maxsize_extract(maxsize_extract),
                                                    noextractinfo=noextractinfo, include_parents=include_parents))
         return obj_list
 
@@ -1025,7 +1057,7 @@ class Mailattachment_mgr(object):
         """
         obj_list = []
         for att_obj in self.get_mailatt_generator():
-            obj_list.extend(att_obj.get_objectlist(0,level,maxsize_extract, noextractinfo=noextractinfo))
+            obj_list.extend(att_obj.get_objectlist(0,level,self.get_maxsize_extract(maxsize_extract), noextractinfo=noextractinfo))
 
         checksumlist = []
         for obj in obj_list:
