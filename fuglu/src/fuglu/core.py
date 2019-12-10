@@ -374,7 +374,17 @@ class MainController(DefConfigMixin):
             'att_mgr_cachesize': {
                 'default': "50000000",
                 'section': 'performance',
-                'description': "Maximum cache size to keep attachemnts (archives extracted) per suspect during mail analysis (in bytes)"
+                'description': "Maximum cache size to keep attachemnts (archives extracted) per suspect during mail analysis (in bytes, default: 50MB)"
+            },
+            'att_mgr_default_maxextract': {
+                'default': "50000000",
+                'section': 'performance',
+                'description': "Default maximum filesize to extract from archives (in bytes, default: 50MB)"
+            },
+            'att_mgr_hard_maxextract': {
+                'default': "500000000",
+                'section': 'performance',
+                'description': "Upper maximum filesize limit to extract from archives (in bytes, default: 500MB)"
             },
 
             # spam section

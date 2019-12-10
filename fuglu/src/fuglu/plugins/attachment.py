@@ -700,7 +700,7 @@ The other common template variables are available as well.
 
                                 # Keeping this check for backward compatibility
                                 # This could easily be removed since memory is used anyway
-                                if archObj.filesize > archivecontentmaxsize:
+                                if archivecontentmaxsize is not None and archObj.filesize > archivecontentmaxsize:
                                     nocheckinfo.append(archObj.filename, u"toolarge",
                                                        u"already extracted but too large for check: %u > %u"
                                                        % (archObj.filesize, archivecontentmaxsize))
@@ -726,7 +726,7 @@ The other common template variables are available as well.
                             for item in nocheckinfo.get_filtered():
                                 try:
                                     self._debuginfo(suspect, 'Archive File not checked: reason: %s -> %s'
-                                                    % (item[0], item[2]))
+                                                    % (item[0], item[1]))
                                 except Exception as e:
                                     self._debuginfo(suspect, 'Archive File not checked: %s' % str(e))
 

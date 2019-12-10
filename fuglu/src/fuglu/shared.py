@@ -30,6 +30,7 @@ from fuglu.mailattach import Mailattachment_mgr
 from fuglu.lib.patchedemail import PatchedMessage, PatchedMIMEMultipart
 from fuglu.funkyconsole import FunkyConsole
 from html.parser import HTMLParser
+from typing import List, Union, Optional, Set
 import email
 import re
 import configparser
@@ -200,8 +201,12 @@ class Suspect(object):
     with a suspect and may modify the tags or even the message content itself.
     """
 
-    def __init__(self, from_address, recipients, tempfile, att_cachelimit=None, smtp_options=set(),
-                 sasl_login=None, sasl_sender=None, sasl_method=None, queue_id=None):
+    def __init__(self,
+                 from_address: str, recipients: Union[str, List[str]], tempfile: str,
+                 att_cachelimit: Optional[int]=None, att_defaultlimit: Optional[int]=None,
+                 att_maxlimit: Optional[int]=None, smtp_options: Optional[Set]=None,
+                 sasl_login: Optional[str]=None, sasl_sender: Optional[str]=None,
+                 sasl_method: Optional[str]=None, queue_id: Optional[str]=None):
         self.source = None
         """holds the message source if set directly"""
 
@@ -256,14 +261,16 @@ class Suspect(object):
             self.logger.warning("%s: Invalid sender address: %s" % (self.id, self.from_address))
             raise ValueError("invalid sender address: %s" % self.from_address)
 
-        self.clientinfo = None
         """holds client info tuple: helo, ip, reversedns"""
+        self.clientinfo = None
 
-        self._att_cachelimit= att_cachelimit
-        """Size limit for attachment manager cache"""
+        """Size limits for attachment manager"""
+        self._att_cachelimit = att_cachelimit
+        self._att_defaultlimit = att_defaultlimit
+        self._att_maxlimit = att_maxlimit
 
-        self._att_mgr = None
         """Attachment manager"""
+        self._att_mgr = None
 
         # ------------- #
         # modifications #
@@ -281,7 +288,7 @@ class Suspect(object):
         # ------------ #
         # smtp_otpions #
         # ------------ #
-        self.smtp_options = smtp_options
+        self.smtp_options = set() if smtp_options is None else smtp_options
 
         # ------------------------ #
         # SASL authentication info #
@@ -315,7 +322,11 @@ class Suspect(object):
     @property
     def att_mgr(self):
         if self._att_mgr is None:
-            self._att_mgr = Mailattachment_mgr(self.get_message_rep(), self.id, cachelimit=self._att_cachelimit)
+            self._att_mgr = Mailattachment_mgr(self.get_message_rep(), self.id,
+                                               cachelimit=self._att_cachelimit,
+                                               default_filelimit=self._att_defaultlimit,
+                                               max_filelimit=self._att_maxlimit
+                                               )
         return self._att_mgr
 
     @property

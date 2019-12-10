@@ -909,6 +909,52 @@ class SuspectTest(unittest.TestCase):
             print('  contenttype      : %s' % attObj.contenttype)
             print('  contenttype_mime : %s' % attObj.contenttype_mime)
 
+    def test_default_extractsize(self):
+        """Test if defaultlimit is applied to suspect attachment manager"""
+        mailfile = join(TESTDATADIR, "6mbzipattachment.eml")
+
+        # default limits, "largefile" file should be extracted from zip
+        suspect = Suspect("from@fuglu.unittest", "to@fuglu.unittest", mailfile)
+        filelist = suspect.att_mgr.get_fileslist(level=None)
+        self.assertIn("largefile", filelist)
+
+        # 1MB default limit, "largefile" should not be extracted
+        suspect = Suspect("from@fuglu.unittest", "to@fuglu.unittest", mailfile, att_defaultlimit=1000000)
+        filelist = suspect.att_mgr.get_fileslist(level=None)
+        self.assertNotIn("largefile", filelist)
+
+    def test_default_extractsize_bypassed(self):
+        """Test if defaultlimit can be bypassed"""
+        mailfile = join(TESTDATADIR, "6mbzipattachment.eml")
+
+        # the defaultlimit can be bypassed
+        suspect = Suspect("from@fuglu.unittest", "to@fuglu.unittest", mailfile, att_defaultlimit=1000000)
+        filelist = suspect.att_mgr.get_fileslist(level=None, maxsize_extract=10000000)
+        self.assertIn("largefile", filelist)
+
+    def test_max_extractsize(self):
+        """Test if maxlimit is applied to suspect attachment manager"""
+        mailfile = join(TESTDATADIR, "6mbzipattachment.eml")
+
+        # default limits, "largefile" file should be extracted from zip
+        suspect = Suspect("from@fuglu.unittest", "to@fuglu.unittest", mailfile)
+        filelist = suspect.att_mgr.get_fileslist(level=None)
+        self.assertIn("largefile", filelist)
+
+        # 1MB default limit, "largefile" should not be extracted
+        suspect = Suspect("from@fuglu.unittest", "to@fuglu.unittest", mailfile, att_maxlimit=1000000)
+        filelist = suspect.att_mgr.get_fileslist(level=None)
+        self.assertNotIn("largefile", filelist)
+
+    def test_max_extractsize_nobypass(self):
+        """Test if maxlimit can not be bypassed"""
+        mailfile = join(TESTDATADIR, "6mbzipattachment.eml")
+
+        # the max limit can not be bypassed
+        suspect = Suspect("from@fuglu.unittest", "to@fuglu.unittest", mailfile, att_maxlimit=1000000)
+        filelist = suspect.att_mgr.get_fileslist(level=None, maxsize_extract=10000000)
+        self.assertNotIn("largefile", filelist)
+
 
 class ConversionTest(unittest.TestCase):
     """Test a problematic mail for decoding errors using attachment manager and no attachment manager as they
